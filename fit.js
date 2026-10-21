@@ -110,6 +110,7 @@
   var allRows = [];
   var idx = {};
   var people = [];
+  var goals = {};
   var sheetUrl = '';
   var targetSource = 'default';
   var dropped = 0;
@@ -248,9 +249,9 @@
       else fallback++;
       if (!t) {
         var d = defaultsAt(i);
-        return { name: name, target: { cal: d.cal, prot: d.prot, carbs: d.carbs, fat: d.fat } };
+        return { name: name, goal: goals[name.toLowerCase()] || '', target: { cal: d.cal, prot: d.prot, carbs: d.carbs, fat: d.fat } };
       }
-      return { name: name, target: { cal: t.cal, prot: t.prot, carbs: t.carbs, fat: t.fat } };
+      return { name: name, goal: goals[name.toLowerCase()] || '', target: { cal: t.cal, prot: t.prot, carbs: t.carbs, fat: t.fat } };
     });
     if (matched && !fallback && !ordered) targetSource = 'sheet';
     else if (ordered && !matched) targetSource = 'sheet-order';
@@ -293,6 +294,23 @@
     if (cfg.variant === 'couple') return i === 0 ? '💙' : '💗';
     return '👤';
   }
+
+  function shortGoal(raw) {
+    if (!raw) return '';
+    var s = String(raw).toLowerCase();
+    if (/muscle|bulk|gain/.test(s)) return '💪 Build';
+    if (/fat|cut|lose|lean/.test(s)) return '🔥 Cut';
+    if (/maintain|keep/.test(s)) return '⚖️ Maintain';
+    if (/recomp/.test(s)) return '🔄 Recomp';
+    if (/diabet|sugar|glucose/.test(s)) return '🩸 Sugar';
+    if (/pressure|hypertens|bp/.test(s)) return '❤️ BP';
+    if (/cholesterol|lipid/.test(s)) return '💊 Lipid';
+    if (/heart/.test(s)) return '❤️ Heart';
+    if (/kidney/.test(s)) return '🫘 Kidney';
+    if (/gout/.test(s)) return '⚠️ Gout';
+    if (/health|well/.test(s)) return '🌿 Health';
+    return String(raw).slice(0, 12);
+  }
   function renderPersonCard(person, i, dateStr) {
     var d = getDayData(person.name, dateStr);
     var t = person.target;
@@ -312,7 +330,7 @@
     var midClass = st === 'over' ? ' over' : (st === 'low' ? ' low' : '');
     var klass = 'person' + (cfg.variant === 'couple' ? ' p' + (i + 1) : '');
     return '<div class="' + klass + '">'
-      + '<h3>' + personEmoji(i) + ' ' + esc(person.name) + '</h3>'
+      + '<h3><span>' + personEmoji(i) + ' ' + esc(person.name) + '</span>' + (person.goal ? '<span class="goal-badge">' + esc(shortGoal(person.goal)) + '</span>' : '') + '</h3>'
       + '<div class="metric"><span class="label">Calories eaten</span><strong>' + Math.round(d.eaten) + '</strong></div>'
       + '<div class="highlight-row">'
       + '<div class="highlight"><span class="h-label">Target</span><span class="h-val">' + Math.round(t.cal) + '</span></div>'
@@ -556,8 +574,17 @@
           if (idx.date < 0 || idx.cal < 0) { showError('The Log tab needs Date and Calories columns.'); return; }
           if (cfg.variant !== 'solo' && idx.person < 0) { showError('The Log tab needs a Person column.'); return; }
           var sheetTargets = [];
-          try { sheetTargets = parseTargets(await fetchText(sheetCsvUrl(id, 'Dashboard'))); }
-          catch (e) { sheetTargets = []; }
+          try { sheetTargets = parseTargets(await fetchText(sheetCsvUrl(id, 'Dashboard'))); } catch (e) {}
+          try {
+            var ptext = await fetchText(sheetCsvUrl(id, 'Profile'));
+            var prows = parseCSV(ptext);
+            var fields = {};
+            prows.forEach(function (r) { if (r[0]) fields[String(r[0]).trim()] = r.slice(1); });
+            goals = {};
+            var names = fields['Name'] || [];
+            var gs = fields['Goal'] || [];
+            names.forEach(function (n, i) { if (n) goals[String(n).trim().toLowerCase()] = gs[i] || ''; });
+          } catch (e) {}
           var names = logNamesFromRows();
           if (cfg.variant !== 'solo' && !names.length) { showError('No names in the Person column yet.'); return; }
           assignPeople(names, sheetTargets);
