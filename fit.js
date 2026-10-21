@@ -637,20 +637,76 @@
     $('sheetUrl').value = url;
     await loadData();
   }
+  function showToast(msg) {
+    var el = $('copyToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'copyToast';
+      el.className = 'copy-toast';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(function () { el.hidden = true; }, 4500);
+  }
+  function onPhone() {
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
   function openAi(which, useMed) {
     closeMenus();
     var prompt = useMed && pendingMedPrompt ? pendingMedPrompt : instructionText();
     var shortPrompt = useMed && pendingMedPrompt
       ? pendingMedPrompt
       : 'Help me log food and workouts to my Google Sheet.\n\nMy sheet link: ' + (currentUrl() || '[paste your sheet link]') + '\n\nRead the README tab first, then the Profile tab. Follow those rules exactly.';
-    try { navigator.clipboard.writeText(prompt); } catch (e) {}
-    var urls = {
-      chatgpt: 'https://chatgpt.com/?q=' + encodeURIComponent(shortPrompt),
-      grok: 'https://grok.com/?q=' + encodeURIComponent(shortPrompt),
-      gemini: 'https://gemini.google.com/app?q=' + encodeURIComponent(shortPrompt),
-      claude: 'https://claude.ai/new?q=' + encodeURIComponent(shortPrompt)
+    var q = encodeURIComponent(shortPrompt);
+    var names = { chatgpt: 'ChatGPT', grok: 'Grok', gemini: 'Gemini', claude: 'Claude' };
+    var web = {
+      chatgpt: 'https://chatgpt.com/?q=' + q,
+      grok: 'https://grok.com/?q=' + q,
+      gemini: 'https://gemini.google.com/app?q=' + q,
+      claude: 'https://claude.ai/new?q=' + q
     };
-    window.open(urls[which], '_blank');
+    var app = {
+      chatgpt: 'chatgpt://?q=' + q,
+      grok: 'grok://?q=' + q,
+      gemini: 'googlegemini://?q=' + q,
+      claude: 'claude://claude.ai/new?q=' + q
+    };
+    var label = names[which] || 'the app';
+    if (!onPhone()) {
+      try { navigator.clipboard.writeText(prompt); } catch (e) {}
+      window.open(web[which] || web.chatgpt, '_blank');
+      return;
+    }
+    var went = false;
+    function leave() {
+      if (went) return;
+      went = true;
+      var left = false;
+      function mark() { left = true; }
+      window.addEventListener('pagehide', mark);
+      function onVis() { if (document.hidden) mark(); }
+      document.addEventListener('visibilitychange', onVis);
+      window.location.href = app[which] || web[which];
+      setTimeout(function () {
+        window.removeEventListener('pagehide', mark);
+        document.removeEventListener('visibilitychange', onVis);
+        if (left) return;
+        showToast('Copied. Paste it into ' + label + '.');
+        window.open(web[which] || web.chatgpt, '_blank');
+      }, 1400);
+    }
+    try {
+      var pending = navigator.clipboard.writeText(prompt);
+      if (pending && pending.then) pending.then(leave, leave);
+      else leave();
+    } catch (e) {
+      leave();
+    }
+    setTimeout(leave, 500);
   }
   function medKey() { return 'medAsked_' + cfg.storageKey + '_' + todayStr(); }
   function resetMedModal() {
