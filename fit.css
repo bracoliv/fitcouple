@@ -341,3 +341,10 @@ footer { text-align: center; font-size: 0.75rem; color: var(--muted); margin: 20
   padding: 8px 16px;
   border-radius: 8px;
 }
+
+@keyframes goalPop {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.goal-hit { animation: goalPop 0.5s ease-out; display: inline-block; }
