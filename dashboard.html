@@ -25,6 +25,12 @@
     .hint { font-size:0.8rem; color:var(--muted); margin-top:12px; }
     .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; z-index:10; }
     .exit-btn { background:none; border:1px solid var(--border); padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; color:var(--muted); }
+    .switcher { position:relative; }
+    .switcher summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:4px; }
+    .switcher summary::-webkit-details-marker { display:none; }
+    .switcher-menu { position:absolute; right:0; top:100%; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:140px; z-index:20; }
+    .switcher-menu a { display:block; padding:8px 12px; text-decoration:none; color:var(--text); font-size:0.88rem; }
+    .switcher-menu a:hover { background:#f1f3f4; }
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; padding:16px; }
     .modal.open { display:flex; }
     .modal-content { background:#fff; border-radius:16px; max-width:540px; width:100%; max-height:85vh; overflow-y:auto; padding:20px; }
@@ -70,41 +76,39 @@
   <div class="modal" id="howtoModal" onclick="if(event.target===this)this.classList.remove('open')">
     <div class="modal-content">
       <h2>How to use FitCouple</h2>
-      <p style="font-size:0.85rem;color:#5f6368;margin:0 0 12px;">⚠️ The instruction below is for your AI (ChatGPT / Grok / Gemini / Claude). Paste it together with your sheet link.</p>
+      <p style="font-size:0.85rem;color:#5f6368;margin:0 0 12px;">⚠️ This instruction is only for your AI. Use a separate sheet for Couple. Do not mix with Solo or Family.</p>
       <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template → File → Make a copy → save it in your Google Drive.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a></p></div>
       <div class="step"><h3>2. Share your sheet</h3><p>Click Share → General access → Anyone with the link → Viewer.</p></div>
-      <div class="step"><h3>3. Connect with your AI</h3><p>Use ChatGPT, Grok, Gemini, Claude, or any AI that can see images. Paste the full instruction below.</p></div>
-      <div class="step"><h3>4. Copy this full AI instruction</h3>
-        <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet for FitCouple.
+      <div class="step"><h3>3. Connect with your AI</h3><p>Paste the instruction below + your sheet link into ChatGPT / Grok / Gemini / Claude.</p></div>
+      <div class="step"><h3>4. Copy this full AI instruction (FitCouple only)</h3>
+        <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet for FitCouple (two people only).
 
-My sheet link: [paste your copied sheet link here]
+My sheet link: [paste your FitCouple sheet link here]
+
+IMPORTANT: This sheet is only for the two people in FitCouple. Do not log other family members here.
 
 ## Logging rules (strict)
 - Always APPEND new rows at the bottom of the Log tab.
 - Never insert, edit, overwrite, or delete existing rows.
 - Columns (exact order):
   Date (YYYY-MM-DD), Time, Person, Food/Workout, Calories (kcal), Protein (g), Carbs (g), Fat (g), Notes
-- Person name must match exactly the names used in the Dashboard (case-sensitive if they differ).
-- Workout rows must start with "Workout:" (e.g. "Workout: Running 30 min") so the dashboard can separate them from food.
-- Calories, Protein, Carbs, Fat must be pure numbers only — no units, no text.
-- After logging, briefly confirm what you added (date, person, item, calories).
+- Person name must match exactly the two names used in this FitCouple Dashboard.
+- Workout rows must start with "Workout:".
+- Calories, Protein, Carbs, Fat must be pure numbers only.
+- After logging, briefly confirm what you added.
 
-## Calculation notes (for AI reference)
-- Protein tip calculation uses ~0.31 g protein per gram of chicken breast.
-- Rough reference: ~7700 kcal deficit ≈ 1 kg body fat.
-  Note: metabolic adaptation exists; this is only a rough reference, not a precise formula.
-- Do not invent or change targets. Targets live in the Dashboard tab and are edited by the user.
+## Calculation notes
+- Protein tip uses ~0.31 g protein per gram of chicken breast.
+- ~7700 kcal deficit ≈ 1 kg body fat (rough reference; metabolic adaptation exists).
+- Do not invent targets.
 
 ## When the user sends a photo
-1. Estimate the food or workout from the photo.
-2. If the estimate is uncertain (portion size, mixed dish, unclear ingredients), ask for confirmation before logging.
-3. Append the row(s) to the Log tab following the rules above.
+1. Estimate the food or workout.
+2. Ask for confirmation if unsure.
+3. Append the row(s).
 4. Confirm what was logged.
 
-## Behaviour
-- Keep replies short.
-- The user mainly wants accurate, consistent logging.
-- If the user asks for suggestions (e.g. remaining protein), you may give a brief tip using the calculation notes above.</div>
+Keep replies short. This is the FitCouple sheet only.</div>
         <button onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy full instruction</button>
       </div>
       <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:12px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
@@ -126,7 +130,15 @@ My sheet link: [paste your copied sheet link here]
     <div class="app-header">
       <img class="logo-sm" src="icon-192.png" alt="">
       <h1>FitCouple</h1>
-      <button class="exit-btn" onclick="exitToHome()">Switch</button>
+      <details class="switcher">
+        <summary>⚙️</summary>
+        <div class="switcher-menu">
+          <a href="solo.html">FitSolo</a>
+          <a href="family.html">FitFamily</a>
+          <a href="index.html">Home</a>
+        </div>
+      </details>
+      <button class="exit-btn" onclick="exitToHome()">Switch sheet</button>
     </div>
     <div class="today"><h2>📅 Today</h2><div id="dashboard" class="dashboard"></div></div>
     <div class="chart-box"><h3>📈 7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
@@ -140,7 +152,7 @@ My sheet link: [paste your copied sheet link here]
     <div id="panel-month" class="panel" style="display:none;"><div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div><input type="month" id="viewMonth" onchange="renderMonth(this.value)"><div id="monthResult"></div></div>
     <div id="panel-search" class="panel" style="display:none;"><input type="text" id="searchInput" placeholder="Search food..." oninput="doSearch()" style="width:100%;max-width:360px;"><div id="searchResult"></div></div>
     <div id="panel-feedback" class="panel" style="display:none;"><h3>Feedback</h3><textarea id="fbMessage" placeholder="Your feedback..." style="width:100%;height:80px;"></textarea><br><button onclick="sendFeedback()">Send</button><p id="fbStatus"></p></div>
-    <footer>Reads your Sheet only · No data stored here</footer>
+    <footer>Reads your Sheet only · No data stored here · FitCouple data is separate</footer>
   </div>
   <script>
     let allRows=[],headers=[],idx={},persons=[];
