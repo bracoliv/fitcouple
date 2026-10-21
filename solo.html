@@ -76,6 +76,11 @@
     .med-yes { background:#1a73e8; color:#fff; }
     .med-no { background:#f1f3f4; color:#1a1a1a; }
     .med-skip { background:transparent; color:#5f6368; font-size:0.85rem; }
+
+    .link-history { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e8eaed; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); max-height:180px; overflow-y:auto; z-index:20; display:none; }
+    .link-history div { padding:10px 12px; font-size:0.85rem; cursor:pointer; border-bottom:1px solid #f1f3f4; word-break:break-all; }
+    .link-history div:hover { background:#f8f9fc; }
+    .input-wrap { position:relative; }
 </style>
 </head>
 <body>
@@ -209,7 +214,7 @@ Keep replies short.</div>
           if(idx.date<0||idx.cal<0){showError('Missing columns');return;}
           const names=[...new Set(allRows.map(r=>(r[idx.person]||'').trim()).filter(Boolean))];
           personName=names[0]||'Me';
-          localStorage.setItem('soloSheetUrl',url);
+          localStorage.setItem('soloSheetUrl',url); saveLink(url);
           document.getElementById('home').style.display='none';
           document.getElementById('app').style.display='block';
           const today=new Date().toISOString().slice(0,10);
@@ -393,6 +398,40 @@ Keep replies short.</div>
         window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt), '_blank');
       }
     }
+
+    
+    const LINK_KEY = 'soloSheetUrl_history';
+    function getLinkHistory(){
+      try{ return JSON.parse(localStorage.getItem(LINK_KEY)||'[]'); }catch(e){ return []; }
+    }
+    function saveLink(url){
+      if(!url) return;
+      let h = getLinkHistory().filter(x=>x!==url);
+      h.unshift(url);
+      localStorage.setItem(LINK_KEY, JSON.stringify(h.slice(0,8)));
+    }
+    function showLinkHistory(){
+      const h = getLinkHistory();
+      const el = document.getElementById('linkHistory');
+      if(!h.length){ el.style.display='none'; return; }
+      el.innerHTML = h.map(u=>'<div onclick="pickLink(this.textContent)">'+u+'</div>').join('');
+      el.style.display='block';
+    }
+    function filterLinkHistory(){
+      const q = document.getElementById('sheetUrl').value.toLowerCase();
+      const h = getLinkHistory().filter(u=>u.toLowerCase().includes(q));
+      const el = document.getElementById('linkHistory');
+      if(!h.length){ el.style.display='none'; return; }
+      el.innerHTML = h.map(u=>'<div onclick="pickLink(this.textContent)">'+u+'</div>').join('');
+      el.style.display='block';
+    }
+    function pickLink(url){
+      document.getElementById('sheetUrl').value = url;
+      document.getElementById('linkHistory').style.display='none';
+    }
+    document.addEventListener('click', e=>{
+      if(!e.target.closest('.input-wrap')) document.getElementById('linkHistory').style.display='none';
+    });
 
     const saved=localStorage.getItem('soloSheetUrl');
     if(saved){
