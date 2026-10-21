@@ -205,7 +205,12 @@ Rules:
     function showPanel(name,btn){document.querySelectorAll('.panel').forEach(p=>p.style.display='none');document.getElementById('panel-'+name).style.display='block';document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
     const FEEDBACK_URL='';
     async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Thanks!';}
-    const saved=localStorage.getItem('fuelSheetUrl');if(saved)document.getElementById('sheetUrl').value=saved;
+    // Auto-load saved sheet
+    const saved=localStorage.getItem('fuelSheetUrl');
+    if(saved){
+      document.getElementById('sheetUrl').value=saved;
+      loadData();
+    }
   </script>
 </body>
 </html>
