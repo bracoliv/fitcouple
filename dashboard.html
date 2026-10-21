@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FuelPair – Daily Fuel Dashboard</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a73e8">
+  <style>
+    :root {
+      --bg: #f8f9fc;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #5f6368;
+      --primary: #1a73e8;
+      --accent: #d81b60;
+      --border: #e8eaed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+    /* Home */
+    .home {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: linear-gradient(160deg, #e8f0fe 0%, #f8f9fc 40%, #fff 100%);
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--primary), #4285f4);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      color: white;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(26,115,232,.25);
+    }
+    .brand {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .brand span { color: var(--primary); }
+    .tagline {
+      color: var(--muted);
+      margin: 4px 0 24px;
+      font-size: 0.95rem;
+    }
+    .setup-card {
+      background: var(--card);
+      padding: 28px 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.08);
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    .setup-card input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      margin: 8px 0 16px;
+    }
+    .setup-card button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    .setup-card button:hover { background: #1557b0; }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 12px; }
+    .sponsors {
+      margin-top: 40px;
+      width: 100%;
+      max-width: 420px;
+      min-height: 60px;
+    }
+    .sponsor-slots { display: none; }
+    .app { display: none; padding: 16px; }
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .app-header .logo-sm {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), #4285f4);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 1.1rem;
+    }
+    .app-header h1 { font-size: 1.2rem; margin: 0; }
+    .today h2 { text-align: center; margin: 0 0 12px; font-size: 1.1rem; color: var(--muted); }
+    .dashboard { display: grid; gap: 12px; }
+    @media (min-width: 700px) { .dashboard { grid-template-columns: 1fr 1fr; } }
+    .person {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .person h3 { margin: 0 0 10px; font-size: 1.1rem; }
+    .p1 h3 { color: var(--primary); }
+    .p2 h3 { color: var(--accent); }
+    .metric { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.92rem; }
+    .status { font-weight: 600; margin-top: 8px; }
+    .tip { background: #e8f0fe; padding: 8px; border-radius: 8px; margin-top: 8px; font-size: 0.88rem; }
+    .tabs { display: flex; gap: 6px; margin: 20px 0 8px; flex-wrap: wrap; }
+    .tabs button {
+      background: #fff; border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 20px; cursor: pointer; font-size: 0.9rem;
+    }
+    .tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .panel {
+      background: var(--card); border-radius: 12px; padding: 16px; margin-top: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+    .error { color: #d93025; background: #fce8e6; padding: 12px; border-radius: 8px; margin: 12px auto; max-width: 420px; }
+    footer { text-align: center; font-size: 0.75rem; color: var(--muted); margin: 24px 0; }
+    input[type="date"], input[type="month"], input[type="text"].search {
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="home" id="home">
+    <div class="logo">🔥</div>
+    <h1 class="brand">Fuel<span>Pair</span></h1>
+    <p class="tagline">Shared nutrition dashboard for two</p>
+    <div class="setup-card">
+      <input type="text" id="sheetUrl" placeholder="Paste your Google Sheets link">
+      <button onclick="loadData()">Load Dashboard</button>
+      <button onclick="loadPreview()" style="background:#5f6368;margin-top:8px;">Preview Demo</button>
+      <p class="hint">Sheet must be shared as “Anyone with the link can view”</p>
+    </div>
+    <div class="sponsors" id="sponsorArea"></div>
+  </div>
+  <div id="error" class="error" style="display:none;"></div>
+  <div class="app" id="app">
+    <div class="app-header">
+      <div class="logo-sm">🔥</div>
+      <h1>FuelPair</h1>
+    </div>
+    <div class="today">
+      <h2>Today</h2>
+      <div id="dashboard" class="dashboard"></div>
+    </div>
+    <div class="tabs">
+      <button class="active" onclick="showPanel('date', this)">By Date</button>
+      <button onclick="showPanel('week', this)">Last 7 Days</button>
+      <button onclick="showPanel('month', this)">Monthly</button>
+      <button onclick="showPanel('search', this)">Search</button>
+      <button onclick="showPanel('feedback', this)">Feedback</button>
+    </div>
+    <div id="panel-date" class="panel">
+      <input type="date" id="viewDate" onchange="renderDate(this.value)">
+      <div id="dateResult"></div>
+    </div>
+    <div id="panel-week" class="panel" style="display:none;"><div id="weekResult"></div></div>
+    <div id="panel-month" class="panel" style="display:none;">
+      <input type="month" id="viewMonth" onchange="renderMonth(this.value)">
+      <div id="monthResult"></div>
+    </div>
+    <div id="panel-search" class="panel" style="display:none;">
+      <input type="text" class="search" id="searchInput" placeholder="Search food, notes..." oninput="doSearch()" style="width:100%;max-width:360px;">
+      <div id="searchResult"></div>
+    </div>
+    <div id="panel-feedback" class="panel" style="display:none;">
+      <h3 style="margin-top:0;">Send feedback</h3>
+      <p style="font-size:0.9rem;color:var(--muted);">Suggestions, bugs, or ideas.</p>
+      <select id="fbType" style="width:100%;max-width:360px;padding:8px;border-radius:8px;border:1px solid var(--border);margin:6px 0;">
+        <option>Suggestion</option>
+        <option>Bug</option>
+        <option>Question</option>
+        <option>Other</option>
+      </select>
+      <textarea id="fbMessage" placeholder="Your feedback..." style="width:100%;max-width:360px;height:100px;padding:8px;border-radius:8px;border:1px solid var(--border);margin:6px 0;font-family:inherit;"></textarea>
+      <input type="text" id="fbContact" placeholder="Contact (optional)" style="width:100%;max-width:360px;padding:8px;border-radius:8px;border:1px solid var(--border);margin:6px 0;">
+      <br>
+      <button onclick="sendFeedback()" style="margin-top:8px;">Send</button>
+      <p id="fbStatus" style="font-size:0.85rem;margin-top:8px;"></p>
+    </div>
+    <footer>Reads your Sheet only · No data stored here</footer>
+  </div>
+  <script>
+    let allRows=[], headers=[], idx={}, persons=[];
+    function parseCSV(text) {
+      const rows=[]; let row=[], cell='', q=false;
+      for (let i=0;i<text.length;i++) {
+        const c=text[i];
+        if (c==='"') { if(q&&text[i+1]==='"'){cell+='"';i++;} else q=!q; }
+        else if (c===','&&!q) { row.push(cell); cell=''; }
+        else if ((c==='\n'||c==='\r')&&!q) {
+          if(c==='\r'&&text[i+1]==='\n') i++;
+          if(row.length||cell){row.push(cell);rows.push(row);}
+          row=[]; cell='';
+        } else cell+=c;
+      }
+      if(cell||row.length){row.push(cell);rows.push(row);}
+      return rows.filter(r=>r.some(c=>String(c).trim()));
+    }
+    function extractId(url){ const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/); return m?m[1]:null; }
+    function showError(msg, detail) {
+      const el = document.getElementById('error');
+      el.innerHTML = `<strong>${msg}</strong>${detail ? '<br><small style="opacity:.8">' + detail + '</small>' : ''}`;
+      el.style.display = 'block';
+    }
+    async function loadData() {
+      const url = document.getElementById('sheetUrl').value.trim();
+      const id = extractId(url);
+      document.getElementById('error').style.display = 'none';
+      if (!url) { showError('Please paste a Google Sheets link'); return; }
+      if (!id) { showError('Invalid link', 'Could not find spreadsheet ID. Make sure you paste the full URL.'); return; }
+      const attempts = [
+        `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Log`,
+        `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=0`
+      ];
+      let lastErr = '';
+      for (const csvUrl of attempts) {
+        try {
+          const res = await fetch(csvUrl);
+          if (!res.ok) {
+            lastErr = `HTTP ${res.status} from ${csvUrl.includes('gviz') ? 'Log tab' : 'first sheet'}`;
+            continue;
+          }
+          const text = await res.text();
+          if (!text || text.length < 10) { lastErr = 'Empty response'; continue; }
+          const rows = parseCSV(text);
+          if (rows.length < 2) {
+            showError('Sheet loaded but Log appears empty', 'Add at least one data row under the header, or check the tab name is “Log”.');
+            return;
+          }
+          headers = rows[0].map(h => h.trim());
+          allRows = rows.slice(1);
+          idx = {
+            date: headers.findIndex(h => /date/i.test(h)),
+            person: headers.findIndex(h => /person/i.test(h)),
+            food: headers.findIndex(h => /food|workout/i.test(h)),
+            cal: headers.findIndex(h => /calor/i.test(h)),
+            protein: headers.findIndex(h => /protein/i.test(h)),
+          };
+          if (idx.date < 0 || idx.person < 0 || idx.cal < 0) {
+            showError('Missing required columns', 'Log tab needs columns: Date, Person, Calories (kcal). Found: ' + headers.join(', '));
+            return;
+          }
+          persons = [...new Set(allRows.map(r => (r[idx.person] || '').trim()).filter(Boolean))].slice(0, 2);
+          if (persons.length < 2) persons = [...persons, 'Person 1', 'Person 2'].slice(0, 2);
+          localStorage.setItem('fuelSheetUrl', url);
+          document.getElementById('home').style.display = 'none';
+          document.getElementById('app').style.display = 'block';
+          const today = new Date().toISOString().slice(0, 10);
+          document.getElementById('viewDate').value = today;
+          document.getElementById('viewMonth').value = today.slice(0, 7);
+          renderToday();
+          renderDate(today);
+          renderWeek();
+          renderMonth(today.slice(0, 7));
+          return;
+        } catch (e) {
+          lastErr = e.message || String(e);
+          if (e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.name === 'TypeError')) {
+            showError('Cannot reach Google Sheets (likely CORS or network)', 'If you opened this HTML file directly (file://), use a local server or host it on GitHub Pages. Also confirm the sheet is shared as “Anyone with the link can view”.');
+            return;
+          }
+        }
+      }
+      showError('Failed to load data', lastErr || 'Unknown error. Check sharing settings and that a Log tab exists.');
+    }
+    function getDayData(name, dateStr) {
+      const rows = allRows.filter(r => (r[idx.person] || '').trim() === name && (r[idx.date] || '').startsWith(dateStr));
+      let eaten = 0, prot = 0, workout = 0;
+      rows.forEach(r => {
+        const food = (r[idx.food] || '').trim(), cal = parseFloat(r[idx.cal]) || 0, p = parseFloat(r[idx.protein]) || 0;
+        if (/^workout/i.test(food)) workout += cal; else { eaten += cal; prot += p; }
+      });
+      return { eaten, prot, workout };
+    }
+    function renderPersonCard(name, i, dateStr) {
+      const d = getDayData(name, dateStr);
+      const targets = [{ cal: 2000, prot: 150 }, { cal: 1600, prot: 120 }];
+      const t = targets[i] || targets[0];
+      const rem = Math.max(0, t.cal - d.eaten);
+      const pNeed = Math.max(0, t.prot - d.prot);
+      const tip = pNeed > 0 ? `≈ ${Math.round(pNeed / 0.31 / 10) * 10} g chicken breast` : 'Protein covered 🎉';
+      return `<div class="person p${i + 1}"><h3>${i === 0 ? '💙' : '💗'} ${name}</h3>
+        <div class="metric"><span>Calories eaten</span><strong>${Math.round(d.eaten)}</strong></div>
+        <div class="metric"><span>Target</span><span>${t.cal}</span></div>
+        <div class="metric"><span>Remaining</span><span>${rem} kcal</span></div>
+        <div class="metric"><span>Protein</span><strong>${Math.round(d.prot)} / ${t.prot} g</strong></div>
+        <div class="metric"><span>Workout</span><span>${Math.round(d.workout)}</span></div>
+        <div class="status">${d.eaten === 0 ? '😴 Nothing logged' : d.eaten > t.cal ? '🚨 Over' : '✅ On track'}</div>
+        <div class="tip">🍗 ${tip}</div></div>`;
+    }
+    function renderToday() {
+      const today = new Date().toISOString().slice(0, 10);
+      document.getElementById('dashboard').innerHTML = persons.map((n, i) => renderPersonCard(n, i, today)).join('');
+    }
+    function renderDate(ds) {
+      document.getElementById('dateResult').innerHTML = '<div class="dashboard">' + persons.map((n, i) => renderPersonCard(n, i, ds)).join('') + '</div>';
+    }
+    function renderWeek() {
+      const today = new Date();
+      let html = '<table><tr><th>Date</th>';
+      persons.forEach(p => html += `<th>${p}</th><th>P</th>`);
+      html += '</tr>';
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today); d.setDate(d.getDate() - i);
+        const ds = d.toISOString().slice(0, 10);
+        html += `<tr><td>${ds.slice(5)}</td>`;
+        persons.forEach(name => {
+          const data = getDayData(name, ds);
+          html += `<td>${data.eaten ? Math.round(data.eaten) : ''}</td><td>${data.prot ? Math.round(data.prot) : ''}</td>`;
+        });
+        html += '</tr>';
+      }
+      document.getElementById('weekResult').innerHTML = html + '</table>';
+    }
+    function renderMonth(ym) {
+      const [y, m] = ym.split('-').map(Number);
+      const days = new Date(y, m, 0).getDate();
+      let html = `<table><tr><th>Date</th>`;
+      persons.forEach(p => html += `<th>${p}</th><th>P</th>`);
+      html += '</tr>';
+      for (let d = 1; d <= days; d++) {
+        const ds = `${ym}-${String(d).padStart(2, '0')}`;
+        html += `<tr><td>${d}</td>`;
+        persons.forEach(name => {
+          const data = getDayData(name, ds);
+          html += `<td>${data.eaten ? Math.round(data.eaten) : ''}</td><td>${data.prot ? Math.round(data.prot) : ''}</td>`;
+        });
+        html += '</tr>';
+      }
+      document.getElementById('monthResult').innerHTML = html + '</table>';
+    }
+    function doSearch() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const el = document.getElementById('searchResult');
+      if (!q) { el.innerHTML = ''; return; }
+      const hits = allRows.filter(r => (r[idx.food] || '').toLowerCase().includes(q) || (r[idx.person] || '').toLowerCase().includes(q)).slice(0, 40);
+      el.innerHTML = hits.length ? '<table><tr><th>Date</th><th>Person</th><th>Item</th><th>kcal</th></tr>' + hits.map(r => `<tr><td>${(r[idx.date] || '').slice(0, 10)}</td><td>${r[idx.person] || ''}</td><td>${r[idx.food] || ''}</td><td>${r[idx.cal] || ''}</td></tr>`).join('') + '</table>' : '<p>No matches</p>';
+    }
+    function loadPreview() {
+      headers = ['Date', 'Time', 'Person', 'Food/Workout', 'Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Notes'];
+      idx = { date: 0, person: 2, food: 3, cal: 4, protein: 5 };
+      persons = ['Alex', 'Sam'];
+      const today = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      allRows = [
+        [today, '08:30', 'Alex', '2 eggs, toast, coffee', 420, 28, 35, 16, ''],
+        [today, '12:30', 'Alex', 'Chicken rice', 680, 45, 70, 18, ''],
+        [today, '19:00', 'Alex', 'Workout: 40 min run', 320, 0, 0, 0, ''],
+        [today, '08:00', 'Sam', 'Yogurt + granola', 310, 18, 40, 8, ''],
+        [today, '13:00', 'Sam', 'Salmon bowl', 540, 38, 45, 20, ''],
+        [yesterday, 'Morning', 'Alex', 'Oatmeal + banana', 380, 12, 60, 8, ''],
+        [yesterday, 'Lunch', 'Sam', 'Chicken salad', 450, 35, 20, 18, ''],
+      ];
+      document.getElementById('home').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('viewDate').value = today;
+      document.getElementById('viewMonth').value = today.slice(0, 7);
+      renderToday();
+      renderDate(today);
+      renderWeek();
+      renderMonth(today.slice(0, 7));
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#fff3cd;color:#856404;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:0.85rem;text-align:center;';
+      banner.textContent = 'Preview mode – sample data only';
+      document.querySelector('.app-header').after(banner);
+    }
+    function showPanel(name, btn) {
+      document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+      document.getElementById('panel-' + name).style.display = 'block';
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    const FEEDBACK_URL = '';
+    async function sendFeedback() {
+      const type = document.getElementById('fbType').value;
+      const message = document.getElementById('fbMessage').value.trim();
+      const contact = document.getElementById('fbContact').value.trim();
+      const status = document.getElementById('fbStatus');
+      if (!message) { status.textContent = 'Please write something.'; return; }
+      if (!FEEDBACK_URL) { status.textContent = 'Feedback not fully set up yet.'; return; }
+      status.textContent = 'Sending...';
+      try {
+        await fetch(FEEDBACK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type, message, contact, page: location.href, ts: new Date().toISOString() }) });
+        status.textContent = 'Thanks! Feedback sent.';
+        document.getElementById('fbMessage').value = '';
+        document.getElementById('fbContact').value = '';
+      } catch (e) { status.textContent = 'Could not send. Try again later.'; }
+    }
+    const saved = localStorage.getItem('fuelSheetUrl');
+    if (saved) document.getElementById('sheetUrl').value = saved;
+  </script>
+</body>
+</html>
