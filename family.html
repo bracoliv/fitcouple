@@ -25,6 +25,7 @@
     .hint { font-size:0.8rem; color:var(--muted); margin-top:12px; }
     .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; z-index:10; }
     .exit-btn { background:none; border:1px solid var(--border); padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; color:var(--muted); }
+    .ask-btn { background:#1a73e8; color:#fff; border:none; padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; }
     .switcher { position:relative; }
     .switcher summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:4px; }
     .switcher summary::-webkit-details-marker { display:none; }
@@ -65,6 +66,9 @@
     td.over { background:var(--over); color:#c5221f; font-weight:600; }
     .legend { font-size:0.75rem; color:var(--muted); margin:6px 0 10px; }
     footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:20px 0; }
+    .ai-menu { position:absolute; right:0; top:100%; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:160px; z-index:30; display:none; }
+    .ai-menu button { display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:none; cursor:pointer; font-size:0.88rem; }
+    .ai-menu button:hover { background:#f1f3f4; }
   </style>
 </head>
 <body>
@@ -75,8 +79,8 @@
       <p style="font-size:0.85rem;color:#5f6368;margin:0 0 12px;">⚠️ This instruction is only for your AI. Use a separate sheet for Family. Do not mix with Solo or Couple.</p>
       <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template → File → Make a copy.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a></p></div>
       <div class="step"><h3>2. Share your sheet</h3><p>Share → Anyone with the link → Viewer.</p></div>
-      <div class="step"><h3>3. Connect with your AI</h3><p>Paste the instruction below + your sheet link into your AI.</p></div>
-      <div class="step"><h3>4. Copy this full AI instruction (FitFamily only)</h3>
+      <div class="step"><h3>3. Connect with your AI</h3><p>Use the Ask AI button, or paste the instruction below + your sheet link into your AI.</p></div>
+      <div class="step"><h3>4. Full AI instruction (FitFamily only)</h3>
         <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet for FitFamily (3 or more people).
 
 My sheet link: [paste your FitFamily sheet link here]
@@ -126,6 +130,15 @@ Keep replies short. This is the FitFamily sheet only.</div>
     <div class="app-header">
       <img class="logo-sm" src="icon-192.png" alt="">
       <h1>FitFamily</h1>
+      <div style="position:relative;">
+        <button class="ask-btn" onclick="toggleAiMenu()">Ask AI</button>
+        <div class="ai-menu" id="aiMenu">
+          <button onclick="openAi('chatgpt')">ChatGPT</button>
+          <button onclick="openAi('grok')">Grok</button>
+          <button onclick="openAi('gemini')">Gemini</button>
+          <button onclick="openAi('claude')">Claude</button>
+        </div>
+      </div>
       <details class="switcher">
         <summary>⚙️</summary>
         <div class="switcher-menu">
@@ -159,6 +172,28 @@ Keep replies short. This is the FitFamily sheet only.</div>
       document.getElementById('app').style.display='none';
       document.getElementById('home').style.display='flex';
       document.getElementById('sheetUrl').value='';
+    }
+    function toggleAiMenu(){
+      const m=document.getElementById('aiMenu');
+      m.style.display=m.style.display==='block'?'none':'block';
+    }
+    document.addEventListener('click',e=>{
+      if(!e.target.closest('.ask-btn')&&!e.target.closest('.ai-menu')){
+        document.getElementById('aiMenu').style.display='none';
+      }
+    });
+    async function openAi(which){
+      document.getElementById('aiMenu').style.display='none';
+      const instruction=document.getElementById('aiInstruction').innerText;
+      try{await navigator.clipboard.writeText(instruction);}catch(e){}
+      const shortPrompt='Help me log food and workouts to my FitFamily Google Sheet. I have copied the full instruction.';
+      const urls={
+        chatgpt:'https://chatgpt.com/?q='+encodeURIComponent(shortPrompt),
+        grok:'https://grok.com/?q='+encodeURIComponent(shortPrompt),
+        gemini:'https://gemini.google.com/app?q='+encodeURIComponent(shortPrompt),
+        claude:'https://claude.ai/new?q='+encodeURIComponent(shortPrompt)
+      };
+      window.open(urls[which],'_blank');
     }
     async function loadData(){
       const url=document.getElementById('sheetUrl').value.trim();
