@@ -24,9 +24,18 @@
     return isFinite(n) ? n : 0;
   }
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
-    });
+    var out = '';
+    var str = String(s == null ? '' : s);
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      if (c === 38) out += '&' + 'amp;';
+      else if (c === 60) out += '&' + 'lt;';
+      else if (c === 62) out += '&' + 'gt;';
+      else if (c === 34) out += '&' + 'quot;';
+      else if (c === 39) out += '&' + '#39;';
+      else out += str.charAt(i);
+    }
+    return out;
   }
   function parseCSV(text) {
     var rows = [];
@@ -82,7 +91,7 @@
     return clock.getHours() >= LOW_HOUR ? 'late' : 'open';
   }
   function dayStatus(eaten, target, dateStr, now) {
-    if (!(eaten > 0)) return 'empty';
+    if (!(target > 0) || !(eaten > 0)) return 'empty';
     if (eaten > target) return 'over';
     var phase = dayPhase(dateStr, now);
     if ((phase === 'past' || phase === 'late') && eaten < target * LOW_RATIO) return 'low';
@@ -178,6 +187,7 @@
     var url = currentUrl() || '[paste your sheet link here]';
     return 'You are helping me log food and workouts to my Google Sheet for ' + cfg.title + '.\n\n'
       + 'My sheet link: ' + url + '\n\n'
+      + 'Do not share this chat or the sheet link. The link is private.\n'
       + 'IMPORTANT: Open the sheet and read the README tab first. Follow those rules exactly.\n'
       + 'Do not invent rules. The README tab is the source of truth.\n'
       + 'This sheet is only for ' + cfg.title + '. Do not mix it with Solo, Couple, or Family.\n\n'
@@ -194,7 +204,7 @@
     var title = $('howtoTitle');
     if (title) title.textContent = 'How to use ' + cfg.title;
     var warn = $('howtoWarn');
-    if (warn) warn.textContent = 'Use a separate Google Sheet for ' + cfg.title + '. Do not mix Solo, Couple, and Family.';
+    if (warn) warn.textContent = 'Use a separate Google Sheet for ' + cfg.title + '. Do not post the sheet link online. This site does not store your sheet.';
     $('howtoModal').classList.add('open');
   }
   function sheetCsvUrl(id, sheet) {
@@ -248,8 +258,7 @@
       else if (!nameHits && sheetTargets[i]) { t = sheetTargets[i]; ordered++; }
       else fallback++;
       if (!t) {
-        var d = defaultsAt(i);
-        return { name: name, goal: goals[name.toLowerCase()] || '', target: { cal: d.cal, prot: d.prot, carbs: d.carbs, fat: d.fat } };
+        return { name: name, goal: goals[name.toLowerCase()] || '', target: null };
       }
       return { name: name, goal: goals[name.toLowerCase()] || '', target: { cal: t.cal, prot: t.prot, carbs: t.carbs, fat: t.fat } };
     });
@@ -260,11 +269,14 @@
   }
   function targetNoteText() {
     var extra = dropped > 0 ? ' Showing ' + people.length + ' people.' : '';
-    if (targetSource === 'demo') return 'Demo data. Not your sheet.';
-    if (targetSource === 'sheet') return 'Targets from your sheet.' + extra;
-    if (targetSource === 'sheet-order') return 'Targets from your sheet, in row order, because the names do not match.' + extra;
-    if (targetSource === 'mixed') return 'Targets from your sheet where the name matches.' + extra;
-    return 'Default targets. Edit the yellow Targets table on the Dashboard tab.' + extra;
+    if (targetSource === 'demo') {
+      if (cfg.variant === 'couple') return 'Demo only. 夫 2,500 and 妻 2,000 are common adult averages, not your goals and not a recommendation.';
+      return 'Demo only. These are not your goals.';
+    }
+    if (targetSource === 'sheet') return 'Your own targets, from your sheet. Not a recommendation from this site.' + extra;
+    if (targetSource === 'sheet-order') return 'Your own targets, from your sheet, in row order, because the names do not match.' + extra;
+    if (targetSource === 'mixed') return 'Where the name matches, the target is your own, from your sheet.' + extra;
+    return 'No personal targets in the sheet yet. Fill the yellow Targets table. This site does not suggest targets.' + extra;
   }
   function getDayData(name, dateStr) {
     var eaten = 0, prot = 0, carbs = 0, fat = 0, workout = 0, entries = 0;
@@ -313,6 +325,15 @@
   }
   function renderPersonCard(person, i, dateStr) {
     var d = getDayData(person.name, dateStr);
+    var klass = 'person' + (cfg.variant === 'couple' ? ' p' + (i + 1) : '');
+    var head = '<h3><span>' + personEmoji(i) + ' ' + esc(person.name) + '</span>'
+      + (person.goal ? '<span class="goal-badge">' + esc(shortGoal(person.goal)) + '</span>' : '') + '</h3>';
+    if (!person.target || !(person.target.cal > 0)) {
+      return '<div class="' + klass + '">' + head
+        + '<div class="metric"><span class="label">Calories eaten</span><strong>' + Math.round(d.eaten) + '</strong></div>'
+        + '<div class="status empty">No personal target in your sheet yet.</div>'
+        + '</div>';
+    }
     var t = person.target;
     var st = dayStatus(d.eaten, t.cal, dateStr);
     var overBy = Math.max(0, d.eaten - t.cal);
@@ -328,19 +349,18 @@
     var midLabel = overBy ? 'Over' : 'Remaining';
     var midVal = overBy ? Math.round(overBy) : Math.round(rem);
     var midClass = st === 'over' ? ' over' : (st === 'low' ? ' low' : '');
-    var klass = 'person' + (cfg.variant === 'couple' ? ' p' + (i + 1) : '');
     return '<div class="' + klass + '">'
-      + '<h3><span>' + personEmoji(i) + ' ' + esc(person.name) + '</span>' + (person.goal ? '<span class="goal-badge">' + esc(shortGoal(person.goal)) + '</span>' : '') + '</h3>'
+      + head
       + '<div class="metric"><span class="label">Calories eaten</span><strong>' + Math.round(d.eaten) + '</strong></div>'
       + '<div class="highlight-row">'
-      + '<div class="highlight"><span class="h-label">Target</span><span class="h-val">' + Math.round(t.cal) + '</span></div>'
+      + '<div class="highlight"><span class="h-label">Your goal</span><span class="h-val">' + Math.round(t.cal) + '</span></div>'
       + '<div class="highlight' + midClass + '"><span class="h-label">' + midLabel + '</span><span class="h-val">' + midVal + '</span></div>'
       + '<div class="highlight' + midClass + '"><span class="h-label">% of target</span><span class="h-val">' + calPct + '%</span></div>'
       + '</div>'
       + '<div class="status ' + st + '">' + esc(calorieStatus(st, d.eaten, t.cal)) + '</div>'
       + '<div class="metric"><span class="label">Protein</span><strong>' + Math.round(d.prot) + ' / ' + Math.round(t.prot) + ' g</strong></div>'
       + '<div class="highlight-row">'
-      + '<div class="highlight"><span class="h-label">Target</span><span class="h-val">' + Math.round(t.prot) + '</span></div>'
+      + '<div class="highlight"><span class="h-label">Your goal</span><span class="h-val">' + Math.round(t.prot) + '</span></div>'
       + '<div class="highlight"><span class="h-label">Remaining</span><span class="h-val">' + Math.round(pNeed) + ' g</span></div>'
       + '<div class="highlight"><span class="h-label">% of target</span><span class="h-val">' + protPct + '%</span></div>'
       + '</div>'
@@ -379,7 +399,7 @@
     for (var i = 6; i >= 0; i--) days.push(ymd(addDays(today, -i)));
     var maxCal = 0;
     people.forEach(function (p) {
-      maxCal = Math.max(maxCal, p.target.cal);
+      maxCal = Math.max(maxCal, (p.target && p.target.cal) || 0);
       days.forEach(function (ds) { maxCal = Math.max(maxCal, getDayData(p.name, ds).eaten); });
     });
     maxCal = Math.max(500, maxCal * 1.15);
@@ -426,7 +446,8 @@
       html += '<tr><td>' + ds.slice(5) + '</td>';
       people.forEach(function (p) {
         var data = getDayData(p.name, ds);
-        var st = dayStatus(data.eaten, p.target.cal, ds);
+        var targetCal = p.target && p.target.cal > 0 ? p.target.cal : 0;
+        var st = dayStatus(data.eaten, targetCal, ds);
         html += '<td class="' + st + '">' + (data.eaten ? Math.round(data.eaten) : '') + '</td>';
       });
       html += '</tr>';
@@ -449,7 +470,8 @@
       html += '<tr><td>' + d + '</td>';
       people.forEach(function (p, pi) {
         var data = getDayData(p.name, ds);
-        var st = dayStatus(data.eaten, p.target.cal, ds);
+        var targetCal = p.target && p.target.cal > 0 ? p.target.cal : 0;
+        var st = dayStatus(data.eaten, targetCal, ds);
         if (st === 'ok') counts[pi].ok++;
         if (st === 'low') counts[pi].low++;
         if (st === 'over') counts[pi].over++;
@@ -538,13 +560,15 @@
       ];
     } else {
       people = [0, 1].map(function (i) {
-        var d = defaultsAt(i);
-        return { name: i === 0 ? 'Brian' : 'Rachel', target: { cal: d.cal, prot: d.prot, carbs: d.carbs, fat: d.fat } };
+        var ref = i === 0
+          ? { cal: 2500, prot: 94, carbs: 344, fat: 83 }
+          : { cal: 2000, prot: 75, carbs: 275, fat: 67 };
+        return { name: i === 0 ? '夫' : '妻', target: ref };
       });
       allRows = [
-        [today, '08:30', 'Brian', 'Eggs and toast', 420, 28, 35, 16],
-        [today, '12:30', 'Brian', 'Chicken rice', 680, 45, 70, 18],
-        [today, '08:00', 'Rachel', 'Yogurt', 310, 18, 40, 8]
+        [today, '08:00', '夫', 'Breakfast', 520, 18, 70, 16],
+        [today, '12:30', '夫', 'Lunch', 780, 32, 95, 24],
+        [today, '08:00', '妻', 'Breakfast', 430, 16, 52, 14]
       ];
     }
     targetSource = 'demo';
@@ -614,19 +638,37 @@
     $('sheetUrl').value = url;
     await loadData();
   }
+  function showAiNote(msg) {
+    var el = $('aiNote');
+    if (!el) {
+      el = document.createElement('p');
+      el.id = 'aiNote';
+      el.className = 'hint';
+      var header = document.querySelector('.app-header');
+      if (header && header.parentNode) header.insertAdjacentElement('afterend', el);
+    }
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = msg;
+  }
   function openAi(which, useMed) {
     closeMenus();
     var prompt = useMed && pendingMedPrompt ? pendingMedPrompt : instructionText();
-    var shortPrompt = useMed && pendingMedPrompt
-      ? pendingMedPrompt
-      : 'Help me log food and workouts to my Google Sheet.\n\nMy sheet link: ' + (currentUrl() || '[paste your sheet link]') + '\n\nRead the README tab first, then the Profile tab. Follow those rules exactly.';
-    try { navigator.clipboard.writeText(prompt); } catch (e) {}
+    var copied = false;
+    try {
+      var pending = navigator.clipboard.writeText(prompt);
+      copied = true;
+      if (pending && pending.then) pending.catch(function () {});
+    } catch (e) {}
     var urls = {
-      chatgpt: 'https://chatgpt.com/?q=' + encodeURIComponent(shortPrompt),
-      grok: 'https://grok.com/?q=' + encodeURIComponent(shortPrompt),
-      gemini: 'https://gemini.google.com/app?q=' + encodeURIComponent(shortPrompt),
-      claude: 'https://claude.ai/new?q=' + encodeURIComponent(shortPrompt)
+      chatgpt: 'https://chatgpt.com/',
+      grok: 'https://grok.com/',
+      gemini: 'https://gemini.google.com/app',
+      claude: 'https://claude.ai/new'
     };
+    showAiNote(copied
+      ? 'Instruction copied. Paste it into the chat. That does not publish your link. Do not share the chat.'
+      : 'Open How to use and copy the instruction. Do not share the chat.');
     window.open(urls[which], '_blank');
   }
   function medKey() { return 'medAsked_' + cfg.storageKey + '_' + todayStr(); }
@@ -673,7 +715,7 @@
     var verb = cfg.variant === 'solo' ? 'I took my medication today. ' : 'We took our medication today. ';
     pendingMedPrompt = verb + who + '\n\nMy sheet link: ' + currentUrl() + '\n\nAppend a row to the Medications tab. Do not say it is logged until that row is added.';
     try { await navigator.clipboard.writeText(pendingMedPrompt); } catch (e) {}
-    $('medText').textContent = 'Copied a note for your AI. The sheet is not updated until the AI adds the row.';
+    $('medText').textContent = 'Copied a note. Paste it into the chat. The sheet is not updated until the AI adds the row. Do not share that chat.';
     $('medActions').hidden = true;
     $('medAi').hidden = false;
   }

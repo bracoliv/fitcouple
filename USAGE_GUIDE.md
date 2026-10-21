@@ -3,6 +3,8 @@
 > ⚠️ **This document is for the AI only.**
 > Each version (Solo / Couple / Family) must use its **own separate Google Sheet**.
 > Never mix data between versions.
+> Do not post a sheet link publicly. Anyone with that link can read the sheet.
+> This website does not store the sheet. The link stays in the browser.
 
 ---
 
@@ -111,6 +113,6 @@ Each version remembers its own sheet link independently.
 - Red: over that person's calorie target.
 - Yellow: a finished day under 75% of target. Today before 8pm local time is not marked yellow.
 - Green: on track.
-- Targets are read from the Dashboard tab and matched by name.
+- Targets are the person's own goals, read from the Dashboard tab and matched by name. This site does not suggest targets.
 
 *Last updated: 2026-10-22*

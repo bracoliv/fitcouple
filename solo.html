@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="FitSolo">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="fit.css?v=3">
+  <link rel="stylesheet" href="fit.css?v=4">
 </head>
 <body>
   <details class="switcher home-menu">
@@ -30,7 +30,7 @@
       <h2 id="howtoTitle">How to use</h2>
       <p class="warn" id="howtoWarn"></p>
       <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template, then File → Make a copy.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank" rel="noopener">Open template</a></p></div>
-      <div class="step"><h3>2. Share your sheet</h3><p>Share → General access → Anyone with the link → Viewer.</p></div>
+      <div class="step"><h3>2. Share your sheet</h3><p>Share → General access → Anyone with the link → Viewer. Do not post that link online. This site does not store your sheet.</p></div>
       <div class="step"><h3>3. Paste the link here</h3><p>Each version remembers its own link.</p></div>
       <div class="step"><h3>4. Copy this AI instruction</h3>
         <div class="copy-box" id="aiInstruction"></div>
@@ -51,7 +51,7 @@
       </div>
       <button type="button" class="primary" id="loadBtn">Load Dashboard</button>
       <button type="button" class="secondary" id="previewBtn">Preview Demo</button>
-      <p class="hint">Share the sheet as anyone with the link can view.</p>
+      <p class="hint">Set the sheet to “anyone with the link can view” so this page can read it. Do not post that link online. This site does not store your sheet.</p>
       <p id="error" class="error" hidden></p>
     </div>
   </div>
@@ -94,7 +94,7 @@
     </div>
     <div id="panel-week" class="panel">
       <div class="legend"><span class="swatch ok"></span> On track <span class="swatch low"></span> Under 75% <span class="swatch over"></span> Over
-        <span class="legend-note">Yellow is a finished day under 75% of target, or today after 8pm.</span>
+        <span class="legend-note">Yellow is a finished day under 75% of your own goal, or today after 8pm. Goals come from your sheet, not from this site.</span>
       </div>
       <div class="table-wrap" id="weekResult"></div>
     </div>
@@ -107,7 +107,7 @@
       <input type="search" id="searchInput" placeholder="Search food">
       <div class="table-wrap" id="searchResult"></div>
     </div>
-    <footer>Reads your Sheet only. FitSolo keeps its own link.</footer>
+    <footer>Reads your sheet in this browser only. Does not store it. Do not post the link.</footer>
   </div>
 
   <div id="medModal" class="med-modal">
@@ -137,6 +137,6 @@
       defaults: [{ cal: 2000, prot: 120, carbs: 200, fat: 65 }]
     };
   </script>
-  <script src="fit.js?v=3"></script>
+  <script src="fit.js?v=4"></script>
 </body>
 </html>
