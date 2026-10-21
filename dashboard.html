@@ -35,9 +35,13 @@
     .dashboard { display:grid; gap:12px; }
     @media (min-width:700px) { .dashboard { grid-template-columns:1fr 1fr; } }
     .person { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    .person h3 { margin:0 0 8px; font-size:1.05rem; }
+    .person h3 { margin:0 0 10px; font-size:1.05rem; }
     .p1 h3 { color:var(--primary); }
     .p2 h3 { color:var(--accent); }
+    .highlight-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin:8px 0; }
+    .highlight { background:#f1f3f4; border-radius:8px; padding:8px 6px; text-align:center; }
+    .highlight .h-label { font-size:0.7rem; color:var(--muted); display:block; }
+    .highlight .h-val { font-size:1.05rem; font-weight:700; display:block; margin-top:2px; }
     .metric { display:flex; justify-content:space-between; margin:5px 0; font-size:0.9rem; }
     .metric .label { color:var(--muted); }
     .status { font-weight:600; margin:6px 0; font-size:0.92rem; }
@@ -173,16 +177,22 @@ Rules:
       return `<div class="person p${i+1}">
         <h3>${i===0?'💙':'💗'} ${name}</h3>
         <div class="metric"><span class="label">🔥 Calories eaten</span><strong>${Math.round(d.eaten)}</strong></div>
-        <div class="metric"><span class="label">Target</span><span>${t.cal} (${calPct}%)</span></div>
-        <div class="metric"><span class="label">Remaining</span><span>${rem} kcal left</span></div>
+        <div class="highlight-row">
+          <div class="highlight"><span class="h-label">Target</span><span class="h-val">${t.cal}</span></div>
+          <div class="highlight"><span class="h-label">Remaining</span><span class="h-val">${rem}</span></div>
+          <div class="highlight"><span class="h-label">% of target</span><span class="h-val">${calPct}%</span></div>
+        </div>
         <div class="status">${calStatus}</div>
-        <div class="metric"><span class="label">💪 Protein</span><strong>${Math.round(d.prot)} / ${t.prot} g (${protPct}%)</strong></div>
-        <div class="metric"><span class="label">Still needed</span><span>${Math.round(pNeed)} g</span></div>
+        <div class="metric"><span class="label">💪 Protein</span><strong>${Math.round(d.prot)} / ${t.prot} g</strong></div>
+        <div class="highlight-row">
+          <div class="highlight"><span class="h-label">Still needed</span><span class="h-val">${Math.round(pNeed)} g</span></div>
+          <div class="highlight"><span class="h-label">% of target</span><span class="h-val">${protPct}%</span></div>
+          <div class="highlight"><span class="h-label">Entries</span><span class="h-val">${d.entries}</span></div>
+        </div>
         <div class="status">${protStatus}</div>
         <div class="metric"><span class="label">🍚 Carbs</span><span>${Math.round(d.carbs)} / ${t.carbs} g (${carbPct}%)</span></div>
         <div class="metric"><span class="label">🥑 Fat</span><span>${Math.round(d.fat)} / ${t.fat} g (${fatPct}%)</span></div>
         <div class="metric"><span class="label">🏃 Workout</span><span>${workoutTxt}</span></div>
-        <div class="metric"><span class="label">📝 Entries</span><span>${d.entries}</span></div>
         <div class="tip">🍗 ${tip}</div>
       </div>`;
     }
