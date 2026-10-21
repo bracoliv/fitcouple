@@ -15,7 +15,7 @@
     * { box-sizing:border-box; }
     body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:0; line-height:1.45; }
     .home { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; background:linear-gradient(160deg,#e8f0fe 0%,#f8f9fc 40%,#fff 100%); }
-    .logo { width:72px; height:72px; background:linear-gradient(135deg,var(--primary),#4285f4); border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:2.2rem; color:#fff; margin-bottom:12px; box-shadow:0 4px 12px rgba(26,115,232,.25); }
+    .logo { width:96px; height:96px; border-radius:22px; margin-bottom:12px; box-shadow:0 4px 12px rgba(26,115,232,.25); object-fit:cover; }
     .brand { font-size:1.8rem; font-weight:700; margin:0; }
     .brand span { color:var(--primary); }
     .tagline { color:var(--muted); margin:4px 0 24px; font-size:0.95rem; }
@@ -30,7 +30,7 @@
     .copy-box { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:0.8rem; white-space:pre-wrap; margin:8px 0; max-height:160px; overflow-y:auto; }
     .app { display:none; padding:16px; }
     .app-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .app-header .logo-sm { width:36px; height:36px; background:linear-gradient(135deg,var(--primary),#4285f4); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.1rem; }
+    .app-header .logo-sm { width:40px; height:40px; border-radius:10px; object-fit:cover; }
     .today h2 { text-align:center; margin:0 0 10px; font-size:1.05rem; color:var(--muted); }
     .dashboard { display:grid; gap:12px; }
     @media (min-width:700px) { .dashboard { grid-template-columns:1fr 1fr; } }
@@ -82,7 +82,7 @@ Rules:
     </div>
   </div>
   <div class="home" id="home">
-    <div class="logo">🔥</div>
+    <img class="logo" src="icon-192.png" alt="FitCouple">
     <h1 class="brand">Fit<span>Couple</span></h1>
     <p class="tagline">Shared nutrition dashboard for two</p>
     <div class="setup-card">
@@ -94,7 +94,7 @@ Rules:
   </div>
   <div id="error" class="error" style="display:none;"></div>
   <div class="app" id="app">
-    <div class="app-header"><div class="logo-sm">🔥</div><h1>FitCouple</h1></div>
+    <div class="app-header"><img class="logo-sm" src="icon-192.png" alt=""><h1>FitCouple</h1></div>
     <div class="today"><h2>📅 Today</h2><div id="dashboard" class="dashboard"></div></div>
     <div class="chart-box"><h3>📈 7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
     <div class="tabs">
@@ -205,7 +205,6 @@ Rules:
     function showPanel(name,btn){document.querySelectorAll('.panel').forEach(p=>p.style.display='none');document.getElementById('panel-'+name).style.display='block';document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
     const FEEDBACK_URL='';
     async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Thanks!';}
-    // Auto-load saved sheet
     const saved=localStorage.getItem('fuelSheetUrl');
     if(saved){
       document.getElementById('sheetUrl').value=saved;
