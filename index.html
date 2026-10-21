@@ -2,11 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=dashboard.html">
-  <title>FitCouple</title>
-  <script>location.replace('dashboard.html');</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Fit</title>
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    :root { --bg:#f8f9fc; --card:#fff; --text:#1a1a1a; --muted:#5f6368; --primary:#1a73e8; --border:#e8eaed; }
+    * { box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:linear-gradient(160deg,#e8f0fe 0%,#f8f9fc 50%,#fff 100%); margin:0; min-height:100vh; color:var(--text); }
+    .wrap { max-width:480px; margin:0 auto; padding:40px 20px; text-align:center; }
+    .logo { width:80px; height:80px; border-radius:20px; margin-bottom:8px; object-fit:cover; }
+    h1 { margin:0 0 4px; font-size:1.8rem; }
+    h1 span { color:var(--primary); }
+    .sub { color:var(--muted); margin:0 0 32px; font-size:0.95rem; }
+    .cards { display:flex; flex-direction:column; gap:12px; }
+    .card { background:var(--card); border-radius:16px; padding:20px; text-decoration:none; color:inherit; box-shadow:0 2px 8px rgba(0,0,0,.06); border:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+    .card:active { transform:scale(0.98); }
+    .card-icon { font-size:2rem; width:48px; text-align:center; }
+    .card-text { text-align:left; flex:1; }
+    .card-text h2 { margin:0 0 4px; font-size:1.15rem; }
+    .card-text p { margin:0; font-size:0.85rem; color:var(--muted); }
+    footer { margin-top:40px; font-size:0.75rem; color:var(--muted); }
+  </style>
 </head>
 <body>
-  <p>Redirecting to <a href="dashboard.html">FitCouple Dashboard</a>...</p>
+  <div class="wrap">
+    <img class="logo" src="icon-192.png" alt="">
+    <h1>Fit<span>Pair</span></h1>
+    <p class="sub">Choose your dashboard</p>
+    <div class="cards">
+      <a class="card" href="solo.html">
+        <div class="card-icon">👤</div>
+        <div class="card-text">
+          <h2>FitSolo</h2>
+          <p>Track just yourself. Separate data.</p>
+        </div>
+      </a>
+      <a class="card" href="dashboard.html">
+        <div class="card-icon">👫</div>
+        <div class="card-text">
+          <h2>FitCouple</h2>
+          <p>Two people side by side. Separate data.</p>
+        </div>
+      </a>
+      <a class="card" href="family.html" style="opacity:0.7;">
+        <div class="card-icon">👨‍👩‍👧‍👦</div>
+        <div class="card-text">
+          <h2>FitFamily</h2>
+          <p>Coming soon · 3+ people</p>
+        </div>
+      </a>
+    </div>
+    <footer>Each version stores its own sheet link · No data mixed</footer>
+  </div>
 </body>
 </html>
