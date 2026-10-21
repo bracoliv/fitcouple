@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a73e8">
   <style>
-    :root { --bg:#f8f9fc; --card:#fff; --text:#1a1a1a; --muted:#5f6368; --primary:#1a73e8; --accent:#d81b60; --border:#e8eaed; }
+    :root { --bg:#f8f9fc; --card:#fff; --text:#1a1a1a; --muted:#5f6368; --primary:#1a73e8; --accent:#d81b60; --border:#e8eaed; --ok:#e6f4ea; --over:#fce8e6; }
     * { box-sizing:border-box; }
     body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:0; line-height:1.5; }
     .home { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; background:linear-gradient(160deg,#e8f0fe 0%,#f8f9fc 40%,#fff 100%); }
@@ -47,7 +47,14 @@
     .tabs button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
     .panel { background:var(--card); border-radius:12px; padding:16px; margin-top:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     table { width:100%; border-collapse:collapse; font-size:0.88rem; }
-    th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--border); }
+    th, td { text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); }
+    td.ok { background:var(--ok); color:#137333; font-weight:600; }
+    td.over { background:var(--over); color:#c5221f; font-weight:600; }
+    td.empty { color:#bbb; }
+    .legend { font-size:0.75rem; color:var(--muted); margin:8px 0; }
+    .legend span { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:middle; }
+    .legend .ok { background:var(--ok); }
+    .legend .over { background:var(--over); }
     .error { color:#d93025; background:#fce8e6; padding:12px; border-radius:8px; margin:12px auto; max-width:420px; }
     footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:24px 0; }
   </style>
@@ -93,14 +100,22 @@ Rules:
       <button onclick="showPanel('search', this)">Search</button>
       <button onclick="showPanel('feedback', this)">Feedback</button>
     </div>
-    <div id="panel-week" class="panel"><div id="weekResult"></div></div>
-    <div id="panel-month" class="panel" style="display:none;"><input type="month" id="viewMonth" onchange="renderMonth(this.value)"><div id="monthResult"></div></div>
+    <div id="panel-week" class="panel">
+      <div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div>
+      <div id="weekResult"></div>
+    </div>
+    <div id="panel-month" class="panel" style="display:none;">
+      <div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div>
+      <input type="month" id="viewMonth" onchange="renderMonth(this.value)">
+      <div id="monthResult"></div>
+    </div>
     <div id="panel-search" class="panel" style="display:none;"><input type="text" id="searchInput" placeholder="Search..." oninput="doSearch()" style="width:100%;max-width:360px;"><div id="searchResult"></div></div>
     <div id="panel-feedback" class="panel" style="display:none;"><h3>Feedback</h3><textarea id="fbMessage" placeholder="Your feedback..." style="width:100%;height:80px;"></textarea><br><button onclick="sendFeedback()">Send</button><p id="fbStatus"></p></div>
     <footer>Reads your Sheet only · No data stored here</footer>
   </div>
   <script>
     let allRows=[],headers=[],idx={},persons=[];
+    const TARGETS = [{cal:2000,prot:150},{cal:1600,prot:120}];
     function parseCSV(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(q&&text[i+1]==='"'){cell+='"';i++;}else q=!q;}else if(c===','&&!q){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&text[i+1]==='\n')i++;if(row.length||cell){row.push(cell);rows.push(row);}row=[];cell='';}else cell+=c;}if(cell||row.length){row.push(cell);rows.push(row);}return rows.filter(r=>r.some(c=>String(c).trim()));}
     function extractId(url){const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);return m?m[1]:null;}
     function showError(msg,detail){const el=document.getElementById('error');el.innerHTML='<strong>'+msg+'</strong>'+(detail?'<br><small>'+detail+'</small>':'');el.style.display='block';}
@@ -136,13 +151,58 @@ Rules:
       showError('Failed',lastErr);
     }
     function getDayData(name,dateStr){const rows=allRows.filter(r=>(r[idx.person]||'').trim()===name&&(r[idx.date]||'').startsWith(dateStr));let eaten=0,prot=0,workout=0;rows.forEach(r=>{const food=(r[idx.food]||'').trim(),cal=parseFloat(r[idx.cal])||0,p=parseFloat(r[idx.protein])||0;if(/^workout/i.test(food))workout+=cal;else{eaten+=cal;prot+=p;}});return{eaten,prot,workout};}
-    function renderPersonCard(name,i,dateStr){const d=getDayData(name,dateStr);const t=[{cal:2000,prot:150},{cal:1600,prot:120}][i]||{cal:2000,prot:150};const rem=Math.max(0,t.cal-d.eaten);const pNeed=Math.max(0,t.prot-d.prot);const tip=pNeed>0?'≈ '+Math.round(pNeed/0.31/10)*10+' g chicken':'Protein ok';return '<div class="person p'+(i+1)+'"><h3>'+(i===0?'💙':'💗')+' '+name+'</h3><div class="metric"><span>Calories</span><strong>'+Math.round(d.eaten)+'</strong></div><div class="metric"><span>Target</span><span>'+t.cal+'</span></div><div class="metric"><span>Left</span><span>'+rem+'</span></div><div class="metric"><span>Protein</span><strong>'+Math.round(d.prot)+' / '+t.prot+' g</strong></div><div class="status">'+(d.eaten===0?'Nothing logged':d.eaten>t.cal?'Over':'On track')+'</div><div class="tip">'+tip+'</div></div>';}
+    function dayStatus(eaten, target){ if(eaten===0) return 'empty'; return eaten>target?'over':'ok'; }
+    function renderPersonCard(name,i,dateStr){const d=getDayData(name,dateStr);const t=TARGETS[i]||TARGETS[0];const rem=Math.max(0,t.cal-d.eaten);const pNeed=Math.max(0,t.prot-d.prot);const tip=pNeed>0?'≈ '+Math.round(pNeed/0.31/10)*10+' g chicken':'Protein ok';const st=d.eaten===0?'Nothing logged':d.eaten>t.cal?'Over':'On track';return '<div class="person p'+(i+1)+'"><h3>'+(i===0?'💙':'💗')+' '+name+'</h3><div class="metric"><span>Calories</span><strong>'+Math.round(d.eaten)+'</strong></div><div class="metric"><span>Target</span><span>'+t.cal+'</span></div><div class="metric"><span>Left</span><span>'+rem+'</span></div><div class="metric"><span>Protein</span><strong>'+Math.round(d.prot)+' / '+t.prot+' g</strong></div><div class="status">'+st+'</div><div class="tip">'+tip+'</div></div>';}
     function renderToday(){const today=new Date().toISOString().slice(0,10);document.getElementById('dashboard').innerHTML=persons.map((n,i)=>renderPersonCard(n,i,today)).join('');setTimeout(drawTrend,60);}
     function drawTrend(){const canvas=document.getElementById('trendChart');if(!canvas||!persons.length)return;const ctx=canvas.getContext('2d');const w=canvas.width=canvas.parentElement.offsetWidth-32||280;const h=canvas.height=140;ctx.clearRect(0,0,w,h);const days=[];const today=new Date();for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10));}const colors=['#1a73e8','#d81b60'];const maxCal=2800;persons.forEach((name,pi)=>{ctx.beginPath();ctx.strokeStyle=colors[pi%2];ctx.lineWidth=2.5;days.forEach((ds,i)=>{const data=getDayData(name,ds);const x=24+(i/6)*(w-40);const y=h-18-Math.min(data.eaten/maxCal,1)*(h-30);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();days.forEach((ds,i)=>{const data=getDayData(name,ds);const x=24+(i/6)*(w-40);const y=h-18-Math.min(data.eaten/maxCal,1)*(h-30);ctx.fillStyle=colors[pi%2];ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();});});ctx.fillStyle='#5f6368';ctx.font='11px sans-serif';days.forEach((ds,i)=>{const x=24+(i/6)*(w-40);ctx.fillText(ds.slice(5),x-12,h-4);});}
-    function renderWeek(){const today=new Date();let html='<table><tr><th>Date</th>';persons.forEach(p=>html+='<th>'+p+'</th><th>P</th>');html+='</tr>';for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);html+='<tr><td>'+ds.slice(5)+'</td>';persons.forEach(name=>{const data=getDayData(name,ds);html+='<td>'+(data.eaten?Math.round(data.eaten):'')+'</td><td>'+(data.prot?Math.round(data.prot):'')+'</td>';});html+='</tr>';}document.getElementById('weekResult').innerHTML=html+'</table>';}
-    function renderMonth(ym){const [y,m]=ym.split('-').map(Number);const days=new Date(y,m,0).getDate();let html='<table><tr><th>D</th>';persons.forEach(p=>html+='<th>'+p+'</th>');html+='</tr>';for(let d=1;d<=days;d++){const ds=ym+'-'+String(d).padStart(2,'0');html+='<tr><td>'+d+'</td>';persons.forEach(name=>{const data=getDayData(name,ds);html+='<td>'+(data.eaten?Math.round(data.eaten):'')+'</td>';});html+='</tr>';}document.getElementById('monthResult').innerHTML=html+'</table>';}
+    function renderWeek(){
+      const today=new Date();
+      let html='<table><tr><th>Date</th>';
+      persons.forEach(p=>html+='<th>'+p+'</th>');
+      html+='</tr>';
+      for(let i=6;i>=0;i--){
+        const d=new Date(today); d.setDate(d.getDate()-i);
+        const ds=d.toISOString().slice(0,10);
+        html+='<tr><td>'+ds.slice(5)+'</td>';
+        persons.forEach((name,pi)=>{
+          const data=getDayData(name,ds);
+          const t=TARGETS[pi]||TARGETS[0];
+          const cls=dayStatus(data.eaten, t.cal);
+          const val=data.eaten?Math.round(data.eaten):'';
+          html+='<td class="'+cls+'">'+val+'</td>';
+        });
+        html+='</tr>';
+      }
+      document.getElementById('weekResult').innerHTML=html+'</table>';
+    }
+    function renderMonth(ym){
+      const [y,m]=ym.split('-').map(Number);
+      const days=new Date(y,m,0).getDate();
+      let html='<table><tr><th>Date</th>';
+      persons.forEach(p=>html+='<th>'+p+'</th>');
+      html+='</tr>';
+      let okCount=[0,0], overCount=[0,0];
+      for(let d=1;d<=days;d++){
+        const ds=ym+'-'+String(d).padStart(2,'0');
+        html+='<tr><td>'+d+'</td>';
+        persons.forEach((name,pi)=>{
+          const data=getDayData(name,ds);
+          const t=TARGETS[pi]||TARGETS[0];
+          const cls=dayStatus(data.eaten, t.cal);
+          if(cls==='ok') okCount[pi]++;
+          if(cls==='over') overCount[pi]++;
+          const val=data.eaten?Math.round(data.eaten):'';
+          html+='<td class="'+cls+'">'+val+'</td>';
+        });
+        html+='</tr>';
+      }
+      html+='</table><p style="font-size:0.85rem;margin-top:10px;">';
+      persons.forEach((p,i)=>html+=p+': '+okCount[i]+' on track, '+overCount[i]+' over &nbsp; ');
+      html+='</p>';
+      document.getElementById('monthResult').innerHTML=html;
+    }
     function doSearch(){const q=document.getElementById('searchInput').value.toLowerCase();const el=document.getElementById('searchResult');if(!q){el.innerHTML='';return;}const hits=allRows.filter(r=>(r[idx.food]||'').toLowerCase().includes(q)||(r[idx.person]||'').toLowerCase().includes(q)).slice(0,30);el.innerHTML=hits.length?'<table><tr><th>Date</th><th>Person</th><th>Item</th></tr>'+hits.map(r=>'<tr><td>'+(r[idx.date]||'').slice(0,10)+'</td><td>'+(r[idx.person]||'')+'</td><td>'+(r[idx.food]||'')+'</td></tr>').join('')+'</table>':'No matches';}
-    function loadPreview(){headers=['Date','Time','Person','Food/Workout','Calories (kcal)','Protein (g)'];idx={date:0,person:2,food:3,cal:4,protein:5};persons=['Alex','Sam'];const today=new Date().toISOString().slice(0,10);allRows=[[today,'08:30','Alex','Eggs',420,28],[today,'12:30','Alex','Chicken rice',680,45],[today,'08:00','Sam','Yogurt',310,18]];document.getElementById('home').style.display='none';document.getElementById('app').style.display='block';document.getElementById('viewMonth').value=today.slice(0,7);renderToday();renderWeek();renderMonth(today.slice(0,7));}
+    function loadPreview(){headers=['Date','Time','Person','Food/Workout','Calories (kcal)','Protein (g)'];idx={date:0,person:2,food:3,cal:4,protein:5};persons=['Alex','Sam'];const today=new Date().toISOString().slice(0,10);const yest=new Date(Date.now()-86400000).toISOString().slice(0,10);allRows=[[today,'08:30','Alex','Eggs',1800,90],[today,'12:30','Alex','Chicken rice',600,40],[today,'08:00','Sam','Yogurt',1400,70],[yest,'Morning','Alex','Oatmeal',2100,80],[yest,'Lunch','Sam','Salad',1500,60]];document.getElementById('home').style.display='none';document.getElementById('app').style.display='block';document.getElementById('viewMonth').value=today.slice(0,7);renderToday();renderWeek();renderMonth(today.slice(0,7));}
     function showPanel(name,btn){document.querySelectorAll('.panel').forEach(p=>p.style.display='none');document.getElementById('panel-'+name).style.display='block';document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
     const FEEDBACK_URL='';
     async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Sent.';}
