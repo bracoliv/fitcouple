@@ -305,7 +305,7 @@
     var carbPct = t.carbs ? Math.round(d.carbs / t.carbs * 100) : 0;
     var fatPct = t.fat ? Math.round(d.fat / t.fat * 100) : 0;
     var tip = pNeed > 0 ? '≈ ' + (Math.round(pNeed / 0.31 / 10) * 10) + ' g chicken breast' : 'Protein covered';
-    var protStatus = pNeed > 0 ? 'Need ' + Math.round(pNeed) + ' g more' : 'Protein ok';
+    var protStatus = pNeed <= 0 ? '<div class="status ok goal-hit">💪 Protein goal hit</div>' : '';
     var workoutTxt = d.workout ? Math.round(d.workout) + ' kcal burned' : 'no workout yet';
     var midLabel = overBy ? 'Over' : 'Remaining';
     var midVal = overBy ? Math.round(overBy) : Math.round(rem);
@@ -326,7 +326,7 @@
       + '<div class="highlight"><span class="h-label">% of target</span><span class="h-val">' + protPct + '%</span></div>'
       + '<div class="highlight"><span class="h-label">Entries</span><span class="h-val">' + d.entries + '</span></div>'
       + '</div>'
-      + '<div class="status">' + esc(protStatus) + '</div>'
+      + protStatus
       + '<div class="metric"><span class="label">Carbs</span><span>' + Math.round(d.carbs) + ' / ' + Math.round(t.carbs) + ' g (' + carbPct + '%)</span></div>'
       + '<div class="metric"><span class="label">Fat</span><span>' + Math.round(d.fat) + ' / ' + Math.round(t.fat) + ' g (' + fatPct + '%)</span></div>'
       + '<div class="metric"><span class="label">Workout</span><span>' + esc(workoutTxt) + '</span></div>'
