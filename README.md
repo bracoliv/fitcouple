@@ -50,7 +50,7 @@ Each version keeps its own link on this device. Do not mix Solo, Couple, and Fam
 
 ## License
 
-GPL-3.0. Free to use and share. If you modify and distribute it, share your changes under the same license.
+AGPL-3.0. Free to use and share. If you modify and distribute it, share your changes under the same license.
 
 ## Feedback
 
