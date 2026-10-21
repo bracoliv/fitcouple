@@ -27,8 +27,8 @@
     .exit-btn { background:none; border:1px solid var(--border); padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; color:var(--muted); }
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; padding:16px; }
     .modal.open { display:flex; }
-    .modal-content { background:#fff; border-radius:16px; max-width:520px; width:100%; max-height:85vh; overflow-y:auto; padding:20px; }
-    .copy-box { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:0.78rem; white-space:pre-wrap; margin:8px 0; max-height:220px; overflow-y:auto; }
+    .modal-content { background:#fff; border-radius:16px; max-width:540px; width:100%; max-height:85vh; overflow-y:auto; padding:20px; }
+    .copy-box { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:0.75rem; white-space:pre-wrap; margin:8px 0; max-height:280px; overflow-y:auto; }
     .app { display:none; padding:16px; }
     .app-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
     .app-header .logo-sm { width:40px; height:40px; border-radius:10px; object-fit:cover; }
@@ -70,34 +70,41 @@
   <div class="modal" id="howtoModal" onclick="if(event.target===this)this.classList.remove('open')">
     <div class="modal-content">
       <h2>How to use FitCouple</h2>
+      <p style="font-size:0.85rem;color:#5f6368;margin:0 0 12px;">⚠️ The instruction below is for your AI (ChatGPT / Grok / Gemini / Claude). Paste it together with your sheet link.</p>
       <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template → File → Make a copy → save it in your Google Drive.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a></p></div>
       <div class="step"><h3>2. Share your sheet</h3><p>Click Share → General access → Anyone with the link → Viewer.</p></div>
-      <div class="step"><h3>3. Connect with your AI</h3><p>Use ChatGPT, Grok, Gemini, Claude, or any AI that can see images and follow instructions. Paste the instruction below together with your sheet link.</p></div>
-      <div class="step"><h3>4. Copy this full instruction to your AI</h3>
+      <div class="step"><h3>3. Connect with your AI</h3><p>Use ChatGPT, Grok, Gemini, Claude, or any AI that can see images. Paste the full instruction below.</p></div>
+      <div class="step"><h3>4. Copy this full AI instruction</h3>
         <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet for FitCouple.
 
 My sheet link: [paste your copied sheet link here]
 
-## Logging rules
-- Always APPEND new rows at the bottom of the Log tab. Never insert, edit, or delete existing rows.
-- Columns (exact order): Date (YYYY-MM-DD), Time, Person, Food/Workout, Calories (kcal), Protein (g), Carbs (g), Fat (g), Notes.
-- Person name must match exactly what appears in the Dashboard (usually the two names set there).
-- Workout rows must start with "Workout:" so the dashboard can separate them from food.
-- Calories, Protein, Carbs, Fat must be numbers only (no units).
-- After logging, briefly confirm what you added.
+## Logging rules (strict)
+- Always APPEND new rows at the bottom of the Log tab.
+- Never insert, edit, overwrite, or delete existing rows.
+- Columns (exact order):
+  Date (YYYY-MM-DD), Time, Person, Food/Workout, Calories (kcal), Protein (g), Carbs (g), Fat (g), Notes
+- Person name must match exactly the names used in the Dashboard (case-sensitive if they differ).
+- Workout rows must start with "Workout:" (e.g. "Workout: Running 30 min") so the dashboard can separate them from food.
+- Calories, Protein, Carbs, Fat must be pure numbers only — no units, no text.
+- After logging, briefly confirm what you added (date, person, item, calories).
 
-## Calculation notes (for your reference)
-- Protein tip uses ~0.31 g protein per gram of chicken breast.
-- ~7700 kcal deficit ≈ 1 kg body fat (rough reference only; metabolic adaptation exists).
-- Do not invent targets; the Dashboard tab has the editable targets.
+## Calculation notes (for AI reference)
+- Protein tip calculation uses ~0.31 g protein per gram of chicken breast.
+- Rough reference: ~7700 kcal deficit ≈ 1 kg body fat.
+  Note: metabolic adaptation exists; this is only a rough reference, not a precise formula.
+- Do not invent or change targets. Targets live in the Dashboard tab and are edited by the user.
 
 ## When the user sends a photo
-1. Estimate the food or workout.
-2. Ask for confirmation if unsure.
-3. Append the row(s) to the Log tab.
+1. Estimate the food or workout from the photo.
+2. If the estimate is uncertain (portion size, mixed dish, unclear ingredients), ask for confirmation before logging.
+3. Append the row(s) to the Log tab following the rules above.
 4. Confirm what was logged.
 
-Keep replies short. The user mainly wants accurate logging.</div>
+## Behaviour
+- Keep replies short.
+- The user mainly wants accurate, consistent logging.
+- If the user asks for suggestions (e.g. remaining protein), you may give a brief tip using the calculation notes above.</div>
         <button onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy full instruction</button>
       </div>
       <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:12px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
