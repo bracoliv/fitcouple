@@ -180,11 +180,7 @@ Keep replies short.</div>
       const instruction=document.getElementById('aiInstruction').innerText;
       try{await navigator.clipboard.writeText(instruction);}catch(e){}
       const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('soloSheetUrl') || '';
-      const shortPrompt = 'Help me log food and workouts to my Google Sheet.
-
-My sheet link: ' + (sheetUrl || '[paste your sheet link]') + '
-
-Read the README tab first, then the Profile tab. Follow those rules exactly.';
+      const shortPrompt = 'Help me log food and workouts to my Google Sheet.\n\nMy sheet link: ' + (sheetUrl || '[paste your sheet link]') + '\n\nRead the README tab first, then the Profile tab. Follow those rules exactly.';
       const urls={
         chatgpt:'https://chatgpt.com/?q='+encodeURIComponent(shortPrompt),
         grok:'https://grok.com/?q='+encodeURIComponent(shortPrompt),
@@ -391,7 +387,7 @@ Read the README tab first, then the Profile tab. Follow those rules exactly.';
       localStorage.setItem('medAsked_'+today, '1');
       const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('soloSheetUrl') || '';
       const who = medPeople.map(p=>p.name + ' ' + p.med).join(', ');
-      const prompt = (taken ? 'Log that I took my medication today. ' : 'Log that I have not taken my medication yet today. ') + who + '\n\nMy sheet link: ' + sheetUrl + '\n\nAppend a row to the Medications tab.';
+      const prompt = (taken ? 'Log that I took my medication today. ' : 'Log that I have not taken my medication yet today. ') + who + '\\n\\nMy sheet link: ' + sheetUrl + '\\n\\nAppend a row to the Medications tab.';
       try{ await navigator.clipboard.writeText(prompt); }catch(e){}
       if(confirm(taken ? 'Logged as taken. Open AI to confirm?' : 'Noted. Open AI to log?')){
         window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt), '_blank');
