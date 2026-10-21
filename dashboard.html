@@ -85,34 +85,19 @@
       <div class="step"><h3>2. Share your sheet</h3><p>Click Share → General access → Anyone with the link → Viewer.</p></div>
       <div class="step"><h3>3. Connect with your AI</h3><p>Paste the instruction below + your sheet link into ChatGPT / Grok / Gemini / Claude.</p></div>
       <div class="step"><h3>4. Copy this full AI instruction (FitCouple only)</h3>
-        <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet for FitCouple (two people only).
+        <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet.
 
-My sheet link: [paste your FitCouple sheet link here]
+My sheet link: [paste your sheet link here]
 
-IMPORTANT: This sheet is only for the two people in FitCouple. Do not log other family members here.
+IMPORTANT: Open the sheet and read the README tab first. Follow those rules exactly.
+Do not invent rules. The README tab is the source of truth.
 
-## Logging rules (strict)
-- Always APPEND new rows at the bottom of the Log tab.
-- Never insert, edit, overwrite, or delete existing rows.
-- Columns (exact order):
-  Date (YYYY-MM-DD), Time, Person, Food/Workout, Calories (kcal), Protein (g), Carbs (g), Fat (g), Notes
-- Person name must match exactly the two names used in this FitCouple Dashboard.
-- Workout rows must start with "Workout:".
-- Calories, Protein, Carbs, Fat must be pure numbers only.
-- After logging, briefly confirm what you added.
+After reading README:
+- Always APPEND new rows to the Log tab.
+- Never edit or delete existing rows.
+- When I send a photo, estimate, confirm if unsure, then append.
 
-## Calculation notes
-- Protein tip uses ~0.31 g protein per gram of chicken breast.
-- ~7700 kcal deficit ≈ 1 kg body fat (rough reference; metabolic adaptation exists).
-- Do not invent targets.
-
-## When the user sends a photo
-1. Estimate the food or workout.
-2. Ask for confirmation if unsure.
-3. Append the row(s).
-4. Confirm what was logged.
-
-Keep replies short. This is the FitCouple sheet only.</div>
+Keep replies short.</div>
         <button onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy full instruction</button>
       </div>
       <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:12px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
