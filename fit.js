@@ -322,9 +322,9 @@
       + '<div class="status ' + st + '">' + esc(calorieStatus(st, d.eaten, t.cal)) + '</div>'
       + '<div class="metric"><span class="label">Protein</span><strong>' + Math.round(d.prot) + ' / ' + Math.round(t.prot) + ' g</strong></div>'
       + '<div class="highlight-row">'
-      + '<div class="highlight"><span class="h-label">Still needed</span><span class="h-val">' + Math.round(pNeed) + ' g</span></div>'
+      + '<div class="highlight"><span class="h-label">Target</span><span class="h-val">' + Math.round(t.prot) + '</span></div>'
+      + '<div class="highlight"><span class="h-label">Remaining</span><span class="h-val">' + Math.round(pNeed) + ' g</span></div>'
       + '<div class="highlight"><span class="h-label">% of target</span><span class="h-val">' + protPct + '%</span></div>'
-      + '<div class="highlight"><span class="h-label">Entries</span><span class="h-val">' + d.entries + '</span></div>'
       + '</div>'
       + protStatus
       + '<div class="metric"><span class="label">Carbs</span><span>' + Math.round(d.carbs) + ' / ' + Math.round(t.carbs) + ' g (' + carbPct + '%)</span></div>'
