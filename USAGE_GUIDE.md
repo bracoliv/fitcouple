@@ -87,9 +87,10 @@ Keep replies short. This is the FitCouple sheet only.
 
 ---
 
-## 3. FitFamily — AI Instruction (coming soon)
+## 3. FitFamily — AI Instruction (3 or more people)
 
-Will support 3+ people. Separate sheet required.
+Use family.html and a separate sheet. Up to 6 people. Same logging rules as FitCouple. Person names must match the Dashboard targets and the Log tab.
+
 
 ---
 
@@ -105,4 +106,11 @@ Each version remembers its own sheet link independently.
 
 ---
 
-*Last updated: 2026-10-21*
+## Dashboard colors
+
+- Red: over that person's calorie target.
+- Yellow: a finished day under 75% of target. Today before 8pm local time is not marked yellow.
+- Green: on track.
+- Targets are read from the Dashboard tab and matched by name.
+
+*Last updated: 2026-10-22*

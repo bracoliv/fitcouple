@@ -4,467 +4,139 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>FitFamily</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest-family.json">
   <meta name="theme-color" content="#1a73e8">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="FitFamily">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <style>
-    :root { --bg:#f8f9fc; --card:#fff; --text:#1a1a1a; --muted:#5f6368; --primary:#1a73e8; --border:#e8eaed; --ok:#e6f4ea; --over:#fce8e6; }
-    * { box-sizing:border-box; }
-    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:0; line-height:1.45; }
-    .home { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; background:linear-gradient(160deg,#e8f0fe 0%,#f8f9fc 40%,#fff 100%); }
-    .logo { width:96px; height:96px; border-radius:22px; margin-bottom:12px; box-shadow:0 4px 12px rgba(26,115,232,.25); object-fit:cover; }
-    .brand { font-size:1.8rem; font-weight:700; margin:0; }
-    .brand span { color:var(--primary); }
-    .tagline { color:var(--muted); margin:4px 0 24px; font-size:0.95rem; }
-    .setup-card { background:var(--card); padding:28px 24px; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,.08); width:100%; max-width:420px; text-align:center; }
-    .setup-card input { width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; font-size:1rem; margin:8px 0 16px; }
-    .setup-card button { background:var(--primary); color:#fff; border:none; padding:14px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; width:100%; }
-    .hint { font-size:0.8rem; color:var(--muted); margin-top:12px; }
-    .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; z-index:10; } .app .howto-btn { display:none; }
-    .exit-btn { background:none; border:1px solid var(--border); padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; color:var(--muted); }
-    .ask-btn { background:#1a73e8; color:#fff; border:none; padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; }
-    .switcher { position:relative; }
-    .switcher summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:4px; }
-    .switcher summary::-webkit-details-marker { display:none; }
-    .switcher-menu { position:absolute; right:0; top:100%; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:140px; z-index:20; }
-    .switcher-menu a { display:block; padding:8px 12px; text-decoration:none; color:var(--text); font-size:0.88rem; }
-    .switcher-menu a:hover { background:#f1f3f4; }
-    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; padding:16px; }
-    .modal.open { display:flex; }
-    .modal-content { background:#fff; border-radius:16px; max-width:540px; width:100%; max-height:85vh; overflow-y:auto; padding:20px; }
-    .copy-box { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:0.75rem; white-space:pre-wrap; margin:8px 0; max-height:280px; overflow-y:auto; }
-    .app { display:none; padding:16px; }
-    .app-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .app-header .logo-sm { width:40px; height:40px; border-radius:10px; object-fit:cover; }
-    .app-header h1 { flex:1; margin:0; font-size:1.15rem; }
-    .today h2 { text-align:center; margin:0 0 10px; font-size:1.05rem; color:var(--muted); }
-    .dashboard { display:grid; gap:12px; }
-    @media (min-width:700px) { .dashboard { grid-template-columns:1fr 1fr; } }
-    @media (min-width:1000px) { .dashboard { grid-template-columns:1fr 1fr 1fr; } }
-    .person { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    .person h3 { margin:0 0 10px; font-size:1.05rem; color:var(--primary); }
-    .highlight-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin:8px 0; }
-    .highlight { background:#f1f3f4; border-radius:8px; padding:8px 6px; text-align:center; }
-    .highlight .h-label { font-size:0.7rem; color:var(--muted); display:block; }
-    .highlight .h-val { font-size:1.05rem; font-weight:700; display:block; margin-top:2px; }
-    .metric { display:flex; justify-content:space-between; margin:5px 0; font-size:0.9rem; }
-    .metric .label { color:var(--muted); }
-    .status { font-weight:600; margin:6px 0; font-size:0.92rem; }
-    .tip { background:#e8f0fe; padding:8px; border-radius:8px; margin-top:8px; font-size:0.85rem; }
-    .chart-box { background:var(--card); border-radius:12px; padding:14px; margin-top:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    .chart-box h3 { margin:0 0 8px; font-size:0.95rem; color:var(--muted); }
-    .tabs { display:flex; gap:6px; margin:14px 0 8px; flex-wrap:wrap; }
-    .tabs button { background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:0.88rem; }
-    .tabs button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-    .panel { background:var(--card); border-radius:12px; padding:14px; margin-top:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    table { width:100%; border-collapse:collapse; font-size:0.86rem; }
-    th, td { text-align:center; padding:6px 3px; border-bottom:1px solid var(--border); }
-    td.ok { background:var(--ok); color:#137333; font-weight:600; }
-    td.over { background:var(--over); color:#c5221f; font-weight:600; }
-    .legend { font-size:0.75rem; color:var(--muted); margin:6px 0 10px; }
-    footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:20px 0; }
-    .ai-menu { position:absolute; right:0; top:100%; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:160px; z-index:30; display:none; }
-    .ai-menu button { display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:none; cursor:pointer; font-size:0.88rem; }
-    .ai-menu button:hover { background:#f1f3f4; }
-  
-    .med-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; }
-    .med-modal.show { display:flex; }
-    .med-box { background:#fff; border-radius:16px; padding:24px; max-width:360px; width:90%; text-align:center; }
-    .med-box h3 { margin:0 0 8px; }
-    .med-box p { color:#5f6368; margin:0 0 16px; font-size:0.9rem; }
-    .med-box button { margin:4px; padding:10px 20px; border-radius:10px; border:none; font-weight:600; cursor:pointer; }
-    .med-yes { background:#1a73e8; color:#fff; }
-    .med-no { background:#f1f3f4; color:#1a1a1a; }
-    .med-skip { background:transparent; color:#5f6368; font-size:0.85rem; }
-
-    .link-history { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e8eaed; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); max-height:180px; overflow-y:auto; z-index:20; display:none; }
-    .link-history div { padding:10px 12px; font-size:0.85rem; cursor:pointer; border-bottom:1px solid #f1f3f4; word-break:break-all; }
-    .link-history div:hover { background:#f8f9fc; }
-    .input-wrap { position:relative; }
-</style>
+  <link rel="stylesheet" href="fit.css?v=3">
 </head>
 <body>
-  <button class="howto-btn" onclick="document.getElementById('howtoModal').classList.add('open')">How to use</button>
-  <div class="modal" id="howtoModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <details class="switcher home-menu">
+    <summary>Menu</summary>
+    <div class="switcher-menu">
+      <button type="button" data-action="howto">How to use</button>
+      <a href="solo.html">FitSolo</a>
+      <a href="dashboard.html">FitCouple</a>
+      <a href="family.html" aria-current="page">FitFamily</a>
+      <a href="index.html">Home</a>
+    </div>
+  </details>
+
+  <div class="modal" id="howtoModal">
     <div class="modal-content">
-      <h2>How to use FitFamily</h2>
-      <p style="font-size:0.85rem;color:#5f6368;margin:0 0 12px;">⚠️ This instruction is only for your AI. Use a separate sheet for Family. Do not mix with Solo or Couple.</p>
-      <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template → File → Make a copy.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a></p></div>
-      <div class="step"><h3>2. Share your sheet</h3><p>Share → Anyone with the link → Viewer.</p></div>
-      <div class="step"><h3>3. Connect with your AI</h3><p>Use the Ask AI button, or paste the instruction below + your sheet link into your AI.</p></div>
-      <div class="step"><h3>4. Full AI instruction (FitFamily only)</h3>
-        <div class="copy-box" id="aiInstruction">You are helping me log food and workouts to my Google Sheet.
-
-My sheet link: [paste your sheet link here]
-
-IMPORTANT: Open the sheet and read the README tab first. Follow those rules exactly.
-Do not invent rules. The README tab is the source of truth.
-
-After reading README:
-- Always APPEND new rows to the Log tab.
-- Never edit or delete existing rows.
-- When I send a photo, estimate, confirm if unsure, then append.
-
-Keep replies short.</div>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy full instruction</button>
+      <h2 id="howtoTitle">How to use</h2>
+      <p class="warn" id="howtoWarn"></p>
+      <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template, then File → Make a copy.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank" rel="noopener">Open template</a></p></div>
+      <div class="step"><h3>2. Share your sheet</h3><p>Share → General access → Anyone with the link → Viewer.</p></div>
+      <div class="step"><h3>3. Paste the link here</h3><p>Each version remembers its own link. Up to 6 people.</p></div>
+      <div class="step"><h3>4. Copy this AI instruction</h3>
+        <div class="copy-box" id="aiInstruction"></div>
+        <button type="button" id="copyInstruction">Copy instruction</button>
       </div>
-      <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:12px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
+      <button type="button" class="ghost" id="howtoClose">Close</button>
     </div>
   </div>
+
   <div class="home" id="home">
     <img class="logo" src="icon-192.png" alt="FitFamily">
     <h1 class="brand">Fit<span>Family</span></h1>
-    <p class="tagline">Nutrition dashboard for 3+ people</p>
+    <p class="tagline">Nutrition dashboard for 3 or more</p>
     <div class="setup-card">
-      <input type="text" id="sheetUrl" placeholder="Paste your Google Sheets link">
-      <button onclick="loadData()">Load Dashboard</button>
-      <button onclick="loadPreview()" style="background:#5f6368;margin-top:8px;">Preview Demo</button>
-      <p class="hint">Sheet must be shared as “Anyone with the link can view”</p>
+      <div class="input-wrap">
+        <input type="url" id="sheetUrl" placeholder="Paste your Google Sheets link" autocomplete="off" enterkeyhint="go">
+        <div id="linkHistory" class="link-history"></div>
+      </div>
+      <button type="button" class="primary" id="loadBtn">Load Dashboard</button>
+      <button type="button" class="secondary" id="previewBtn">Preview Demo</button>
+      <p class="hint">Share the sheet as anyone with the link can view.</p>
+      <p id="error" class="error" hidden></p>
     </div>
   </div>
-  <div id="error" class="error" style="display:none;"></div>
+
   <div class="app" id="app">
     <div class="app-header">
       <img class="logo-sm" src="icon-192.png" alt="">
       <h1>FitFamily</h1>
-      <div style="position:relative;">
-        <button class="ask-btn" onclick="toggleAiMenu()">Ask AI</button>
-        <div class="ai-menu" id="aiMenu">
-          <button onclick="openAi('chatgpt')">ChatGPT</button>
-          <button onclick="openAi('grok')">Grok</button>
-          <button onclick="openAi('gemini')">Gemini</button>
-          <button onclick="openAi('claude')">Claude</button>
+      <div class="header-actions">
+        <div class="ask-wrap">
+          <button type="button" class="ask-btn" id="askBtn">Ask AI</button>
+          <div class="ai-menu" id="aiMenu">
+            <button type="button" data-ai="chatgpt">ChatGPT</button>
+            <button type="button" data-ai="grok">Grok</button>
+            <button type="button" data-ai="gemini">Gemini</button>
+            <button type="button" data-ai="claude">Claude</button>
+          </div>
         </div>
+        <button type="button" class="exit-btn" id="refreshBtn">Refresh</button>
+        <details class="switcher" id="mainMenu">
+          <summary>Menu</summary>
+          <div class="switcher-menu">
+            <button type="button" data-action="howto">How to use</button>
+            <button type="button" data-action="switch">Switch sheet</button>
+            <a href="solo.html">FitSolo</a>
+            <a href="dashboard.html">FitCouple</a>
+            <a href="family.html" aria-current="page">FitFamily</a>
+            <a href="index.html">Home</a>
+          </div>
+        </details>
       </div>
-      <details class="switcher">
-        <summary>⚙️</summary>
-        <div class="switcher-menu">
-          <a href="solo.html">FitSolo</a>
-          <a href="dashboard.html">FitCouple</a>
-          <a href="index.html">Home</a>
-        </div>
-      </details>
-      <button class="exit-btn" onclick="location.reload()">Refresh</button> <button class="exit-btn" onclick="exitToHome()">Switch sheet</button>
     </div>
-    <div class="today"><h2>📅 Today</h2><div id="dashboard" class="dashboard"></div></div>
-    <div class="chart-box"><h3>📈 7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
+    <p id="appError" class="error" hidden></p>
+    <div class="today"><h2>Today</h2><p id="targetNote" class="target-note"></p><div id="dashboard" class="dashboard"></div></div>
+    <div class="chart-box"><h3>7-day calorie trend</h3><canvas id="trendChart"></canvas><div id="trendLegend" class="trend-legend"></div></div>
     <div class="tabs">
-      <button class="active" onclick="showPanel('week', this)">📅 Week</button>
-      <button onclick="showPanel('month', this)">📆 Month</button>
-      <button onclick="showPanel('search', this)">🔍 Search</button>
+      <button type="button" class="active" data-panel="week">Week</button>
+      <button type="button" data-panel="month">Month</button>
+      <button type="button" data-panel="search">Search</button>
     </div>
-    <div id="panel-week" class="panel"><div class="legend"><span style="background:#e6f4ea;display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;"></span> On track &nbsp; <span style="background:#fce8e6;display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;"></span> Over</div><div id="weekResult"></div></div>
-    <div id="panel-month" class="panel" style="display:none;"><input type="month" id="viewMonth" onchange="renderMonth(this.value)"><div id="monthResult"></div></div>
-    <div id="panel-search" class="panel" style="display:none;"><input type="text" id="searchInput" placeholder="Search food..." oninput="doSearch()" style="width:100%;"><div id="searchResult"></div></div>
-    <footer>Reads your Sheet only · No data stored here · FitFamily data is separate</footer>
+    <div id="panel-week" class="panel">
+      <div class="legend"><span class="swatch ok"></span> On track <span class="swatch low"></span> Under 75% <span class="swatch over"></span> Over
+        <span class="legend-note">Yellow is a finished day under 75% of that person's target, or today after 8pm.</span>
+      </div>
+      <div class="table-wrap" id="weekResult"></div>
+    </div>
+    <div id="panel-month" class="panel" style="display:none;">
+      <div class="legend"><span class="swatch ok"></span> On track <span class="swatch low"></span> Under 75% <span class="swatch over"></span> Over</div>
+      <input type="month" id="viewMonth">
+      <div class="table-wrap" id="monthResult"></div>
+    </div>
+    <div id="panel-search" class="panel" style="display:none;">
+      <input type="search" id="searchInput" placeholder="Search food or person">
+      <div class="table-wrap" id="searchResult"></div>
+    </div>
+    <footer>Reads your Sheet only. FitFamily keeps its own link.</footer>
   </div>
+
+  <div id="medModal" class="med-modal">
+    <div class="med-box">
+      <h3>Medication</h3>
+      <p id="medText">Have you taken your medication today?</p>
+      <div id="medActions">
+        <button type="button" class="med-yes" id="medYes">Yes, taken</button>
+        <button type="button" class="med-no" id="medNo">Not yet</button>
+      </div>
+      <div id="medAi" class="med-ai" hidden>
+        <button type="button" data-ai="chatgpt" data-med>ChatGPT</button>
+        <button type="button" data-ai="grok" data-med>Grok</button>
+        <button type="button" data-ai="gemini" data-med>Gemini</button>
+        <button type="button" data-ai="claude" data-med>Claude</button>
+      </div>
+      <button type="button" class="med-skip" id="medSkip">Skip for today</button>
+    </div>
+  </div>
+
   <script>
-    let allRows=[],headers=[],idx={},persons=[];
-    const DEFAULT_TARGET={cal:1800,prot:100,carbs:180,fat:55};
-    function parseCSV(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(q&&text[i+1]==='"'){cell+='"';i++;}else q=!q;}else if(c===','&&!q){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&text[i+1]==='\n')i++;if(row.length||cell){row.push(cell);rows.push(row);}row=[];cell='';}else cell+=c;}if(cell||row.length){row.push(cell);rows.push(row);}return rows.filter(r=>r.some(c=>String(c).trim()));}
-    function extractId(url){const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);return m?m[1]:null;}
-    function showError(msg,detail){const el=document.getElementById('error');el.innerHTML='<strong>'+msg+'</strong>'+(detail?'<br><small>'+detail+'</small>':'');el.style.display='block';}
-    function exitToHome(){
-      localStorage.removeItem('familySheetUrl');
-      document.getElementById('app').style.display='none';
-      document.getElementById('home').style.display='flex';
-      document.getElementById('sheetUrl').value='';
-    }
-    function toggleAiMenu(){
-      const m=document.getElementById('aiMenu');
-      m.style.display=m.style.display==='block'?'none':'block';
-    }
-    document.addEventListener('click',e=>{
-      if(!e.target.closest('.ask-btn')&&!e.target.closest('.ai-menu')){
-        document.getElementById('aiMenu').style.display='none';
-      }
-    });
-    async function openAi(which){
-      document.getElementById('aiMenu').style.display='none';
-      const instruction=document.getElementById('aiInstruction').innerText;
-      try{await navigator.clipboard.writeText(instruction);}catch(e){}
-      const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('familySheetUrl') || '';
-      const shortPrompt = 'Help me log food and workouts to my Google Sheet.\n\nMy sheet link: ' + (sheetUrl || '[paste your sheet link]') + '\n\nRead the README tab first, then the Profile tab. Follow those rules exactly.';
-      const urls={
-        chatgpt:'https://chatgpt.com/?q='+encodeURIComponent(shortPrompt),
-        grok:'https://grok.com/?q='+encodeURIComponent(shortPrompt),
-        gemini:'https://gemini.google.com/app?q='+encodeURIComponent(shortPrompt),
-        claude:'https://claude.ai/new?q='+encodeURIComponent(shortPrompt)
-      };
-      window.open(urls[which],'_blank');
-    }
-    async function loadData(){
-      const url=document.getElementById('sheetUrl').value.trim();
-      const id=extractId(url);
-      document.getElementById('error').style.display='none';
-      if(!url){showError('Please paste a link');return;}
-      if(!id){showError('Invalid link');return;}
-      const attempts=['https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet=Log','https://docs.google.com/spreadsheets/d/'+id+'/export?format=csv&gid=0'];
-      let lastErr='';
-      for(const csvUrl of attempts){
-        try{
-          const res=await fetch(csvUrl);
-          if(!res.ok){lastErr='HTTP '+res.status;continue;}
-          const rows=parseCSV(await res.text());
-          if(rows.length<2){showError('Log empty');return;}
-          headers=rows[0].map(h=>h.trim());
-          allRows=rows.slice(1);
-          idx={date:headers.findIndex(h=>/date/i.test(h)),person:headers.findIndex(h=>/person/i.test(h)),food:headers.findIndex(h=>/food|workout/i.test(h)),cal:headers.findIndex(h=>/calor/i.test(h)),protein:headers.findIndex(h=>/protein/i.test(h)),carbs:headers.findIndex(h=>/carb/i.test(h)),fat:headers.findIndex(h=>/fat/i.test(h))};
-          if(idx.date<0||idx.person<0||idx.cal<0){showError('Missing columns');return;}
-          persons=[...new Set(allRows.map(r=>(r[idx.person]||'').trim()).filter(Boolean))];
-          if(persons.length===0) persons=['Person 1'];
-          localStorage.setItem('familySheetUrl',url); saveLink(url);
-          document.getElementById('home').style.display='none';
-          document.getElementById('app').style.display='block';
-          const today=new Date().toISOString().slice(0,10);
-          document.getElementById('viewMonth').value=today.slice(0,7);
-          renderToday();renderWeek();renderMonth(today.slice(0,7));
-          checkMeds(id);
-          return;
-        }catch(e){lastErr=e.message||'';if(e.name==='TypeError'){showError('Cannot reach Sheets','Check sharing.');return;}}
-      }
-      showError('Failed',lastErr);
-    }
-    function getDayData(name,dateStr){
-      const rows=allRows.filter(r=>(r[idx.person]||'').trim()===name&&(r[idx.date]||'').startsWith(dateStr));
-      let eaten=0,prot=0,carbs=0,fat=0,workout=0,entries=0;
-      rows.forEach(r=>{
-        const food=(r[idx.food]||'').trim();
-        const cal=parseFloat(r[idx.cal])||0;
-        const p=parseFloat(r[idx.protein])||0;
-        const c=idx.carbs>=0?parseFloat(r[idx.carbs])||0:0;
-        const f=idx.fat>=0?parseFloat(r[idx.fat])||0:0;
-        if(/^workout/i.test(food)) workout+=cal;
-        else { eaten+=cal; prot+=p; carbs+=c; fat+=f; entries++; }
-      });
-      return {eaten,prot,carbs,fat,workout,entries};
-    }
-    function dayStatus(eaten,target){ if(eaten===0) return 'empty'; return eaten>target?'over':'ok'; }
-    function renderPersonCard(name,dateStr){
-      const d=getDayData(name,dateStr);
-      const t=DEFAULT_TARGET;
-      const rem=Math.max(0,t.cal-d.eaten);
-      const pNeed=Math.max(0,t.prot-d.prot);
-      const calPct=t.cal?Math.round(d.eaten/t.cal*100):0;
-      const protPct=t.prot?Math.round(d.prot/t.prot*100):0;
-      const carbPct=t.carbs?Math.round(d.carbs/t.carbs*100):0;
-      const fatPct=t.fat?Math.round(d.fat/t.fat*100):0;
-      const tip=pNeed>0?'≈ '+Math.round(pNeed/0.31/10)*10+' g chicken breast':'Protein covered 🎉';
-      const calStatus=d.eaten===0?'😴 Nothing logged yet':d.eaten>t.cal?'🚨 Over target':'✅ On track';
-      const protStatus=pNeed>0?'🥚 Need '+Math.round(pNeed)+' g more':'✅ Protein ok';
-      const workoutTxt=d.workout?'🏃 '+Math.round(d.workout)+' kcal burned':'no workout yet';
-      return `<div class="person">
-        <h3>👤 ${name}</h3>
-        <div class="metric"><span class="label">🔥 Calories eaten</span><strong>${Math.round(d.eaten)}</strong></div>
-        <div class="highlight-row">
-          <div class="highlight"><span class="h-label">Target</span><span class="h-val">${t.cal}</span></div>
-          <div class="highlight"><span class="h-label">Remaining</span><span class="h-val">${rem}</span></div>
-          <div class="highlight"><span class="h-label">% of target</span><span class="h-val">${calPct}%</span></div>
-        </div>
-        <div class="status">${calStatus}</div>
-        <div class="metric"><span class="label">💪 Protein</span><strong>${Math.round(d.prot)} / ${t.prot} g</strong></div>
-        <div class="highlight-row">
-          <div class="highlight"><span class="h-label">Still needed</span><span class="h-val">${Math.round(pNeed)} g</span></div>
-          <div class="highlight"><span class="h-label">% of target</span><span class="h-val">${protPct}%</span></div>
-          <div class="highlight"><span class="h-label">Entries</span><span class="h-val">${d.entries}</span></div>
-        </div>
-        <div class="status">${protStatus}</div>
-        <div class="metric"><span class="label">🍚 Carbs</span><span>${Math.round(d.carbs)} / ${t.carbs} g (${carbPct}%)</span></div>
-        <div class="metric"><span class="label">🥑 Fat</span><span>${Math.round(d.fat)} / ${t.fat} g (${fatPct}%)</span></div>
-        <div class="metric"><span class="label">🏃 Workout</span><span>${workoutTxt}</span></div>
-        <div class="tip">🍗 ${tip}</div>
-      </div>`;
-    }
-    function renderToday(){
-      const today=new Date().toISOString().slice(0,10);
-      document.getElementById('dashboard').innerHTML=persons.map(n=>renderPersonCard(n,today)).join('');
-      setTimeout(drawTrend,60);
-    }
-    function drawTrend(){
-      const canvas=document.getElementById('trendChart');
-      if(!canvas||!persons.length)return;
-      const ctx=canvas.getContext('2d');
-      const w=canvas.width=canvas.parentElement.offsetWidth-32||280;
-      const h=canvas.height=140;
-      ctx.clearRect(0,0,w,h);
-      const days=[];const today=new Date();
-      for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10));}
-      const colors=['#1a73e8','#d81b60','#0d7377','#f57c00','#7b1fa2','#388e3c'];
-      const maxCal=2800;
-      persons.forEach((name,pi)=>{
-        ctx.beginPath();ctx.strokeStyle=colors[pi%colors.length];ctx.lineWidth=2;
-        days.forEach((ds,i)=>{
-          const data=getDayData(name,ds);
-          const x=24+(i/6)*(w-40);
-          const y=h-18-Math.min(data.eaten/maxCal,1)*(h-30);
-          if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        });
-        ctx.stroke();
-      });
-      ctx.fillStyle='#5f6368';ctx.font='11px sans-serif';
-      days.forEach((ds,i)=>{const x=24+(i/6)*(w-40);ctx.fillText(ds.slice(5),x-12,h-4);});
-    }
-    function renderWeek(){
-      const today=new Date();let html='<table><tr><th>Date</th>';
-      persons.forEach(p=>html+='<th>'+p+'</th>');
-      html+='</tr>';
-      for(let i=6;i>=0;i--){
-        const d=new Date(today);d.setDate(d.getDate()-i);
-        const ds=d.toISOString().slice(0,10);
-        html+='<tr><td>'+ds.slice(5)+'</td>';
-        persons.forEach(name=>{
-          const data=getDayData(name,ds);
-          const cls=dayStatus(data.eaten,DEFAULT_TARGET.cal);
-          html+='<td class="'+cls+'">'+(data.eaten?Math.round(data.eaten):'')+'</td>';
-        });
-        html+='</tr>';
-      }
-      document.getElementById('weekResult').innerHTML=html+'</table>';
-    }
-    function renderMonth(ym){
-      const [y,m]=ym.split('-').map(Number);
-      const days=new Date(y,m,0).getDate();
-      let html='<table><tr><th>Date</th>';
-      persons.forEach(p=>html+='<th>'+p+'</th>');
-      html+='</tr>';
-      for(let d=1;d<=days;d++){
-        const ds=ym+'-'+String(d).padStart(2,'0');
-        html+='<tr><td>'+d+'</td>';
-        persons.forEach(name=>{
-          const data=getDayData(name,ds);
-          const cls=dayStatus(data.eaten,DEFAULT_TARGET.cal);
-          html+='<td class="'+cls+'">'+(data.eaten?Math.round(data.eaten):'')+'</td>';
-        });
-        html+='</tr>';
-      }
-      document.getElementById('monthResult').innerHTML=html+'</table>';
-    }
-    function doSearch(){
-      const q=document.getElementById('searchInput').value.toLowerCase();
-      const el=document.getElementById('searchResult');
-      if(!q){el.innerHTML='';return;}
-      const hits=allRows.filter(r=>(r[idx.food]||'').toLowerCase().includes(q)||(r[idx.person]||'').toLowerCase().includes(q)).slice(0,40);
-      el.innerHTML=hits.length?'<table><tr><th>Date</th><th>Person</th><th>Item</th></tr>'+hits.map(r=>'<tr><td>'+(r[idx.date]||'').slice(0,10)+'</td><td>'+(r[idx.person]||'')+'</td><td>'+(r[idx.food]||'')+'</td></tr>').join('')+'</table>':'No matches';
-    }
-    function loadPreview(){
-      headers=['Date','Time','Person','Food/Workout','Calories (kcal)','Protein (g)','Carbs (g)','Fat (g)'];
-      idx={date:0,person:2,food:3,cal:4,protein:5,carbs:6,fat:7};
-      persons=['Dad','Mom','Kid'];
-      const today=new Date().toISOString().slice(0,10);
-      allRows=[
-        [today,'08:00','Dad','Eggs',420,28,20,16],
-        [today,'08:00','Mom','Yogurt',310,18,40,8],
-        [today,'12:00','Kid','Sandwich',480,22,50,18]
-      ];
-      document.getElementById('home').style.display='none';
-      document.getElementById('app').style.display='block';
-      document.getElementById('viewMonth').value=today.slice(0,7);
-      renderToday();renderWeek();renderMonth(today.slice(0,7));
-    }
-    function showPanel(name,btn){
-      document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
-      document.getElementById('panel-'+name).style.display='block';
-      document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-    }
-    
-    let medPeople = [];
-    async function checkMeds(id){
-      try{
-        const url = 'https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet=Profile';
-        const res = await fetch(url);
-        if(!res.ok) return;
-        const rows = parseCSV(await res.text());
-        const fields = {};
-        rows.forEach(r=>{ if(r[0]) fields[r[0].trim()] = r.slice(1); });
-        medPeople = [];
-        const has = fields['Has scheduled meds'] || [];
-        has.forEach((v,i)=>{
-          if(/^yes$/i.test((v||'').trim())){
-            const name = (fields['Name']||[])[i] || ('Person '+(i+1));
-            const m1 = (fields['Medication 1 name']||[])[i] || 'medication';
-            medPeople.push({name, med:m1});
-          }
-        });
-        if(medPeople.length){
-          const today = new Date().toISOString().slice(0,10);
-          const key = 'medAsked_'+today;
-          if(!localStorage.getItem(key)){
-            const names = medPeople.map(p=>p.name).join(', ');
-            document.getElementById('medText').textContent = names + ' — have you taken your medication today?';
-            document.getElementById('medModal').classList.add('show');
-          }
-        }
-      }catch(e){}
-    }
-    function closeMed(){ document.getElementById('medModal').classList.remove('show'); }
-    async function medAnswer(taken){
-      closeMed();
-      const today = new Date().toISOString().slice(0,10);
-      localStorage.setItem('medAsked_'+today, '1');
-      const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('familySheetUrl') || '';
-      const who = medPeople.map(p=>p.name + ' ' + p.med).join(', ');
-      const prompt = (taken ? 'Log that we took our medication today. ' : 'Log that we have not taken our medication yet today. ') + who + '\n\nMy sheet link: ' + sheetUrl + '\n\nAppend a row to the Medications tab.';
-      try{ await navigator.clipboard.writeText(prompt); }catch(e){}
-      if(confirm(taken ? 'Logged as taken. Open AI to confirm?' : 'Noted. Open AI to log?')){
-        window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt), '_blank');
-      }
-    }
-
-    
-    const LINK_KEY = 'familySheetUrl_history';
-    function getLinkHistory(){
-      try{ return JSON.parse(localStorage.getItem(LINK_KEY)||'[]'); }catch(e){ return []; }
-    }
-    function saveLink(url){
-      if(!url) return;
-      let h = getLinkHistory().filter(x=>x!==url);
-      h.unshift(url);
-      localStorage.setItem(LINK_KEY, JSON.stringify(h.slice(0,8)));
-    }
-    function showLinkHistory(){
-      const h = getLinkHistory();
-      const el = document.getElementById('linkHistory');
-      if(!h.length){ el.style.display='none'; return; }
-      el.innerHTML = h.map(u=>'<div onclick="pickLink(this.textContent)">'+u+'</div>').join('');
-      el.style.display='block';
-    }
-    function filterLinkHistory(){
-      const q = document.getElementById('sheetUrl').value.toLowerCase();
-      const h = getLinkHistory().filter(u=>u.toLowerCase().includes(q));
-      const el = document.getElementById('linkHistory');
-      if(!h.length){ el.style.display='none'; return; }
-      el.innerHTML = h.map(u=>'<div onclick="pickLink(this.textContent)">'+u+'</div>').join('');
-      el.style.display='block';
-    }
-    function pickLink(url){
-      document.getElementById('sheetUrl').value = url;
-      document.getElementById('linkHistory').style.display='none';
-    }
-    document.addEventListener('click', e=>{
-      if(!e.target.closest('.input-wrap')) document.getElementById('linkHistory').style.display='none';
-    });
-
-    const saved=localStorage.getItem('familySheetUrl');
-    if(saved){
-      document.getElementById('sheetUrl').value=saved;
-      loadData();
-    }
+    window.FIT_CONFIG = {
+      variant: "family",
+      storageKey: "familySheetUrl",
+      title: "FitFamily",
+      maxPeople: 6,
+      defaults: [{ cal: 1800, prot: 100, carbs: 180, fat: 55 }]
+    };
   </script>
-
-<div id="medModal" class="med-modal">
-  <div class="med-box">
-    <h3>💊 Medication</h3>
-    <p id="medText">Have you taken your medication today?</p>
-    <div>
-      <button class="med-yes" onclick="medAnswer(true)">Yes, taken</button>
-      <button class="med-no" onclick="medAnswer(false)">Not yet</button>
-    </div>
-    <button class="med-skip" onclick="closeMed()">Skip for now</button>
-  </div>
-</div>
+  <script src="fit.js?v=3"></script>
 </body>
 </html>
