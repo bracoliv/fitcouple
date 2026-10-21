@@ -9,54 +9,50 @@
   <style>
     :root { --bg:#f8f9fc; --card:#fff; --text:#1a1a1a; --muted:#5f6368; --primary:#1a73e8; --accent:#d81b60; --border:#e8eaed; --ok:#e6f4ea; --over:#fce8e6; }
     * { box-sizing:border-box; }
-    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:0; line-height:1.5; }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:0; line-height:1.45; }
     .home { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; background:linear-gradient(160deg,#e8f0fe 0%,#f8f9fc 40%,#fff 100%); }
     .logo { width:72px; height:72px; background:linear-gradient(135deg,var(--primary),#4285f4); border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:2.2rem; color:#fff; margin-bottom:12px; box-shadow:0 4px 12px rgba(26,115,232,.25); }
-    .brand { font-size:1.8rem; font-weight:700; margin:0; letter-spacing:-0.5px; }
+    .brand { font-size:1.8rem; font-weight:700; margin:0; }
     .brand span { color:var(--primary); }
     .tagline { color:var(--muted); margin:4px 0 24px; font-size:0.95rem; }
     .setup-card { background:var(--card); padding:28px 24px; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,.08); width:100%; max-width:420px; text-align:center; }
     .setup-card input { width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; font-size:1rem; margin:8px 0 16px; }
     .setup-card button { background:var(--primary); color:#fff; border:none; padding:14px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; width:100%; }
     .hint { font-size:0.8rem; color:var(--muted); margin-top:12px; }
-    .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+    .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; }
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; padding:16px; }
     .modal.open { display:flex; }
     .modal-content { background:#fff; border-radius:16px; max-width:480px; width:100%; max-height:85vh; overflow-y:auto; padding:20px; }
-    .step { margin:16px 0; }
     .copy-box { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:0.8rem; white-space:pre-wrap; margin:8px 0; max-height:160px; overflow-y:auto; }
-    .copy-btn { background:var(--primary); color:#fff; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; }
-    .sponsors { margin-top:40px; width:100%; max-width:420px; min-height:60px; }
     .app { display:none; padding:16px; }
-    .app-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+    .app-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
     .app-header .logo-sm { width:36px; height:36px; background:linear-gradient(135deg,var(--primary),#4285f4); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.1rem; }
-    .today h2 { text-align:center; margin:0 0 12px; font-size:1.1rem; color:var(--muted); }
+    .today h2 { text-align:center; margin:0 0 10px; font-size:1.05rem; color:var(--muted); }
     .dashboard { display:grid; gap:12px; }
     @media (min-width:700px) { .dashboard { grid-template-columns:1fr 1fr; } }
-    .person { background:var(--card); border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    .person h3 { margin:0 0 10px; font-size:1.1rem; }
+    .person { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+    .person h3 { margin:0 0 8px; font-size:1.05rem; }
     .p1 h3 { color:var(--primary); }
     .p2 h3 { color:var(--accent); }
-    .metric { display:flex; justify-content:space-between; margin:6px 0; font-size:0.92rem; }
-    .status { font-weight:600; margin-top:8px; }
-    .tip { background:#e8f0fe; padding:8px; border-radius:8px; margin-top:8px; font-size:0.88rem; }
-    .chart-box { background:var(--card); border-radius:12px; padding:16px; margin-top:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+    .metric { display:flex; justify-content:space-between; margin:5px 0; font-size:0.9rem; }
+    .metric .label { color:var(--muted); }
+    .status { font-weight:600; margin:6px 0; font-size:0.92rem; }
+    .tip { background:#e8f0fe; padding:8px; border-radius:8px; margin-top:8px; font-size:0.85rem; }
+    .chart-box { background:var(--card); border-radius:12px; padding:14px; margin-top:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     .chart-box h3 { margin:0 0 8px; font-size:0.95rem; color:var(--muted); }
-    .tabs { display:flex; gap:6px; margin:16px 0 8px; flex-wrap:wrap; }
-    .tabs button { background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:0.9rem; }
+    .tabs { display:flex; gap:6px; margin:14px 0 8px; flex-wrap:wrap; }
+    .tabs button { background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:0.88rem; }
     .tabs button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-    .panel { background:var(--card); border-radius:12px; padding:16px; margin-top:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    table { width:100%; border-collapse:collapse; font-size:0.88rem; }
-    th, td { text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); }
+    .panel { background:var(--card); border-radius:12px; padding:14px; margin-top:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+    table { width:100%; border-collapse:collapse; font-size:0.86rem; }
+    th, td { text-align:center; padding:6px 3px; border-bottom:1px solid var(--border); }
     td.ok { background:var(--ok); color:#137333; font-weight:600; }
     td.over { background:var(--over); color:#c5221f; font-weight:600; }
-    td.empty { color:#bbb; }
-    .legend { font-size:0.75rem; color:var(--muted); margin:8px 0; }
+    .legend { font-size:0.75rem; color:var(--muted); margin:6px 0 10px; }
     .legend span { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:middle; }
     .legend .ok { background:var(--ok); }
     .legend .over { background:var(--over); }
-    .error { color:#d93025; background:#fce8e6; padding:12px; border-radius:8px; margin:12px auto; max-width:420px; }
-    footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:24px 0; }
+    footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:20px 0; }
   </style>
 </head>
 <body>
@@ -64,8 +60,8 @@
   <div class="modal" id="howtoModal" onclick="if(event.target===this)this.classList.remove('open')">
     <div class="modal-content">
       <h2>Get started in 3 steps</h2>
-      <div class="step"><h3>1. Copy the sheet template</h3><p>Open the template → File → Make a copy.</p><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a></p></div>
-      <div class="step"><h3>2. Connect with your AI</h3><p>ChatGPT, Grok, Gemini, Claude, etc.</p></div>
+      <div class="step"><h3>1. Copy the sheet template</h3><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank">Open template</a> → File → Make a copy</p></div>
+      <div class="step"><h3>2. Connect with your AI</h3><p>ChatGPT, Grok, Gemini, Claude...</p></div>
       <div class="step"><h3>3. Copy this instruction to your AI</h3><div class="copy-box" id="aiInstruction">Please help me log food and workouts to my Google Sheet.
 My sheet link: [paste your copied sheet link here]
 
@@ -73,8 +69,8 @@ Rules:
 - Always APPEND new rows at the bottom of the Log tab.
 - Columns: Date (YYYY-MM-DD), Time, Person, Food/Workout, Calories, Protein, Carbs, Fat, Notes.
 - Workout rows must start with "Workout:".
-- Numbers only for calories and macros.</div><button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy instruction</button></div>
-      <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:8px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
+- Numbers only for calories and macros.</div><button onclick="navigator.clipboard.writeText(document.getElementById('aiInstruction').innerText);this.textContent='Copied!'">Copy instruction</button></div>
+      <button onclick="document.getElementById('howtoModal').classList.remove('open')" style="margin-top:10px;background:#eee;border:none;padding:8px 16px;border-radius:8px;">Close</button>
     </div>
   </div>
   <div class="home" id="home">
@@ -87,35 +83,27 @@ Rules:
       <button onclick="loadPreview()" style="background:#5f6368;margin-top:8px;">Preview Demo</button>
       <p class="hint">Sheet must be shared as “Anyone with the link can view”</p>
     </div>
-    <div class="sponsors"></div>
   </div>
   <div id="error" class="error" style="display:none;"></div>
   <div class="app" id="app">
     <div class="app-header"><div class="logo-sm">🔥</div><h1>FitCouple</h1></div>
-    <div class="today"><h2>Today</h2><div id="dashboard" class="dashboard"></div></div>
-    <div class="chart-box"><h3>7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
+    <div class="today"><h2>📅 Today</h2><div id="dashboard" class="dashboard"></div></div>
+    <div class="chart-box"><h3>📈 7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
     <div class="tabs">
-      <button class="active" onclick="showPanel('week', this)">Week</button>
-      <button onclick="showPanel('month', this)">Month</button>
-      <button onclick="showPanel('search', this)">Search</button>
-      <button onclick="showPanel('feedback', this)">Feedback</button>
+      <button class="active" onclick="showPanel('week', this)">📅 Week</button>
+      <button onclick="showPanel('month', this)">📆 Month</button>
+      <button onclick="showPanel('search', this)">🔍 Search</button>
+      <button onclick="showPanel('feedback', this)">💬 Feedback</button>
     </div>
-    <div id="panel-week" class="panel">
-      <div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div>
-      <div id="weekResult"></div>
-    </div>
-    <div id="panel-month" class="panel" style="display:none;">
-      <div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div>
-      <input type="month" id="viewMonth" onchange="renderMonth(this.value)">
-      <div id="monthResult"></div>
-    </div>
-    <div id="panel-search" class="panel" style="display:none;"><input type="text" id="searchInput" placeholder="Search..." oninput="doSearch()" style="width:100%;max-width:360px;"><div id="searchResult"></div></div>
+    <div id="panel-week" class="panel"><div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div><div id="weekResult"></div></div>
+    <div id="panel-month" class="panel" style="display:none;"><div class="legend"><span class="ok"></span> On track &nbsp; <span class="over"></span> Over</div><input type="month" id="viewMonth" onchange="renderMonth(this.value)"><div id="monthResult"></div></div>
+    <div id="panel-search" class="panel" style="display:none;"><input type="text" id="searchInput" placeholder="Search food..." oninput="doSearch()" style="width:100%;max-width:360px;"><div id="searchResult"></div></div>
     <div id="panel-feedback" class="panel" style="display:none;"><h3>Feedback</h3><textarea id="fbMessage" placeholder="Your feedback..." style="width:100%;height:80px;"></textarea><br><button onclick="sendFeedback()">Send</button><p id="fbStatus"></p></div>
     <footer>Reads your Sheet only · No data stored here</footer>
   </div>
   <script>
     let allRows=[],headers=[],idx={},persons=[];
-    const TARGETS = [{cal:2000,prot:150},{cal:1600,prot:120}];
+    const TARGETS=[{cal:2050,prot:135,carbs:200,fat:65},{cal:1550,prot:105,carbs:150,fat:50}];
     function parseCSV(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(q&&text[i+1]==='"'){cell+='"';i++;}else q=!q;}else if(c===','&&!q){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&text[i+1]==='\n')i++;if(row.length||cell){row.push(cell);rows.push(row);}row=[];cell='';}else cell+=c;}if(cell||row.length){row.push(cell);rows.push(row);}return rows.filter(r=>r.some(c=>String(c).trim()));}
     function extractId(url){const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);return m?m[1]:null;}
     function showError(msg,detail){const el=document.getElementById('error');el.innerHTML='<strong>'+msg+'</strong>'+(detail?'<br><small>'+detail+'</small>':'');el.style.display='block';}
@@ -135,7 +123,7 @@ Rules:
           if(rows.length<2){showError('Log empty');return;}
           headers=rows[0].map(h=>h.trim());
           allRows=rows.slice(1);
-          idx={date:headers.findIndex(h=>/date/i.test(h)),person:headers.findIndex(h=>/person/i.test(h)),food:headers.findIndex(h=>/food|workout/i.test(h)),cal:headers.findIndex(h=>/calor/i.test(h)),protein:headers.findIndex(h=>/protein/i.test(h))};
+          idx={date:headers.findIndex(h=>/date/i.test(h)),person:headers.findIndex(h=>/person/i.test(h)),food:headers.findIndex(h=>/food|workout/i.test(h)),cal:headers.findIndex(h=>/calor/i.test(h)),protein:headers.findIndex(h=>/protein/i.test(h)),carbs:headers.findIndex(h=>/carb/i.test(h)),fat:headers.findIndex(h=>/fat/i.test(h))};
           if(idx.date<0||idx.person<0||idx.cal<0){showError('Missing columns');return;}
           persons=[...new Set(allRows.map(r=>(r[idx.person]||'').trim()).filter(Boolean))].slice(0,2);
           if(persons.length<2)persons=[...persons,'Person 1','Person 2'].slice(0,2);
@@ -150,62 +138,59 @@ Rules:
       }
       showError('Failed',lastErr);
     }
-    function getDayData(name,dateStr){const rows=allRows.filter(r=>(r[idx.person]||'').trim()===name&&(r[idx.date]||'').startsWith(dateStr));let eaten=0,prot=0,workout=0;rows.forEach(r=>{const food=(r[idx.food]||'').trim(),cal=parseFloat(r[idx.cal])||0,p=parseFloat(r[idx.protein])||0;if(/^workout/i.test(food))workout+=cal;else{eaten+=cal;prot+=p;}});return{eaten,prot,workout};}
-    function dayStatus(eaten, target){ if(eaten===0) return 'empty'; return eaten>target?'over':'ok'; }
-    function renderPersonCard(name,i,dateStr){const d=getDayData(name,dateStr);const t=TARGETS[i]||TARGETS[0];const rem=Math.max(0,t.cal-d.eaten);const pNeed=Math.max(0,t.prot-d.prot);const tip=pNeed>0?'≈ '+Math.round(pNeed/0.31/10)*10+' g chicken':'Protein ok';const st=d.eaten===0?'Nothing logged':d.eaten>t.cal?'Over':'On track';return '<div class="person p'+(i+1)+'"><h3>'+(i===0?'💙':'💗')+' '+name+'</h3><div class="metric"><span>Calories</span><strong>'+Math.round(d.eaten)+'</strong></div><div class="metric"><span>Target</span><span>'+t.cal+'</span></div><div class="metric"><span>Left</span><span>'+rem+'</span></div><div class="metric"><span>Protein</span><strong>'+Math.round(d.prot)+' / '+t.prot+' g</strong></div><div class="status">'+st+'</div><div class="tip">'+tip+'</div></div>';}
+    function getDayData(name,dateStr){
+      const rows=allRows.filter(r=>(r[idx.person]||'').trim()===name&&(r[idx.date]||'').startsWith(dateStr));
+      let eaten=0,prot=0,carbs=0,fat=0,workout=0,entries=0;
+      rows.forEach(r=>{
+        const food=(r[idx.food]||'').trim();
+        const cal=parseFloat(r[idx.cal])||0;
+        const p=parseFloat(r[idx.protein])||0;
+        const c=idx.carbs>=0?parseFloat(r[idx.carbs])||0:0;
+        const f=idx.fat>=0?parseFloat(r[idx.fat])||0:0;
+        if(/^workout/i.test(food)) workout+=cal;
+        else { eaten+=cal; prot+=p; carbs+=c; fat+=f; entries++; }
+      });
+      return {eaten,prot,carbs,fat,workout,entries};
+    }
+    function dayStatus(eaten,target){ if(eaten===0) return 'empty'; return eaten>target?'over':'ok'; }
+    function renderPersonCard(name,i,dateStr){
+      const d=getDayData(name,dateStr);
+      const t=TARGETS[i]||TARGETS[0];
+      const rem=Math.max(0,t.cal-d.eaten);
+      const pNeed=Math.max(0,t.prot-d.prot);
+      const calPct=t.cal?Math.round(d.eaten/t.cal*100):0;
+      const protPct=t.prot?Math.round(d.prot/t.prot*100):0;
+      const carbPct=t.carbs?Math.round(d.carbs/t.carbs*100):0;
+      const fatPct=t.fat?Math.round(d.fat/t.fat*100):0;
+      const tip=pNeed>0?'≈ '+Math.round(pNeed/0.31/10)*10+' g chicken breast':'Protein covered 🎉';
+      const calStatus=d.eaten===0?'😴 Nothing logged yet':d.eaten>t.cal?'🚨 Over target':'✅ On track';
+      const protStatus=pNeed>0?'🥚 Need '+Math.round(pNeed)+' g more':'✅ Protein ok';
+      const workoutTxt=d.workout?'🏃 '+Math.round(d.workout)+' kcal burned':'no workout yet';
+      return `<div class="person p${i+1}">
+        <h3>${i===0?'💙':'💗'} ${name}</h3>
+        <div class="metric"><span class="label">🔥 Calories eaten</span><strong>${Math.round(d.eaten)}</strong></div>
+        <div class="metric"><span class="label">Target</span><span>${t.cal} (${calPct}%)</span></div>
+        <div class="metric"><span class="label">Remaining</span><span>${rem} kcal left</span></div>
+        <div class="status">${calStatus}</div>
+        <div class="metric"><span class="label">💪 Protein</span><strong>${Math.round(d.prot)} / ${t.prot} g (${protPct}%)</strong></div>
+        <div class="metric"><span class="label">Still needed</span><span>${Math.round(pNeed)} g</span></div>
+        <div class="status">${protStatus}</div>
+        <div class="metric"><span class="label">🍚 Carbs</span><span>${Math.round(d.carbs)} / ${t.carbs} g (${carbPct}%)</span></div>
+        <div class="metric"><span class="label">🥑 Fat</span><span>${Math.round(d.fat)} / ${t.fat} g (${fatPct}%)</span></div>
+        <div class="metric"><span class="label">🏃 Workout</span><span>${workoutTxt}</span></div>
+        <div class="metric"><span class="label">📝 Entries</span><span>${d.entries}</span></div>
+        <div class="tip">🍗 ${tip}</div>
+      </div>`;
+    }
     function renderToday(){const today=new Date().toISOString().slice(0,10);document.getElementById('dashboard').innerHTML=persons.map((n,i)=>renderPersonCard(n,i,today)).join('');setTimeout(drawTrend,60);}
     function drawTrend(){const canvas=document.getElementById('trendChart');if(!canvas||!persons.length)return;const ctx=canvas.getContext('2d');const w=canvas.width=canvas.parentElement.offsetWidth-32||280;const h=canvas.height=140;ctx.clearRect(0,0,w,h);const days=[];const today=new Date();for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10));}const colors=['#1a73e8','#d81b60'];const maxCal=2800;persons.forEach((name,pi)=>{ctx.beginPath();ctx.strokeStyle=colors[pi%2];ctx.lineWidth=2.5;days.forEach((ds,i)=>{const data=getDayData(name,ds);const x=24+(i/6)*(w-40);const y=h-18-Math.min(data.eaten/maxCal,1)*(h-30);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();days.forEach((ds,i)=>{const data=getDayData(name,ds);const x=24+(i/6)*(w-40);const y=h-18-Math.min(data.eaten/maxCal,1)*(h-30);ctx.fillStyle=colors[pi%2];ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();});});ctx.fillStyle='#5f6368';ctx.font='11px sans-serif';days.forEach((ds,i)=>{const x=24+(i/6)*(w-40);ctx.fillText(ds.slice(5),x-12,h-4);});}
-    function renderWeek(){
-      const today=new Date();
-      let html='<table><tr><th>Date</th>';
-      persons.forEach(p=>html+='<th>'+p+'</th>');
-      html+='</tr>';
-      for(let i=6;i>=0;i--){
-        const d=new Date(today); d.setDate(d.getDate()-i);
-        const ds=d.toISOString().slice(0,10);
-        html+='<tr><td>'+ds.slice(5)+'</td>';
-        persons.forEach((name,pi)=>{
-          const data=getDayData(name,ds);
-          const t=TARGETS[pi]||TARGETS[0];
-          const cls=dayStatus(data.eaten, t.cal);
-          const val=data.eaten?Math.round(data.eaten):'';
-          html+='<td class="'+cls+'">'+val+'</td>';
-        });
-        html+='</tr>';
-      }
-      document.getElementById('weekResult').innerHTML=html+'</table>';
-    }
-    function renderMonth(ym){
-      const [y,m]=ym.split('-').map(Number);
-      const days=new Date(y,m,0).getDate();
-      let html='<table><tr><th>Date</th>';
-      persons.forEach(p=>html+='<th>'+p+'</th>');
-      html+='</tr>';
-      let okCount=[0,0], overCount=[0,0];
-      for(let d=1;d<=days;d++){
-        const ds=ym+'-'+String(d).padStart(2,'0');
-        html+='<tr><td>'+d+'</td>';
-        persons.forEach((name,pi)=>{
-          const data=getDayData(name,ds);
-          const t=TARGETS[pi]||TARGETS[0];
-          const cls=dayStatus(data.eaten, t.cal);
-          if(cls==='ok') okCount[pi]++;
-          if(cls==='over') overCount[pi]++;
-          const val=data.eaten?Math.round(data.eaten):'';
-          html+='<td class="'+cls+'">'+val+'</td>';
-        });
-        html+='</tr>';
-      }
-      html+='</table><p style="font-size:0.85rem;margin-top:10px;">';
-      persons.forEach((p,i)=>html+=p+': '+okCount[i]+' on track, '+overCount[i]+' over &nbsp; ');
-      html+='</p>';
-      document.getElementById('monthResult').innerHTML=html;
-    }
+    function renderWeek(){const today=new Date();let html='<table><tr><th>Date</th>';persons.forEach(p=>html+='<th>'+p+'</th>');html+='</tr>';for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);html+='<tr><td>'+ds.slice(5)+'</td>';persons.forEach((name,pi)=>{const data=getDayData(name,ds);const t=TARGETS[pi]||TARGETS[0];const cls=dayStatus(data.eaten,t.cal);html+='<td class="'+cls+'">'+(data.eaten?Math.round(data.eaten):'')+'</td>';});html+='</tr>';}document.getElementById('weekResult').innerHTML=html+'</table>';}
+    function renderMonth(ym){const [y,m]=ym.split('-').map(Number);const days=new Date(y,m,0).getDate();let html='<table><tr><th>Date</th>';persons.forEach(p=>html+='<th>'+p+'</th>');html+='</tr>';let ok=[0,0],over=[0,0];for(let d=1;d<=days;d++){const ds=ym+'-'+String(d).padStart(2,'0');html+='<tr><td>'+d+'</td>';persons.forEach((name,pi)=>{const data=getDayData(name,ds);const t=TARGETS[pi]||TARGETS[0];const cls=dayStatus(data.eaten,t.cal);if(cls==='ok')ok[pi]++;if(cls==='over')over[pi]++;html+='<td class="'+cls+'">'+(data.eaten?Math.round(data.eaten):'')+'</td>';});html+='</tr>';}html+='</table><p style="font-size:0.85rem;margin-top:8px;">';persons.forEach((p,i)=>html+=p+': '+ok[i]+' on track, '+over[i]+' over &nbsp; ');html+='</p>';document.getElementById('monthResult').innerHTML=html;}
     function doSearch(){const q=document.getElementById('searchInput').value.toLowerCase();const el=document.getElementById('searchResult');if(!q){el.innerHTML='';return;}const hits=allRows.filter(r=>(r[idx.food]||'').toLowerCase().includes(q)||(r[idx.person]||'').toLowerCase().includes(q)).slice(0,30);el.innerHTML=hits.length?'<table><tr><th>Date</th><th>Person</th><th>Item</th></tr>'+hits.map(r=>'<tr><td>'+(r[idx.date]||'').slice(0,10)+'</td><td>'+(r[idx.person]||'')+'</td><td>'+(r[idx.food]||'')+'</td></tr>').join('')+'</table>':'No matches';}
-    function loadPreview(){headers=['Date','Time','Person','Food/Workout','Calories (kcal)','Protein (g)'];idx={date:0,person:2,food:3,cal:4,protein:5};persons=['Alex','Sam'];const today=new Date().toISOString().slice(0,10);const yest=new Date(Date.now()-86400000).toISOString().slice(0,10);allRows=[[today,'08:30','Alex','Eggs',1800,90],[today,'12:30','Alex','Chicken rice',600,40],[today,'08:00','Sam','Yogurt',1400,70],[yest,'Morning','Alex','Oatmeal',2100,80],[yest,'Lunch','Sam','Salad',1500,60]];document.getElementById('home').style.display='none';document.getElementById('app').style.display='block';document.getElementById('viewMonth').value=today.slice(0,7);renderToday();renderWeek();renderMonth(today.slice(0,7));}
+    function loadPreview(){headers=['Date','Time','Person','Food/Workout','Calories (kcal)','Protein (g)','Carbs (g)','Fat (g)'];idx={date:0,person:2,food:3,cal:4,protein:5,carbs:6,fat:7};persons=['Brian','Rachel'];const today=new Date().toISOString().slice(0,10);allRows=[[today,'08:30','Brian','Eggs & toast',420,28,35,16],[today,'12:30','Brian','Chicken rice',680,45,70,18],[today,'08:00','Rachel','Yogurt',310,18,40,8]];document.getElementById('home').style.display='none';document.getElementById('app').style.display='block';document.getElementById('viewMonth').value=today.slice(0,7);renderToday();renderWeek();renderMonth(today.slice(0,7));}
     function showPanel(name,btn){document.querySelectorAll('.panel').forEach(p=>p.style.display='none');document.getElementById('panel-'+name).style.display='block';document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
     const FEEDBACK_URL='';
-    async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Sent.';}
+    async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Thanks!';}
     const saved=localStorage.getItem('fuelSheetUrl');if(saved)document.getElementById('sheetUrl').value=saved;
   </script>
 </body>
