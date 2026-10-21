@@ -23,7 +23,7 @@
     .setup-card input { width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; font-size:1rem; margin:8px 0 16px; }
     .setup-card button { background:var(--primary); color:#fff; border:none; padding:14px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; width:100%; }
     .hint { font-size:0.8rem; color:var(--muted); margin-top:12px; }
-    .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; z-index:10; }
+    .howto-btn { position:fixed; top:16px; right:16px; background:#fff; border:1px solid var(--border); padding:8px 14px; border-radius:20px; font-size:0.85rem; cursor:pointer; z-index:10; } .app .howto-btn { display:none; }
         .ask-btn { background:#1a73e8; color:#fff; border:none; padding:4px 10px; border-radius:12px; font-size:0.8rem; cursor:pointer; }
     .ai-menu { position:absolute; right:0; top:100%; background:#fff; border:1px solid #e8eaed; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:160px; z-index:30; display:none; }
     .ai-menu button { display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:none; cursor:pointer; font-size:0.88rem; }
@@ -139,7 +139,7 @@ Keep replies short.</div>
           <a href="index.html">Home</a>
         </div>
       </details>
-      <button class="exit-btn" onclick="exitToHome()">Switch sheet</button>
+      <button class="exit-btn" onclick="location.reload()">Refresh</button> <button class="exit-btn" onclick="exitToHome()">Switch sheet</button>
     </div>
     <div class="today"><h2>📅 Today</h2><div id="dashboard"></div></div>
     <div class="chart-box"><h3>📈 7-day calorie trend</h3><canvas id="trendChart"></canvas></div>
