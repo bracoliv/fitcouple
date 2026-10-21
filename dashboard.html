@@ -73,7 +73,17 @@
     .legend .ok { background:var(--ok); }
     .legend .over { background:var(--over); }
     footer { text-align:center; font-size:0.75rem; color:var(--muted); margin:20px 0; }
-  </style>
+  
+    .med-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; }
+    .med-modal.show { display:flex; }
+    .med-box { background:#fff; border-radius:16px; padding:24px; max-width:360px; width:90%; text-align:center; }
+    .med-box h3 { margin:0 0 8px; }
+    .med-box p { color:#5f6368; margin:0 0 16px; font-size:0.9rem; }
+    .med-box button { margin:4px; padding:10px 20px; border-radius:10px; border:none; font-weight:600; cursor:pointer; }
+    .med-yes { background:#1a73e8; color:#fff; }
+    .med-no { background:#f1f3f4; color:#1a1a1a; }
+    .med-skip { background:transparent; color:#5f6368; font-size:0.85rem; }
+</style>
 </head>
 <body>
   <button class="howto-btn" onclick="document.getElementById('howtoModal').classList.add('open')">How to use</button>
@@ -218,6 +228,7 @@ Read the README tab first, then the Profile tab. Follow those rules exactly.';
           const today=new Date().toISOString().slice(0,10);
           document.getElementById('viewMonth').value=today.slice(0,7);
           renderToday();renderWeek();renderMonth(today.slice(0,7));
+          checkMeds(id);
           return;
         }catch(e){lastErr=e.message||'';if(e.name==='TypeError'){showError('Cannot reach Sheets','Check sharing.');return;}}
       }
@@ -282,11 +293,67 @@ Read the README tab first, then the Profile tab. Follow those rules exactly.';
     function showPanel(name,btn){document.querySelectorAll('.panel').forEach(p=>p.style.display='none');document.getElementById('panel-'+name).style.display='block';document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
     const FEEDBACK_URL='';
     async function sendFeedback(){const msg=document.getElementById('fbMessage').value.trim();const st=document.getElementById('fbStatus');if(!msg){st.textContent='Write something.';return;}if(!FEEDBACK_URL){st.textContent='Not set up yet.';return;}st.textContent='Thanks!';}
+    
+    let medPeople = [];
+    async function checkMeds(id){
+      try{
+        const url = 'https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet=Profile';
+        const res = await fetch(url);
+        if(!res.ok) return;
+        const rows = parseCSV(await res.text());
+        const fields = {};
+        rows.forEach(r=>{ if(r[0]) fields[r[0].trim()] = r.slice(1); });
+        medPeople = [];
+        const has = fields['Has scheduled meds'] || [];
+        has.forEach((v,i)=>{
+          if(/^yes$/i.test((v||'').trim())){
+            const name = (fields['Name']||[])[i] || ('Person '+(i+1));
+            const m1 = (fields['Medication 1 name']||[])[i] || 'medication';
+            medPeople.push({name, med:m1});
+          }
+        });
+        if(medPeople.length){
+          const today = new Date().toISOString().slice(0,10);
+          const key = 'medAsked_'+today;
+          if(!localStorage.getItem(key)){
+            const names = medPeople.map(p=>p.name).join(', ');
+            document.getElementById('medText').textContent = names + ' — have you taken your medication today?';
+            document.getElementById('medModal').classList.add('show');
+          }
+        }
+      }catch(e){}
+    }
+    function closeMed(){ document.getElementById('medModal').classList.remove('show'); }
+    async function medAnswer(taken){
+      closeMed();
+      const today = new Date().toISOString().slice(0,10);
+      localStorage.setItem('medAsked_'+today, '1');
+      const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('fuelSheetUrl') || '';
+      const who = medPeople.map(p=>p.name + ' ' + p.med).join(', ');
+      const prompt = (taken ? 'Log that we took our medication today. ' : 'Log that we have not taken our medication yet today. ') + who + '\n\nMy sheet link: ' + sheetUrl + '\n\nAppend a row to the Medications tab.';
+      try{ await navigator.clipboard.writeText(prompt); }catch(e){}
+      if(confirm(taken ? 'Logged as taken. Open AI to confirm?' : 'Noted. Open AI to log?')){
+        window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt), '_blank');
+      }
+    }
+
     const saved=localStorage.getItem('fuelSheetUrl');
     if(saved){
       document.getElementById('sheetUrl').value=saved;
       loadData();
     }
   </script>
+
+<div id="medModal" class="med-modal">
+  <div class="med-box">
+    <h3>💊 Medication</h3>
+    <p id="medText">Have you taken your medication today?</p>
+    <div>
+      <button class="med-yes" onclick="medAnswer(true)">Yes, taken</button>
+      <button class="med-no" onclick="medAnswer(false)">Not yet</button>
+    </div>
+    <button class="med-skip" onclick="closeMed()">Skip for now</button>
+  </div>
+</div>
 </body>
 </html>
