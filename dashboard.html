@@ -178,7 +178,12 @@ Keep replies short.</div>
       document.getElementById('aiMenu').style.display='none';
       const instruction=document.getElementById('aiInstruction').innerText;
       try{await navigator.clipboard.writeText(instruction);}catch(e){}
-      const shortPrompt='Help me log food and workouts to my FitCouple Google Sheet. I have copied the full instruction.';
+      const sheetUrl = document.getElementById('sheetUrl').value.trim() || localStorage.getItem('fuelSheetUrl') || '';
+      const shortPrompt = 'Help me log food and workouts to my Google Sheet.
+
+My sheet link: ' + (sheetUrl || '[paste your sheet link]') + '
+
+Read the README tab first, then the Profile tab. Follow those rules exactly.';
       const urls={
         chatgpt:'https://chatgpt.com/?q='+encodeURIComponent(shortPrompt),
         grok:'https://grok.com/?q='+encodeURIComponent(shortPrompt),
