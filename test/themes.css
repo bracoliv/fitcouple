@@ -1,0 +1,243 @@
+/* Test skins only. Shared fit.js is unchanged. */
+.theme-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+  background: #172033;
+  color: #fff;
+  font-size: 0.78rem;
+}
+.theme-label { opacity: 0.75; white-space: nowrap; margin-right: 2px; }
+.theme-bar button {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+.theme-bar button.on { background: #fff; color: #172033; border-color: #fff; }
+.theme-bar ~ .home-menu { top: calc(54px + env(safe-area-inset-top)); }
+
+html[data-theme="soft"] {
+  --bg: #f4f8fd;
+  --card: #fff;
+  --text: #1c2b4a;
+  --muted: #5d6d86;
+  --primary: #3d8ef0;
+  --accent: #e56b93;
+  --border: #e4edf8;
+  --ok: #e7f7ee;
+  --ok-text: #0f7a45;
+  --low: #fff6d8;
+  --low-text: #8a5a00;
+  --over: #fdecea;
+  --over-text: #c23b36;
+}
+html[data-theme="soft"] body {
+  background: linear-gradient(180deg, #e7f1ff 0%, var(--bg) 240px);
+}
+html[data-theme="soft"] .home {
+  background: linear-gradient(165deg, #e7f1ff 0%, #f7fbff 42%, #fff 100%);
+}
+html[data-theme="soft"] .person,
+html[data-theme="soft"] .setup-card,
+html[data-theme="soft"] .chart-box,
+html[data-theme="soft"] .panel,
+html[data-theme="soft"] .landing .card {
+  border-radius: 26px;
+  border: 1px solid rgba(61, 142, 240, 0.1);
+  box-shadow: 0 10px 28px rgba(61, 142, 240, 0.1);
+}
+html[data-theme="soft"] .person { padding: 18px; }
+html[data-theme="soft"] .metric:first-of-type strong { font-size: 1.7rem; letter-spacing: -0.03em; }
+html[data-theme="soft"] .highlight { border-radius: 14px; background: #f3f7fd; }
+html[data-theme="soft"] .status { border-radius: 14px; }
+html[data-theme="soft"] .goal-hit { animation: goalPop 0.55s ease; }
+html[data-theme="soft"] .person:has(.goal-hit) { animation: cardLift 0.55s ease; }
+html[data-theme="soft"] .ask-btn,
+html[data-theme="soft"] .tabs button,
+html[data-theme="soft"] .primary { border-radius: 999px; }
+@keyframes cardLift {
+  0% { transform: translateY(6px) scale(0.98); }
+  60% { transform: translateY(0) scale(1.015); }
+  100% { transform: none; }
+}
+
+html[data-theme="gym"] {
+  --bg: #101114;
+  --card: #1b1e24;
+  --text: #f4f6f8;
+  --muted: #a3acb6;
+  --primary: #c6f135;
+  --accent: #ff8a3d;
+  --border: #2c313a;
+  --ok: #173222;
+  --ok-text: #b6f5c8;
+  --low: #3a3114;
+  --low-text: #ffe08a;
+  --over: #3a1c1c;
+  --over-text: #ffb4ae;
+  color-scheme: dark;
+}
+html[data-theme="gym"] body,
+html[data-theme="gym"] .home { background: var(--bg); color: var(--text); }
+html[data-theme="gym"] .person,
+html[data-theme="gym"] .setup-card,
+html[data-theme="gym"] .chart-box,
+html[data-theme="gym"] .panel,
+html[data-theme="gym"] .landing .card,
+html[data-theme="gym"] .modal-content,
+html[data-theme="gym"] .med-box,
+html[data-theme="gym"] .switcher-menu,
+html[data-theme="gym"] .ai-menu,
+html[data-theme="gym"] .link-history {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: none;
+}
+html[data-theme="gym"] .highlight-row,
+html[data-theme="gym"] .tip,
+html[data-theme="gym"] .legend-note { display: none; }
+html[data-theme="gym"] .metric:first-of-type strong { font-size: 2rem; }
+html[data-theme="gym"] .metric:nth-of-type(2) strong { color: var(--primary); font-size: 1.2rem; }
+html[data-theme="gym"] .metric:nth-of-type(3),
+html[data-theme="gym"] .metric:nth-of-type(4) { opacity: 0.55; }
+html[data-theme="gym"] .metric:nth-of-type(5) { font-weight: 700; }
+html[data-theme="gym"] .ask-btn,
+html[data-theme="gym"] .primary,
+html[data-theme="gym"] .tabs button.active,
+html[data-theme="gym"] .med-yes { color: #111; }
+html[data-theme="gym"] .exit-btn,
+html[data-theme="gym"] .switcher summary,
+html[data-theme="gym"] .tabs button,
+html[data-theme="gym"] .copy-box,
+html[data-theme="gym"] .med-no,
+html[data-theme="gym"] .med-ai button,
+html[data-theme="gym"] .ghost,
+html[data-theme="gym"] input {
+  background: #121418;
+  color: var(--text);
+  border-color: var(--border);
+}
+html[data-theme="gym"] .goal-badge { background: #24300f; color: var(--primary); }
+html[data-theme="gym"] .chart-box canvas { background: #f4f6f8; border-radius: 8px; }
+html[data-theme="gym"] .brand span,
+html[data-theme="gym"] .p1 h3 { color: var(--primary); }
+html[data-theme="gym"] .p2 h3 { color: var(--accent); }
+
+html[data-theme="city"] {
+  --bg: #f7f3ec;
+  --card: #fffdf9;
+  --text: #1c1915;
+  --muted: #7a7268;
+  --primary: #1f3a34;
+  --accent: #a68445;
+  --border: #e6dfd3;
+  --ok: #e7f0ea;
+  --ok-text: #1f3a34;
+  --low: #f8f1dc;
+  --low-text: #7a5b20;
+  --over: #f8e8e4;
+  --over-text: #8d3b32;
+}
+html[data-theme="city"] body,
+html[data-theme="city"] .home { background: var(--bg); }
+html[data-theme="city"] .brand,
+html[data-theme="city"] .app-header h1,
+html[data-theme="city"] .person h3,
+html[data-theme="city"] .landing .card-text h2 {
+  font-family: Georgia, "Iowan Old Style", Palatino, serif;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+html[data-theme="city"] .person,
+html[data-theme="city"] .setup-card,
+html[data-theme="city"] .chart-box,
+html[data-theme="city"] .panel,
+html[data-theme="city"] .landing .card {
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  background: var(--card);
+}
+html[data-theme="city"] .person { padding: 22px 20px; }
+html[data-theme="city"] .highlight { background: #f6f1e8; border-radius: 2px; }
+html[data-theme="city"] .goal-hit { animation: none; }
+html[data-theme="city"] .goal-badge { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 2px; }
+html[data-theme="city"] .ask-btn,
+html[data-theme="city"] .primary,
+html[data-theme="city"] .tabs button.active { border-radius: 2px; letter-spacing: 0.04em; }
+html[data-theme="city"] .status { border-radius: 2px; font-weight: 500; }
+
+html[data-theme="tech"] {
+  --bg: #070b14;
+  --card: #10182a;
+  --text: #d7e4ff;
+  --muted: #8ea0c2;
+  --primary: #3ee0ff;
+  --accent: #9b8cff;
+  --border: #243049;
+  --ok: #0d2a28;
+  --ok-text: #7dffe2;
+  --low: #2c2610;
+  --low-text: #ffe08a;
+  --over: #2c151c;
+  --over-text: #ff9eb6;
+  color-scheme: dark;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+html[data-theme="tech"] body,
+html[data-theme="tech"] .home { background: var(--bg); color: var(--text); }
+html[data-theme="tech"] .person,
+html[data-theme="tech"] .setup-card,
+html[data-theme="tech"] .chart-box,
+html[data-theme="tech"] .panel,
+html[data-theme="tech"] .landing .card,
+html[data-theme="tech"] .modal-content,
+html[data-theme="tech"] .med-box,
+html[data-theme="tech"] .switcher-menu,
+html[data-theme="tech"] .ai-menu,
+html[data-theme="tech"] .link-history {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+html[data-theme="tech"] .person { padding: 12px; }
+html[data-theme="tech"] .metric,
+html[data-theme="tech"] .h-val,
+html[data-theme="tech"] strong { font-variant-numeric: tabular-nums; }
+html[data-theme="tech"] .highlight { background: #0c1220; border: 1px solid var(--border); border-radius: 4px; }
+html[data-theme="tech"] .exit-btn,
+html[data-theme="tech"] .switcher summary,
+html[data-theme="tech"] .tabs button,
+html[data-theme="tech"] .copy-box,
+html[data-theme="tech"] .med-no,
+html[data-theme="tech"] .med-ai button,
+html[data-theme="tech"] .ghost,
+html[data-theme="tech"] input {
+  background: #0c1220;
+  color: var(--text);
+  border-color: var(--border);
+  border-radius: 4px;
+}
+html[data-theme="tech"] .ask-btn,
+html[data-theme="tech"] .primary,
+html[data-theme="tech"] .tabs button.active,
+html[data-theme="tech"] .med-yes { color: #041018; border-radius: 4px; }
+html[data-theme="tech"] .goal-badge { background: transparent; color: var(--primary); border: 1px solid var(--primary); border-radius: 4px; }
+html[data-theme="tech"] .goal-hit { animation: none; }
+html[data-theme="tech"] .chart-box canvas { background: #f4f7fb; border-radius: 4px; }
+html[data-theme="tech"] .today h2,
+html[data-theme="tech"] .chart-box h3 { letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.72rem; }
+html[data-theme="tech"] .p1 h3 { color: var(--primary); }
+html[data-theme="tech"] .p2 h3 { color: var(--accent); }

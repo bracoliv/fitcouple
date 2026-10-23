@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>try{var t=localStorage.getItem("fitTheme")||"soft";document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Test · Fit</title>
+  <link rel="manifest" href="../manifest.json">
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="../icon-192.png">
+  <link rel="stylesheet" href="../fit.css?v=5">
+  <link rel="stylesheet" href="themes.css?v=1">
+</head>
+<body>
+  <details class="switcher home-menu">
+    <summary>Menu</summary>
+    <div class="switcher-menu">
+      <button type="button" id="openHowto">How to use</button>
+      <a href="solo.html">FitSolo</a>
+      <a href="dashboard.html">FitCouple</a>
+      <a href="family.html">FitFamily</a>
+    </div>
+  </details>
+  <div class="modal" id="howtoModal">
+    <div class="modal-content">
+      <h2>How to use Fit</h2>
+      <p class="warn">Solo, Couple, and Family each keep their own Google Sheet. Do not mix them.</p>
+      <div class="step"><h3>1. Pick a dashboard</h3><p>One person, two people, or a family.</p></div>
+      <div class="step"><h3>2. Copy the template</h3><p><a href="https://docs.google.com/spreadsheets/d/1iyAFNzUbGRA8KqoBIUo-hBv-cJ4WhEdCsLgvlXOZ5Kg/edit" target="_blank" rel="noopener">Open template</a>, then File → Make a copy.</p></div>
+      <div class="step"><h3>3. Share it</h3><p>Anyone with the link → Viewer, then paste that link into the dashboard. Do not post the link online. This site does not store your sheet.</p></div>
+      <button type="button" class="ghost" id="closeHowto">Close</button>
+    </div>
+  </div>
+  <div class="home">
+    <div class="landing">
+      <img class="logo" src="../couple-logo.png" alt="Fit">
+      <h1 class="brand">Fit</h1>
+      <p class="tagline">Test build. The live site is unchanged. Pick a look above.</p>
+      <div class="cards">
+        <a class="card" href="solo.html">
+          <div class="card-icon">👤</div>
+          <div class="card-text"><h2>FitSolo</h2><p>Track just yourself. Separate data.</p></div>
+        </a>
+        <a class="card" href="dashboard.html">
+          <div class="card-icon">👫</div>
+          <div class="card-text"><h2>FitCouple</h2><p>Two people side by side. Separate data.</p></div>
+        </a>
+        <a class="card" href="family.html">
+          <div class="card-icon">👨‍👩‍👧‍👦</div>
+          <div class="card-text"><h2>FitFamily</h2><p>3 or more people. Separate data.</p></div>
+        </a>
+      </div>
+      <p class="hint">Each version keeps its own link on this device only. This site does not store your sheet. Do not post the link online.</p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('openHowto').addEventListener('click', function () {
+      document.getElementById('howtoModal').classList.add('open');
+      document.querySelector('details.switcher').open = false;
+    });
+    document.getElementById('closeHowto').addEventListener('click', function () {
+      document.getElementById('howtoModal').classList.remove('open');
+    });
+    document.getElementById('howtoModal').addEventListener('click', function (e) {
+      if (e.target.id === 'howtoModal') e.currentTarget.classList.remove('open');
+    });
+  </script>
+<script src="theme.js?v=1"></script>
+</body>
+</html>
