@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fit · quiet preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --card: #181818;
+    --raise: #1f1f1f;
+    --line: #2a2a2a;
+    --text: #fff;
+    --muted: #9b9b9b;
+    --faint: #6a6a6a;
+    --e: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: Manrope, ui-sans-serif, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    margin: 0 auto 40px;
+    padding: 6px 6px 6px 16px;
+    background: #141414;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+  .brand { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; }
+  .nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .pill {
+    background: #fff;
+    color: #000;
+    border: 0;
+    border-radius: 999px;
+    font: 600 13px Manrope, sans-serif;
+    padding: 8px 14px;
+    margin-left: 4px;
+  }
+  .kicker {
+    margin: 0 0 12px;
+    color: var(--faint);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+  h1 {
+    margin: 0;
+    font-size: 64px;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    text-wrap: balance;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub {
+    margin: 16px 0 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .sub b { color: #fff; font-weight: 500; }
+  .people { margin-top: 40px; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 8px;
+    text-align: left;
+    color: inherit;
+    width: 100%;
+    cursor: pointer;
+  }
+  .card:focus-visible { outline: 1px solid #fff; outline-offset: 3px; }
+  .head, .row, .tray {
+    border-radius: 12px;
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 16px 16px 8px;
+  }
+  .name { font-size: 16px; font-weight: 600; }
+  .left { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .track {
+    position: relative;
+    height: 8px;
+    margin: 8px 16px 12px;
+    background: #272727;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    background: #fff;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 1.05s var(--e);
+  }
+  .rows { display: flex; flex-direction: column; gap: 4px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: 400 15px Manrope, sans-serif;
+    padding: 12px 16px;
+    cursor: pointer;
+  }
+  .row span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row.on { background: var(--raise); }
+  .tray {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.5s var(--e);
+  }
+  .tray.open { grid-template-rows: 1fr; }
+  .tray > div { overflow: hidden; }
+  .tray p {
+    margin: 0;
+    padding: 4px 16px 16px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .week {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  .day {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 0;
+    text-align: center;
+  }
+  .day i {
+    display: block;
+    font-style: normal;
+    color: var(--faint);
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .day b {
+    font-weight: 500;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .note {
+    margin: 32px 0 0;
+    color: var(--faint);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fill, .tray { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <nav class="nav">
+    <span class="brand">FIT</span>
+    <a href="#today">Today</a>
+    <a href="#week">Week</a>
+    <button class="pill" type="button" id="sheet">Your sheet</button>
+  </nav>
+
+  <p class="kicker" id="today">Tuesday</p>
+  <h1 id="hero">0</h1>
+  <p class="sub"><b id="who">Husband</b> · 600 kcal left of 2,500</p>
+
+  <div class="people" id="people"></div>
+
+  <div class="week" id="week"></div>
+  <p class="note">Preview only. The live app is unchanged. Husband 2,500 and Wife 2,000 are common adult averages, not your goals.</p>
+</main>
+<script>
+var people = [
+  { name: "Husband", eaten: 1900, goal: 2500, prot: [82, 140], carbs: [180, 280], fat: [55, 70], food: "about 180 g chicken breast" },
+  { name: "Wife", eaten: 1540, goal: 2000, prot: [70, 110], carbs: [150, 220], fat: [48, 65], food: "about 120 g chicken breast" }
+];
+var openProt = { Husband: false, Wife: false };
+var focus = 0;
+
+function pct(a, b) { return Math.max(0, Math.min(1, a / b)); }
+
+function draw() {
+  var p = people[focus];
+  document.getElementById("who").textContent = p.name;
+  document.querySelector(".sub").innerHTML = "<b>" + p.name + "</b> · " + (p.goal - p.eaten) + " kcal left of " + p.goal.toLocaleString();
+  document.getElementById("people").innerHTML = people.map(function (person, i) {
+    var protLeft = person.prot[1] - person.prot[0];
+    var tray = openProt[person.name] ? " open" : "";
+    var on = openProt[person.name] ? " on" : "";
+    return '<article class="card" data-i="' + i + '">'
+      + '<div class="head"><span class="name">' + person.name + '</span><span class="left">' + (person.goal - person.eaten) + ' left</span></div>'
+      + '<div class="track"><i class="fill" data-p="' + pct(person.eaten, person.goal) + '"></i></div>'
+      + '<div class="rows">'
+      + '<button class="row' + on + '" data-prot="' + person.name + '" type="button"><span>Protein</span><span>' + person.prot[0] + ' / ' + person.prot[1] + ' g</span></button>'
+      + '<div class="tray' + tray + '"><div><p>' + protLeft + ' g left · ' + person.food + '</p></div></div>'
+      + '<div class="row"><span>Carbs</span><span>' + person.carbs[0] + ' / ' + person.carbs[1] + ' g</span></div>'
+      + '<div class="row"><span>Fat</span><span>' + person.fat[0] + ' / ' + person.fat[1] + ' g</span></div>'
+      + '</div></article>';
+  }).join("");
+  requestAnimationFrame(function () {
+    document.querySelectorAll(".fill").forEach(function (el) {
+      el.style.transform = "scaleX(" + el.getAttribute("data-p") + ")";
+    });
+  });
+}
+
+document.getElementById("people").addEventListener("click", function (e) {
+  var prot = e.target.closest("[data-prot]");
+  if (prot) {
+    var name = prot.getAttribute("data-prot");
+    openProt[name] = !openProt[name];
+    focus = people.findIndex(function (p) { return p.name === name; });
+    draw();
+    return;
+  }
+  var card = e.target.closest(".card");
+  if (card) {
+    focus = Number(card.getAttribute("data-i"));
+    draw();
+  }
+});
+
+var days = ["M","T","W","T","F","S","S"];
+var kcals = [2100, 1980, 2400, 1860, 1900, 2200, 1750];
+document.getElementById("week").innerHTML = days.map(function (d, i) {
+  return '<div class="day"><i>' + d + '</i><b>' + kcals[i] + '</b></div>';
+}).join("");
+
+var hero = document.getElementById("hero");
+var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (reduce) hero.textContent = "1,900";
+else {
+  var start = performance.now();
+  function tick(now) {
+    var t = Math.min(1, (now - start) / 900);
+    var e = 1 - Math.pow(1 - t, 3);
+    hero.textContent = Math.round(1900 * e).toLocaleString();
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+document.getElementById("sheet").addEventListener("click", function () {
+  this.textContent = "Paste in the app";
+});
+draw();
+</script>
+</body>
+</html>
