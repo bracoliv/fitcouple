@@ -370,13 +370,102 @@
       + '<div class="tip">' + esc(tip) + '</div>'
       + '</div>';
   }
+  var viewOffset = 0;
+  function viewedDate() { return ymd(addDays(new Date(), -viewOffset)); }
+  function dayWord(offset) {
+    if (offset === 1) return 'Yesterday';
+    if (offset === 2) return '2 days ago';
+    return 'Today';
+  }
+  function ensureDaySwitch() {
+    if ($('daySwitch')) return;
+    var today = document.querySelector('.today');
+    if (!today) return;
+    var bar = document.createElement('div');
+    bar.className = 'day-switch';
+    bar.id = 'daySwitch';
+    bar.innerHTML = '<button type="button" data-off="0">Today</button><button type="button" data-off="1">Yesterday</button><button type="button" data-off="2">2 days ago</button>';
+    var h2 = today.querySelector('h2');
+    if (h2) h2.insertAdjacentElement('afterend', bar);
+    bar.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-off]');
+      if (!b) return;
+      viewOffset = Number(b.getAttribute('data-off'));
+      renderToday();
+    });
+    if (!$('dayLog')) {
+      var log = document.createElement('div');
+      log.id = 'dayLog';
+      log.className = 'day-log';
+      var board = $('dashboard');
+      if (board) board.insertAdjacentElement('afterend', log);
+    }
+  }
+  function dayItems(dateStr) {
+    var items = [];
+    allRows.forEach(function (r) {
+      var d = String(r[idx.date] || '').trim();
+      if (!d.startsWith(dateStr)) return;
+      var food = String(idx.food >= 0 ? r[idx.food] || '' : '').trim();
+      if (!food) return;
+      items.push({
+        person: idx.person >= 0 ? String(r[idx.person] || '').trim() : '',
+        food: food,
+        cal: idx.cal >= 0 ? num(r[idx.cal]) : 0,
+        prot: idx.protein >= 0 ? num(r[idx.protein]) : 0,
+        carbs: idx.carbs >= 0 ? num(r[idx.carbs]) : 0,
+        fat: idx.fat >= 0 ? num(r[idx.fat]) : 0,
+        rawCal: idx.cal >= 0 ? String(r[idx.cal] == null ? '' : r[idx.cal]).trim() : '',
+        workout: /^workout/i.test(food)
+      });
+    });
+    return items;
+  }
+  function logIssue(it) {
+    if (it.workout) return it.rawCal === '' ? 'Check: workout calories are blank' : '';
+    if (it.rawCal === '') return 'Check: calories are blank. The AI may have missed this.';
+    if (it.cal >= 50 && !it.prot && !it.carbs && !it.fat) return 'Check: no protein, carbs, or fat.';
+    return '';
+  }
+  function renderDayLog(dateStr) {
+    var box = $('dayLog');
+    if (!box) return;
+    var items = dayItems(dateStr);
+    var title = dayWord(viewOffset) + ' · ' + dateStr;
+    if (!items.length) {
+      box.innerHTML = '<h3>' + esc(title) + '</h3><p class="log-empty">Nothing logged. The AI may not have written this day.</p>';
+      return;
+    }
+    var checks = 0;
+    var html = '<h3>' + esc(title) + '</h3><ul>';
+    items.forEach(function (it) {
+      var issue = logIssue(it);
+      if (issue) checks++;
+      html += '<li class="' + (issue ? 'bad' : '') + '"><div><b>' + esc(it.food) + '</b>'
+        + (it.person ? '<span>' + esc(it.person) + '</span>' : '') + '</div>'
+        + '<div class="nums">' + Math.round(it.cal) + ' kcal'
+        + (it.workout ? '' : ' · ' + Math.round(it.prot) + ' g protein') + '</div>'
+        + (issue ? '<p>' + esc(issue) + '</p>' : '') + '</li>';
+    });
+    html += '</ul><p class="' + (checks ? 'log-warn' : 'log-ok') + '">'
+      + items.length + ' item' + (items.length === 1 ? '' : 's')
+      + (checks ? ' · ' + checks + ' to check' : ' · record looks complete') + '</p>';
+    box.innerHTML = html;
+  }
   function renderToday() {
-    var today = todayStr();
+    ensureDaySwitch();
+    var dateStr = viewedDate();
+    var h2 = document.querySelector('.today h2');
+    if (h2) h2.textContent = dayWord(viewOffset);
+    document.querySelectorAll('#daySwitch button').forEach(function (b) {
+      b.classList.toggle('on', Number(b.getAttribute('data-off')) === viewOffset);
+    });
     var board = $('dashboard');
     board.className = 'dashboard' + (people.length > 1 ? ' cols' : '') + (people.length > 2 ? ' cols-3' : '');
-    board.innerHTML = people.map(function (p, i) { return renderPersonCard(p, i, today); }).join('');
+    board.innerHTML = people.map(function (p, i) { return renderPersonCard(p, i, dateStr); }).join('');
     var note = $('targetNote');
     if (note) note.textContent = targetNoteText();
+    renderDayLog(dateStr);
     drawTrend();
   }
   function drawTrend() {

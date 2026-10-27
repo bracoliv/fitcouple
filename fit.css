@@ -225,6 +225,22 @@ body.in-app .home-menu { display: none; }
 }
 .ai-menu button:hover { background: #f1f3f4; }
 .today h2 { text-align: center; margin: 0 0 4px; font-size: 1.05rem; color: var(--muted); }
+.day-switch { display: flex; gap: 8px; justify-content: center; margin: 8px 0 12px; }
+.day-switch button {
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  border-radius: 999px; padding: 8px 12px; font-size: 0.85rem;
+}
+.day-switch button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.day-log { margin: 4px 0 16px; }
+.day-log h3 { font-size: 0.95rem; margin: 0 0 8px; }
+.day-log ul { list-style: none; margin: 0; padding: 0; }
+.day-log li { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 0 0 8px; }
+.day-log li.bad { background: var(--low); border-color: transparent; }
+.day-log li b { display: block; }
+.day-log li span, .day-log .nums { color: var(--muted); font-size: 0.85rem; }
+.day-log li p { margin: 6px 0 0; font-size: 0.85rem; color: var(--low-text); }
+.log-ok { color: var(--ok-text); font-size: 0.85rem; }
+.log-warn, .log-empty { color: var(--low-text); font-size: 0.85rem; }
 .target-note { text-align: center; color: var(--muted); font-size: 0.75rem; margin: 0 0 10px; }
 .dashboard { display: grid; gap: 12px; }
 @media (min-width: 700px) { .dashboard.cols { grid-template-columns: 1fr 1fr; } }
