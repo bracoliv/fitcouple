@@ -193,7 +193,8 @@
       + 'After reading README:\n'
       + '- Always APPEND new rows to the Log tab.\n'
       + '- Never edit or delete existing rows.\n'
-      + '- When I send a photo, estimate, confirm if unsure, then append.\n\n'
+      + '- When I send a photo, estimate, confirm if unsure, then append.\n'
+      + '- A workout is its own new row. The Food cell starts with Workout, then the activity. Example: Workout: run 30 min. Put burned kcal in the kcal column. Leave protein, carbs, and fat blank. Do not add those kcal onto a food row. Unless the README says otherwise, follow this.\n\n'
       + 'Keep replies short.';
   }
   function openHowto() {
@@ -344,7 +345,13 @@
     var fatPct = t.fat ? Math.round(d.fat / t.fat * 100) : 0;
     var tip = pNeed > 0 ? '≈ ' + (Math.round(pNeed / 0.31 / 10) * 10) + ' g chicken breast' : 'Protein covered';
     var protStatus = pNeed <= 0 ? '<div class="status ok goal-hit">💪 Protein goal hit</div>' : '';
-    var workoutTxt = d.workout ? Math.round(d.workout) + ' kcal burned' : 'no workout yet';
+    var acts = dayItems(dateStr).filter(function (it) {
+      return it.workout && (idx.person < 0 || !it.person || it.person === person.name);
+    });
+    var workoutTxt = acts.length ? acts.map(function (it) {
+      var act = it.food.replace(/^workout[:\s-]*/i, '').trim() || 'Workout';
+      return act + ' · ' + Math.round(it.cal) + ' kcal burned';
+    }).join(', ') : 'No workout logged';
     var midLabel = overBy ? 'Over' : 'Remaining';
     var midVal = overBy ? Math.round(overBy) : Math.round(rem);
     var midClass = st === 'over' ? ' over' : (st === 'low' ? ' low' : '');
@@ -397,6 +404,12 @@
       var log = document.createElement('div');
       log.id = 'dayLog';
       log.className = 'day-log';
+      log.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-near]');
+        if (!b) return;
+        var q = b.getAttribute('data-q') || 'healthy meal';
+        window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), '_blank', 'noopener');
+      });
       var board = $('dashboard');
       if (board) board.insertAdjacentElement('afterend', log);
     }
@@ -436,20 +449,41 @@
       box.innerHTML = '<h3>' + esc(title) + '</h3><p class="log-empty">Nothing logged. The AI may not have written this day.</p>';
       return;
     }
+    var meals = items.filter(function (it) { return !it.workout; });
+    var works = items.filter(function (it) { return it.workout; });
     var checks = 0;
-    var html = '<h3>' + esc(title) + '</h3><ul>';
-    items.forEach(function (it) {
-      var issue = logIssue(it);
-      if (issue) checks++;
-      html += '<li class="' + (issue ? 'bad' : '') + '"><div><b>' + esc(it.food) + '</b>'
-        + (it.person ? '<span>' + esc(it.person) + '</span>' : '') + '</div>'
-        + '<div class="nums">' + Math.round(it.cal) + ' kcal'
-        + (it.workout ? '' : ' · ' + Math.round(it.prot) + ' g protein') + '</div>'
-        + (issue ? '<p>' + esc(issue) + '</p>' : '') + '</li>';
-    });
-    html += '</ul><p class="' + (checks ? 'log-warn' : 'log-ok') + '">'
+    function rows(list) {
+      return list.map(function (it) {
+        var issue = logIssue(it);
+        if (issue) checks++;
+        var act = it.workout ? (it.food.replace(/^workout[:\s-]*/i, '').trim() || 'Workout') : it.food;
+        return '<li class="' + (issue ? 'bad' : '') + '"><div><b>' + esc(act) + '</b>'
+          + (it.person ? '<span>' + esc(it.person) + '</span>' : '') + '</div>'
+          + '<div class="nums">' + Math.round(it.cal) + ' kcal'
+          + (it.workout ? ' burned' : ' · ' + Math.round(it.prot) + ' g protein') + '</div>'
+          + (issue ? '<p>' + esc(issue) + '</p>' : '') + '</li>';
+      }).join('');
+    }
+    var html = '<h3>' + esc(title) + '</h3><h4>Eaten</h4><ul>'
+      + (meals.length ? rows(meals) : '<li>No food logged.</li>') + '</ul><h4>Workout</h4>';
+    if (!works.length) html += '<p class="log-empty">No workout. Add a row whose Food cell starts with Workout. Burned kcal stay out of the food total.</p>';
+    else html += '<ul>' + rows(works) + '</ul><p class="log-ok">Burned kcal are separate. They do not raise the calorie goal.</p>';
+    html += '<p class="' + (checks ? 'log-warn' : 'log-ok') + '">'
       + items.length + ' item' + (items.length === 1 ? '' : 's')
       + (checks ? ' · ' + checks + ' to check' : ' · record looks complete') + '</p>';
+    html += '<div class="nearby"><p>Nearby, from what is still open on your own goal. Not a new target.</p>';
+    people.forEach(function (p) {
+      if (!p.target || !(p.target.cal > 0)) return;
+      var d = getDayData(p.name, dateStr);
+      var kcalLeft = p.target.cal - d.eaten;
+      var protLeft = Math.max(0, p.target.prot - d.prot);
+      var q = 'healthy meal';
+      var why = Math.round(Math.max(0, kcalLeft)) + ' kcal still open.';
+      if (kcalLeft < 150) { q = 'fruit'; why = 'Little room left under your own calorie goal.'; }
+      else if (protLeft >= 25) { q = 'grilled chicken'; why = Math.round(protLeft) + ' g protein still open.'; }
+      html += '<button type="button" data-near="1" data-q="' + esc(q) + '">Near ' + esc(p.name) + ' · ' + esc(q) + '</button><span>' + esc(why) + '</span>';
+    });
+    html += '</div>';
     box.innerHTML = html;
   }
   function renderToday() {

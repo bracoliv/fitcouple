@@ -239,7 +239,14 @@ body.in-app .home-menu { display: none; }
 .day-log li b { display: block; }
 .day-log li span, .day-log .nums { color: var(--muted); font-size: 0.85rem; }
 .day-log li p { margin: 6px 0 0; font-size: 0.85rem; color: var(--low-text); }
-.log-ok { color: var(--ok-text); font-size: 0.85rem; }
+.day-log h4 { margin: 12px 0 6px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.nearby { margin-top: 12px; }
+.nearby p { color: var(--muted); }
+.nearby button {
+  display: block; width: 100%; margin: 0 0 4px; text-align: left;
+  border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 10px 12px;
+}
+.nearby span { display: block; color: var(--muted); font-size: 0.8rem; margin: 0 0 8px; }
 .log-warn, .log-empty { color: var(--low-text); font-size: 0.85rem; }
 .target-note { text-align: center; color: var(--muted); font-size: 0.75rem; margin: 0 0 10px; }
 .dashboard { display: grid; gap: 12px; }
