@@ -9,76 +9,104 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #000;
     --card: #181818;
     --raise: #1f1f1f;
-    --line: #2a2a2a;
-    --text: #fff;
+    --line: #2c2c2c;
     --muted: #9b9b9b;
-    --faint: #6a6a6a;
-    --e: cubic-bezier(0.22, 1, 0.36, 1);
+    --faint: #6e6e6e;
+    --e: cubic-bezier(0.16, 1, 0.3, 1);
+    --e2: cubic-bezier(0.33, 1, 0.68, 1);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html, body { margin: 0; background: #000; color: #fff; }
   body {
     font-family: Manrope, ui-sans-serif, sans-serif;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 42% 36% at 92% 8%, rgba(196, 154, 96, 0.22), transparent 62%),
+      radial-gradient(ellipse 36% 42% at 100% 38%, rgba(48, 78, 130, 0.2), transparent 60%),
+      #000;
+    pointer-events: none;
   }
   main {
+    position: relative;
     max-width: 430px;
     margin: 0 auto;
-    padding: 28px 20px 64px;
+    padding: max(28px, env(safe-area-inset-top)) 20px 72px;
+  }
+  .nav, .kicker, h1, .sub, .ring-wrap, .card, .chart, .days, .note, .again {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(16px);
+  }
+  .play .nav { animation: in .8s var(--e2) .05s forwards; }
+  .play .kicker { animation: in .7s var(--e2) .25s forwards; }
+  .play h1 { animation: in 1.05s var(--e) .4s forwards; }
+  .play .sub { animation: in .7s var(--e2) .62s forwards; }
+  .play .ring-wrap { animation: in .9s var(--e) .7s forwards; }
+  .play .card:nth-child(1) { animation: card .9s var(--e) .95s forwards; }
+  .play .card:nth-child(2) { animation: card .9s var(--e) 1.08s forwards; }
+  .play .chart { animation: in .8s var(--e2) 1.25s forwards; }
+  .play .days { animation: in .7s var(--e2) 1.7s forwards; }
+  .play .note, .play .again { animation: in .6s var(--e2) 1.9s forwards; }
+  @keyframes in {
+    to { opacity: 1; filter: blur(0); transform: none; }
+  }
+  @keyframes card {
+    from { opacity: 0; filter: blur(6px); transform: translateY(24px) scale(0.985); }
+    to { opacity: 1; filter: blur(0); transform: none; }
   }
   .nav {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     width: fit-content;
-    margin: 0 auto 40px;
+    margin: 0 auto 48px;
     padding: 6px 6px 6px 16px;
-    background: #141414;
+    background: rgba(20, 20, 20, 0.86);
     border: 1px solid var(--line);
     border-radius: 999px;
+    backdrop-filter: blur(8px);
   }
-  .brand { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; }
-  .nav a {
-    color: var(--muted);
-    text-decoration: none;
-    font-size: 13px;
-    padding: 8px 10px;
-  }
+  .brand { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; }
+  .nav a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 8px 10px; }
   .pill {
-    background: #fff;
-    color: #000;
-    border: 0;
-    border-radius: 999px;
-    font: 600 13px Manrope, sans-serif;
-    padding: 8px 14px;
-    margin-left: 4px;
+    background: #fff; color: #000; border: 0; border-radius: 999px;
+    font: 600 13px Manrope, sans-serif; padding: 8px 14px; margin-left: 4px;
   }
-  .kicker {
-    margin: 0 0 12px;
-    color: var(--faint);
-    font-size: 13px;
-    letter-spacing: 0.04em;
-  }
+  .kicker { margin: 0 0 8px; color: var(--faint); font-size: 13px; letter-spacing: 0.06em; }
   h1 {
-    margin: 0;
-    font-size: 64px;
-    font-weight: 500;
-    letter-spacing: -0.04em;
-    line-height: 0.95;
-    text-wrap: balance;
+    margin: 0; font-size: 88px; font-weight: 500; letter-spacing: -0.05em; line-height: 0.9;
     font-variant-numeric: tabular-nums;
   }
-  .sub {
-    margin: 16px 0 0;
-    color: var(--muted);
-    font-size: 16px;
-  }
+  .sub { margin: 14px 0 0; color: var(--muted); font-size: 16px; }
   .sub b { color: #fff; font-weight: 500; }
-  .people { margin-top: 40px; display: flex; flex-direction: column; gap: 12px; }
+  .hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .ring-wrap { position: relative; width: 112px; height: 112px; flex: none; }
+  .ring-wrap svg { width: 112px; height: 112px; display: block; }
+  .track { fill: none; stroke: #272727; stroke-width: 6; }
+  .arc, .glint {
+    fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round;
+    transform: rotate(-90deg); transform-origin: 56px 56px;
+  }
+  .arc { stroke-dasharray: 289; stroke-dashoffset: 289; }
+  .play .arc { animation: draw 1.15s cubic-bezier(0.65, 0, 0.35, 1) 1s forwards; }
+  @keyframes draw { to { stroke-dashoffset: 69; } }
+  .glint { stroke-dasharray: 22 267; opacity: 0; }
+  .play .glint { animation: glint 3.6s linear 2.2s infinite; }
+  @keyframes glint { from { opacity: .85; } to { opacity: .85; transform: rotate(270deg); } }
+  .pct {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums;
+  }
+  .people { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
@@ -87,192 +115,209 @@
     text-align: left;
     color: inherit;
     width: 100%;
-    cursor: pointer;
   }
-  .card:focus-visible { outline: 1px solid #fff; outline-offset: 3px; }
-  .head, .row, .tray {
-    border-radius: 12px;
-  }
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 16px 16px 8px;
-  }
+  .head, .macro, .tray p { border-radius: 12px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 12px 4px; }
   .name { font-size: 16px; font-weight: 600; }
   .left { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .track {
-    position: relative;
-    height: 8px;
-    margin: 8px 16px 12px;
-    background: #272727;
-    border-radius: 999px;
-    overflow: hidden;
+  .macro {
+    position: relative; overflow: hidden;
+    display: flex; justify-content: space-between; width: 100%;
+    border: 0; background: transparent; color: inherit;
+    font: 400 15px Manrope, sans-serif; padding: 12px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
-  .fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 100%;
-    background: #fff;
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 1.05s var(--e);
+  .macro .wash {
+    position: absolute; inset: 0 auto 0 0; width: 100%;
+    background: #272727; transform: scaleX(0); transform-origin: left;
+    border-radius: 12px;
   }
-  .rows { display: flex; flex-direction: column; gap: 4px; }
-  .row {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: 400 15px Manrope, sans-serif;
-    padding: 12px 16px;
-    cursor: pointer;
+  .play .wash { transition: transform 1.1s var(--e) 1.35s; }
+  .macro span { position: relative; }
+  .macro span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .macro.on { background: var(--raise); }
+  .macro .sheen {
+    position: absolute; top: 0; bottom: 0; width: 38%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent);
+    transform: translateX(-140%);
+    pointer-events: none;
   }
-  .row span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .row.on { background: var(--raise); }
-  .tray {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.5s var(--e);
+  .play .macro:first-of-type .sheen { animation: sheen 3.4s ease-in-out 2.4s infinite; }
+  @keyframes sheen {
+    0%, 55% { transform: translateX(-140%); }
+    100% { transform: translateX(320%); }
   }
+  .tray { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s var(--e); }
   .tray.open { grid-template-rows: 1fr; }
   .tray > div { overflow: hidden; }
-  .tray p {
-    margin: 0;
-    padding: 4px 16px 16px;
-    color: var(--muted);
-    font-size: 14px;
+  .tray p { margin: 0; padding: 2px 12px 12px; color: var(--muted); font-size: 14px; opacity: 0; transform: translateY(6px); transition: .45s var(--e2); }
+  .tray.open p { opacity: 1; transform: none; }
+  .static {
+    display: flex; justify-content: space-between; padding: 12px; font-size: 15px;
   }
-  .week {
-    margin-top: 32px;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
-  }
-  .day {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    padding: 12px 0;
-    text-align: center;
-  }
-  .day i {
-    display: block;
-    font-style: normal;
-    color: var(--faint);
-    font-size: 12px;
-    margin-bottom: 8px;
-  }
-  .day b {
-    font-weight: 500;
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-  }
-  .note {
-    margin: 32px 0 0;
-    color: var(--faint);
-    font-size: 13px;
-    line-height: 1.5;
+  .static span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart { margin-top: 28px; }
+  .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .line { fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { fill: #fff; opacity: 0; }
+  .days { margin-top: 8px; display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .days i { display: block; font-style: normal; color: var(--faint); font-size: 12px; }
+  .days b { display: block; margin-top: 6px; font-weight: 500; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .note { margin: 28px 0 0; color: var(--faint); font-size: 13px; line-height: 1.5; }
+  .again {
+    margin-top: 16px; background: transparent; color: #fff; border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px; font: 500 13px Manrope, sans-serif;
   }
   @media (prefers-reduced-motion: reduce) {
-    .fill, .tray { transition: none; }
+    .nav, .kicker, h1, .sub, .ring-wrap, .card, .chart, .days, .note, .again,
+    .arc, .glint, .wash, .sheen, .dot {
+      animation: none !important; transition: none !important;
+      opacity: 1; filter: none; transform: none;
+    }
+    .arc { stroke-dashoffset: 69; }
   }
 </style>
 </head>
 <body>
-<main>
+<main id="app">
   <nav class="nav">
     <span class="brand">FIT</span>
     <a href="#today">Today</a>
     <a href="#week">Week</a>
-    <button class="pill" type="button" id="sheet">Your sheet</button>
+    <span class="pill">Today</span>
   </nav>
-
-  <p class="kicker" id="today">Tuesday</p>
-  <h1 id="hero">0</h1>
-  <p class="sub"><b id="who">Husband</b> · 600 kcal left of 2,500</p>
-
+  <div class="hero" id="today">
+    <div>
+      <p class="kicker">Tuesday</p>
+      <h1 id="hero">0</h1>
+      <p class="sub"><b id="who">Husband</b> · 600 kcal left of 2,500</p>
+    </div>
+    <div class="ring-wrap" aria-hidden="true">
+      <svg viewBox="0 0 112 112">
+        <circle class="track" cx="56" cy="56" r="46"></circle>
+        <circle class="arc" cx="56" cy="56" r="46"></circle>
+        <circle class="glint" cx="56" cy="56" r="46"></circle>
+      </svg>
+      <div class="pct">76%</div>
+    </div>
+  </div>
   <div class="people" id="people"></div>
-
-  <div class="week" id="week"></div>
-  <p class="note">Preview only. The live app is unchanged. Husband 2,500 and Wife 2,000 are common adult averages, not your goals.</p>
+  <div class="chart" id="week">
+    <svg viewBox="0 0 350 100">
+      <path class="line" d="M8 48 L64 58 L119 24 L175 67 L231 64 L286 40 L342 76"></path>
+      <circle class="dot" r="3.5" cx="8" cy="48"></circle>
+    </svg>
+    <div class="days"></div>
+  </div>
+  <p class="note">Preview only. The live app is unchanged. Husband 2,500 and Wife 2,000 are common adult averages, not your goals. The background stays still.</p>
+  <button class="again" type="button" id="again">Play again</button>
 </main>
 <script>
 var people = [
   { name: "Husband", eaten: 1900, goal: 2500, prot: [82, 140], carbs: [180, 280], fat: [55, 70], food: "about 180 g chicken breast" },
   { name: "Wife", eaten: 1540, goal: 2000, prot: [70, 110], carbs: [150, 220], fat: [48, 65], food: "about 120 g chicken breast" }
 ];
-var openProt = { Husband: false, Wife: false };
-var focus = 0;
+var openProt = {};
+var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+var app = document.getElementById("app");
 
-function pct(a, b) { return Math.max(0, Math.min(1, a / b)); }
+function row(person) {
+  var left = person.prot[1] - person.prot[0];
+  var open = openProt[person.name];
+  var p = person.prot[0] / person.prot[1];
+  return '<article class="card"><div class="head"><span class="name">' + person.name + '</span><span class="left">' + (person.goal - person.eaten).toLocaleString() + ' left</span></div>'
+    + '<button class="macro' + (open ? ' on' : '') + '" type="button" data-name="' + person.name + '"><i class="wash" data-p="' + p + '"></i><i class="sheen"></i><span>Protein</span><span>' + person.prot[0] + ' / ' + person.prot[1] + ' g</span></button>'
+    + '<div class="tray' + (open ? ' open' : '') + '"><div><p>' + left + ' g left · ' + person.food + '</p></div></div>'
+    + '<div class="static"><span>Carbs</span><span>' + person.carbs[0] + ' / ' + person.carbs[1] + ' g</span></div>'
+    + '<div class="static"><span>Fat</span><span>' + person.fat[0] + ' / ' + person.fat[1] + ' g</span></div></article>';
+}
 
-function draw() {
-  var p = people[focus];
-  document.getElementById("who").textContent = p.name;
-  document.querySelector(".sub").innerHTML = "<b>" + p.name + "</b> · " + (p.goal - p.eaten) + " kcal left of " + p.goal.toLocaleString();
-  document.getElementById("people").innerHTML = people.map(function (person, i) {
-    var protLeft = person.prot[1] - person.prot[0];
-    var tray = openProt[person.name] ? " open" : "";
-    var on = openProt[person.name] ? " on" : "";
-    return '<article class="card" data-i="' + i + '">'
-      + '<div class="head"><span class="name">' + person.name + '</span><span class="left">' + (person.goal - person.eaten) + ' left</span></div>'
-      + '<div class="track"><i class="fill" data-p="' + pct(person.eaten, person.goal) + '"></i></div>'
-      + '<div class="rows">'
-      + '<button class="row' + on + '" data-prot="' + person.name + '" type="button"><span>Protein</span><span>' + person.prot[0] + ' / ' + person.prot[1] + ' g</span></button>'
-      + '<div class="tray' + tray + '"><div><p>' + protLeft + ' g left · ' + person.food + '</p></div></div>'
-      + '<div class="row"><span>Carbs</span><span>' + person.carbs[0] + ' / ' + person.carbs[1] + ' g</span></div>'
-      + '<div class="row"><span>Fat</span><span>' + person.fat[0] + ' / ' + person.fat[1] + ' g</span></div>'
-      + '</div></article>';
-  }).join("");
+function mount() {
+  document.getElementById("people").innerHTML = people.map(row).join("");
   requestAnimationFrame(function () {
-    document.querySelectorAll(".fill").forEach(function (el) {
+    document.querySelectorAll(".wash").forEach(function (el) {
       el.style.transform = "scaleX(" + el.getAttribute("data-p") + ")";
     });
   });
 }
 
-document.getElementById("people").addEventListener("click", function (e) {
-  var prot = e.target.closest("[data-prot]");
-  if (prot) {
-    var name = prot.getAttribute("data-prot");
-    openProt[name] = !openProt[name];
-    focus = people.findIndex(function (p) { return p.name === name; });
-    draw();
-    return;
-  }
-  var card = e.target.closest(".card");
-  if (card) {
-    focus = Number(card.getAttribute("data-i"));
-    draw();
-  }
-});
-
-var days = ["M","T","W","T","F","S","S"];
+var days = ["M", "T", "W", "T", "F", "S", "S"];
 var kcals = [2100, 1980, 2400, 1860, 1900, 2200, 1750];
-document.getElementById("week").innerHTML = days.map(function (d, i) {
-  return '<div class="day"><i>' + d + '</i><b>' + kcals[i] + '</b></div>';
+document.querySelector(".days").innerHTML = days.map(function (d, i) {
+  return "<div><i>" + d + "</i><b>" + kcals[i] + "</b></div>";
 }).join("");
 
-var hero = document.getElementById("hero");
-var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-if (reduce) hero.textContent = "1,900";
-else {
+document.getElementById("people").addEventListener("click", function (e) {
+  var btn = e.target.closest("[data-name]");
+  if (!btn) return;
+  var name = btn.getAttribute("data-name");
+  openProt[name] = !openProt[name];
+  var person = people.filter(function (p) { return p.name === name; })[0];
+  document.getElementById("who").textContent = name;
+  document.querySelector(".sub").lastChild.textContent = " · " + (person.goal - person.eaten) + " kcal left of " + person.goal.toLocaleString();
+  mount();
+});
+
+function count() {
+  var hero = document.getElementById("hero");
+  if (reduce) { hero.textContent = "1,900"; return; }
   var start = performance.now();
   function tick(now) {
-    var t = Math.min(1, (now - start) / 900);
+    var t = Math.min(1, (now - start) / 1100);
     var e = 1 - Math.pow(1 - t, 3);
     hero.textContent = Math.round(1900 * e).toLocaleString();
     if (t < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 }
-document.getElementById("sheet").addEventListener("click", function () {
-  this.textContent = "Paste in the app";
+
+function travel() {
+  if (reduce) return;
+  var path = document.querySelector(".line");
+  var dot = document.querySelector(".dot");
+  var len = path.getTotalLength();
+  path.style.strokeDasharray = len;
+  path.style.strokeDashoffset = len;
+  path.animate([
+    { strokeDashoffset: len },
+    { strokeDashoffset: 0 }
+  ], { duration: 1400, delay: 1500, easing: "cubic-bezier(0.65, 0, 0.35, 1)", fill: "forwards" });
+  var t0 = performance.now();
+  function frame(now) {
+    var t = now - t0 - 2800;
+    if (t < 0) { requestAnimationFrame(frame); return; }
+    var u = (t % 7000) / 7000;
+    var p = path.getPointAtLength(len * u);
+    dot.setAttribute("cx", p.x);
+    dot.setAttribute("cy", p.y);
+    dot.style.opacity = "1";
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function play() {
+  app.classList.remove("play");
+  void app.offsetWidth;
+  app.classList.add("play");
+  count();
+  if (!reduce) {
+    var path = document.querySelector(".line");
+    var len = path.getTotalLength();
+    path.style.strokeDasharray = len;
+    path.style.strokeDashoffset = len;
+  }
+  travel();
+}
+
+document.getElementById("again").addEventListener("click", function () {
+  document.querySelector(".dot").style.opacity = "0";
+  mount();
+  play();
 });
-draw();
+
+mount();
+play();
 </script>
 </body>
 </html>
