@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FitCouple</title>
+<style>
+  :root { --blue:#1a73e8; --pink:#d81b60; --ink:#1a1a1a; --muted:#5f6368; --line:#e6eaf0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: linear-gradient(180deg, #dceaff 0%, #f4f7fb 28%, #f7f8fb 100%);
+    min-height: 100vh;
+  }
+  main { max-width: 440px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 14px 36px; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  header img { width: 44px; height: 44px; border-radius: 12px; }
+  header strong { display: block; font-size: 18px; }
+  header span { color: var(--muted); font-size: 13px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .person {
+    border: 0; background: #fff; border-radius: 28px; padding: 14px 10px 12px;
+    box-shadow: 0 10px 28px rgba(26, 115, 232, .08);
+    text-align: center; color: inherit; font: inherit; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s;
+  }
+  .person:active { transform: scale(.98); }
+  .person.on { box-shadow: 0 12px 28px rgba(26, 115, 232, .18); }
+  .person.wife.on { box-shadow: 0 12px 28px rgba(216, 27, 96, .16); }
+  .ring {
+    width: 118px; height: 118px; margin: 0 auto 8px; border-radius: 50%; padding: 8px;
+    background: conic-gradient(var(--c) calc(var(--p) * 1%), #e7eef8 0);
+  }
+  .person.pulse .ring { animation: pop .45s cubic-bezier(.16,1,.3,1); }
+  @keyframes pop { 40% { transform: scale(1.06); } }
+  .hole {
+    height: 100%; border-radius: 50%; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .hole b { font-size: 28px; letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: var(--c); }
+  .hole small { color: var(--muted); font-size: 11px; }
+  .name { font-weight: 700; font-size: 15px; }
+  .left { margin: 2px 0 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  ul { list-style: none; margin: 0; padding: 0; text-align: left; }
+  li { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
+  li span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tip { margin: 8px 0 0; font-size: 11px; color: var(--muted); line-height: 1.35; }
+  .reply {
+    margin: 12px 0 0; background: #fff; border-radius: 16px; padding: 12px 14px;
+    color: var(--ink); font-size: 14px; line-height: 1.4;
+    box-shadow: 0 6px 16px rgba(26,115,232,.06);
+  }
+  .week { margin-top: 12px; background: #fff; border-radius: 22px; padding: 12px 8px 10px; box-shadow: 0 8px 20px rgba(26,115,232,.06); }
+  .week h2 { margin: 0 0 8px; padding: 0 6px; font-size: 13px; font-weight: 600; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .day {
+    border: 0; background: transparent; border-radius: 14px; padding: 6px 0 7px;
+    font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .day i { display: block; font-style: normal; color: var(--muted); font-size: 11px; }
+  .day b, .day em { display: block; font-style: normal; font-size: 10px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .day b { color: var(--blue); }
+  .day em { color: var(--pink); font-weight: 600; }
+  .day.on { background: #eef4ff; }
+  .note { margin: 14px 4px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+  @media (prefers-reduced-motion: reduce) {
+    .person, .person.pulse .ring { transition: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="../couple-logo.png" alt="">
+    <div><strong>FitCouple</strong><span>Tuesday · demo</span></div>
+  </header>
+  <div class="pair" id="pair"></div>
+  <p class="reply" id="reply"></p>
+  <section class="week">
+    <h2>This week</h2>
+    <div class="days" id="days"></div>
+  </section>
+  <p class="note">Fresh start. The dark page is retired. Live app is unchanged. Husband 2,500 and Wife 2,000 are common adult averages, not your goals.</p>
+</main>
+<script>
+var people = [
+  { key: "h", name: "Husband", color: "#1a73e8", eaten: 1900, goal: 2500, prot: [82, 140], carbs: [180, 280], fat: [55, 70], week: [2100, 1980, 2400, 1860, 1900, 2200, 1750] },
+  { key: "w", name: "Wife", color: "#d81b60", eaten: 1540, goal: 2000, prot: [70, 110], carbs: [150, 220], fat: [48, 65], week: [1680, 1820, 1500, 1900, 1540, 1700, 1600] }
+];
+var labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var picked = "h";
+
+function chicken(grams) { return Math.round(grams / 0.31 / 10) * 10; }
+function pct(a, b) { return Math.round(a / b * 100); }
+function left(p) { return p.goal - p.eaten; }
+
+function card(p) {
+  var pLeft = p.prot[1] - p.prot[0];
+  return '<button class="person' + (p.key === "w" ? " wife" : "") + '" type="button" data-key="' + p.key + '" style="--c:' + p.color + '">'
+    + '<div class="ring" style="--p:' + pct(p.eaten, p.goal) + '"><div class="hole"><b>' + p.eaten.toLocaleString() + '</b><small>of ' + p.goal.toLocaleString() + '</small></div></div>'
+    + '<div class="name">' + p.name + '</div>'
+    + '<div class="left">' + left(p) + ' left · ' + pct(p.eaten, p.goal) + '%</div>'
+    + '<ul>'
+    + '<li><span>Protein</span><span>' + p.prot[0] + '/' + p.prot[1] + ' · ' + pLeft + ' g</span></li>'
+    + '<li><span>Carbs</span><span>' + p.carbs[0] + '/' + p.carbs[1] + ' · ' + pct(p.carbs[0], p.carbs[1]) + '%</span></li>'
+    + '<li><span>Fat</span><span>' + p.fat[0] + '/' + p.fat[1] + ' · ' + pct(p.fat[0], p.fat[1]) + '%</span></li>'
+    + '</ul>'
+    + '<p class="tip">≈ ' + chicken(pLeft) + ' g chicken breast</p>'
+    + '</button>';
+}
+
+function person(key) { return people.filter(function (p) { return p.key === key; })[0]; }
+
+function say(text) { document.getElementById("reply").textContent = text; }
+
+function paint() {
+  document.getElementById("pair").innerHTML = people.map(card).join("");
+  var h = person("h"), w = person("w");
+  var lead = pct(w.eaten, w.goal) >= pct(h.eaten, h.goal) ? "Wife is closer to her own goal." : "Husband is closer to his own goal.";
+  say(lead + " She has " + left(w) + " kcal left. He has " + left(h) + ".");
+  document.getElementById("days").innerHTML = labels.map(function (d, i) {
+    return '<button class="day" type="button" data-i="' + i + '"><i>' + d + '</i><b>' + h.week[i] + '</b><em>' + w.week[i] + '</em></button>';
+  }).join("");
+}
+
+document.getElementById("pair").addEventListener("click", function (e) {
+  var btn = e.target.closest(".person");
+  if (!btn) return;
+  picked = btn.getAttribute("data-key");
+  document.querySelectorAll(".person").forEach(function (el) {
+    el.classList.toggle("on", el === btn);
+    el.classList.remove("pulse");
+  });
+  void btn.offsetWidth;
+  btn.classList.add("pulse");
+  var p = person(picked), o = person(picked === "h" ? "w" : "h");
+  var pLeft = p.prot[1] - p.prot[0];
+  say(p.name + " · " + left(p) + " kcal left of " + p.goal.toLocaleString() + ". " + o.name + " has " + left(o) + " left. Protein " + pLeft + " g left, about " + chicken(pLeft) + " g chicken.");
+});
+
+document.getElementById("days").addEventListener("click", function (e) {
+  var day = e.target.closest(".day");
+  if (!day) return;
+  document.querySelectorAll(".day").forEach(function (el) { el.classList.toggle("on", el === day); });
+  var i = Number(day.getAttribute("data-i"));
+  var h = person("h"), w = person("w");
+  say(labels[i] + " · Husband " + h.week[i].toLocaleString() + " · Wife " + w.week[i].toLocaleString() + ".");
+});
+
+paint();
+</script>
+</body>
+</html>
