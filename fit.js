@@ -471,17 +471,17 @@
     html += '<p class="' + (checks ? 'log-warn' : 'log-ok') + '">'
       + items.length + ' item' + (items.length === 1 ? '' : 's')
       + (checks ? ' · ' + checks + ' to check' : ' · record looks complete') + '</p>';
-    html += '<div class="nearby"><p>Nearby, from what is still open on your own goal. Not a new target.</p>';
+    html += '<div class="nearby"><p>Checked against your own goal. Not a new target. Tap to open the map for that recommendation.</p>';
     people.forEach(function (p) {
       if (!p.target || !(p.target.cal > 0)) return;
       var d = getDayData(p.name, dateStr);
       var kcalLeft = p.target.cal - d.eaten;
       var protLeft = Math.max(0, p.target.prot - d.prot);
       var q = 'healthy meal';
-      var why = Math.round(Math.max(0, kcalLeft)) + ' kcal still open.';
-      if (kcalLeft < 150) { q = 'fruit'; why = 'Little room left under your own calorie goal.'; }
-      else if (protLeft >= 25) { q = 'grilled chicken'; why = Math.round(protLeft) + ' g protein still open.'; }
-      html += '<button type="button" data-near="1" data-q="' + esc(q) + '">Near ' + esc(p.name) + ' · ' + esc(q) + '</button><span>' + esc(why) + '</span>';
+      var why = p.name + ': ' + Math.round(Math.max(0, kcalLeft)) + ' kcal still open. Recommend a normal meal.';
+      if (kcalLeft < 150) { q = 'fruit'; why = p.name + ': little room left. Recommend fruit.'; }
+      else if (protLeft >= 25) { q = 'grilled chicken'; why = p.name + ': ' + Math.round(protLeft) + ' g protein still open. Recommend grilled chicken.'; }
+      html += '<span>' + esc(why) + '</span><button type="button" data-near="1" data-q="' + esc(q) + '">Open map · ' + esc(q) + '</button>';
     });
     html += '</div>';
     box.innerHTML = html;
