@@ -448,6 +448,127 @@ test("the shop stays out of the game and does not use health data", async () => 
   }
 });
 
+test("the assistant counts use and does not store the message", async () => {
+  const player = await session("f");
+  const phrase = "secret-meal-phrase-xyz";
+  const denied = await call("/v1/ai/food-text", {
+    method: "POST",
+    token: player.token,
+    body: { text: phrase },
+  });
+  assert.equal(denied.status, 400);
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.AI_MODEL = "gemini-3.5-flash-lite";
+  const original = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com")) {
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"items":[{"name":"egg","portion":"1","kcal":70,"protein":6,"carbs":0,"fat":5}]}' }] } }],
+        usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 20, thoughtsTokenCount: 5 },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const first = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: phrase },
+    });
+    assert.equal(first.status, 200, first.text);
+    assert.equal((first.json as { items: { name: string }[] }).items[0].name, "egg");
+    const rows = await env.DB.prepare("SELECT feature, count FROM ai_usage").all<{ feature: string; count: number }>();
+    assert.equal(JSON.stringify(rows).includes(phrase), false);
+    assert.equal((rows.results || []).some((row) => row.feature === "text_log" && row.count === 1), true);
+    const spend = await env.DB.prepare("SELECT provider, calls, input_tokens, output_tokens, cost_micro FROM ai_spend").all<{ provider: string; calls: number; input_tokens: number; output_tokens: number; cost_micro: number }>();
+    assert.equal(JSON.stringify(spend).includes(phrase), false);
+    const google = (spend.results || []).find((row) => row.provider === "google");
+    assert.equal(google?.input_tokens, 1000);
+    assert.equal(google?.output_tokens, 25);
+    assert.equal(google?.cost_micro, Math.round(1000 * 0.3 + 25 * 2.5));
+    await call("/v1/admin/ai/limits", { method: "POST", token: TEST_KEY, body: { feature: "text_log", dailyCap: 1 } });
+    const blocked = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "another plate" },
+    });
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.text.includes("another plate"), false);
+    await call("/v1/admin/ai/premium", { method: "POST", token: TEST_KEY, body: { userId: player.id, grant: true } });
+    const open = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "still not stored" },
+    });
+    assert.equal(open.status, 200, open.text);
+    assert.equal((await call("/v1/premium/checkout", { method: "POST", token: player.token, body: {} })).status, 404);
+  } finally {
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.AI_MODEL;
+  }
+});
+
+test("a busy Gemini call falls through to Qwen and a bad request does not", async () => {
+  const player = await session("c");
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.QWEN_API_KEY = "test-qwen-key";
+  env.OPENAI_API_KEY = "test-openai-key";
+  const calls: string[] = [];
+  const original = globalThis.fetch;
+  let googleStatus = 429;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("generativelanguage.googleapis.com")) {
+      return new Response("no", { status: googleStatus });
+    }
+    if (url.includes("dashscope-intl.aliyuncs.com")) {
+      const body = String((init as RequestInit | undefined)?.body || "");
+      assert.equal(body.includes("qwen3-vl-plus"), true);
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: '{"items":[{"name":"rice","portion":"1 cup","kcal":260,"protein":4,"carbs":58,"fat":0}]}' } }],
+        usage: { prompt_tokens: 100, completion_tokens: 40 },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const moved = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "unlisted dish" },
+    });
+    assert.equal(moved.status, 200, moved.text);
+    assert.equal((moved.json as { items: { name: string }[] }).items[0].name, "rice");
+    assert.equal(calls.some((url) => url.includes("api.openai.com")), false);
+    const providers = await env.DB.prepare("SELECT provider, calls, fallbacks, cost_micro FROM ai_provider_counts").all<{ provider: string; calls: number; fallbacks: number; cost_micro: number }>();
+    assert.equal(providers.results?.find((row) => row.provider === "google")?.fallbacks, 1);
+    assert.equal(providers.results?.find((row) => row.provider === "qwen")?.calls, 1);
+    assert.equal(providers.results?.find((row) => row.provider === "qwen")?.cost_micro, Math.round(100 * 0.2 + 40 * 1.6));
+    calls.length = 0;
+    googleStatus = 400;
+    const stopped = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "still unlisted" },
+    });
+    assert.equal(stopped.status, 502);
+    assert.equal(calls.some((url) => url.includes("dashscope")), false);
+  } finally {
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.QWEN_API_KEY;
+    delete env.OPENAI_API_KEY;
+  }
+});
+
 test("owner route stays closed when the key is missing", async () => {
   const saved = env.ADMIN_KEY;
   env.ADMIN_KEY = "";

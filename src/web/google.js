@@ -124,7 +124,7 @@ export async function appendLog(token, spreadsheetId, row) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      values: [[row.date, row.time, row.person, row.text, row.calories, "", "", "", ""]],
+      values: [[row.date, row.time, row.person, row.text, row.calories, row.protein ?? "", row.carbs ?? "", row.fat ?? "", ""]],
     }),
   });
   if (res.status === 401) throw new Error("Google sign-in expired. Sign in again.");

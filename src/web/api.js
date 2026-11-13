@@ -78,6 +78,24 @@ export function createApi(workerUrl) {
         headers: { "X-Ai-Key": key, "X-Ai-Host": host || "api.openai.com" },
       });
     },
+    aiQuota(token) {
+      return request("/v1/ai/quota", { token });
+    },
+    aiFoodText(token, text) {
+      return request("/v1/ai/food-text", { method: "POST", token, body: { text }, headers: { "X-Ai-Consent": "yes" } });
+    },
+    aiFoodPhoto(token, image) {
+      return request("/v1/ai/food-photo", { method: "POST", token, body: { image, mime: "image/jpeg" }, headers: { "X-Ai-Consent": "yes" } });
+    },
+    aiMeals(token, left) {
+      return request("/v1/ai/meals", { method: "POST", token, body: left, headers: { "X-Ai-Consent": "yes" } });
+    },
+    aiWorkout(token, context) {
+      return request("/v1/ai/workout", { method: "POST", token, body: context, headers: { "X-Ai-Consent": "yes" } });
+    },
+    aiChat(token, message) {
+      return request("/v1/ai/chat", { method: "POST", token, body: { message }, headers: { "X-Ai-Consent": "yes" } });
+    },
     admin(key, day) {
       return request("/v1/admin/customers?day=" + encodeURIComponent(day), { token: key });
     },

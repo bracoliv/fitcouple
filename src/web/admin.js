@@ -34,7 +34,7 @@ function deleteOwnerOrder(key, orderId) {
 }
 const KEY = "fitAdminKey";
 const filters = ["all", "improving", "steady", "slipping", "inactive"];
-const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, error: "", filter: "all", query: "", loading: false };
+const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, ai: null, error: "", filter: "all", query: "", loading: false };
 
 function esc(value) {
   return String(value == null ? "" : value)
@@ -79,6 +79,28 @@ function visible(player) {
   return (player.displayName || "").toLowerCase().includes(q) || player.id.toLowerCase().includes(q);
 }
 
+function aiCard() {
+  const ai = state.ai;
+  if (!ai) return "";
+  const limits = ai.limits || {};
+  const fields = ["food_photo", "text_log", "recommend", "chat"].map((name) => `<label>${esc(name)}<input name="${esc(name)}" inputmode="numeric" value="${esc(limits[name] ?? "")}"></label>`).join("");
+  const usage = (ai.usage || []).map((row) => `<li>${esc(row.feature)} · ${esc(row.total)} today</li>`).join("");
+  const people = (ai.premium || []).map((row) => `<li>${esc(row.user_id)}</li>`).join("");
+  const windows = ((ai.cost && ai.cost.windows) || []).map((window) => {
+    const money = (cost) => cost ? `$${Number(cost.usd).toFixed(4)} · RM ${Number(cost.rm).toFixed(4)}` : "";
+    const providers = (window.providers || []).map((row) => `<li>${esc(row.provider)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)} · fallbacks ${row.fallbacks}</li>`).join("");
+    const features = (window.features || []).map((row) => `<li>${esc(row.feature)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)}</li>`).join("");
+    const users = (window.topUsers || []).map((row) => `<li>${esc(row.userId)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)}</li>`).join("");
+    return `<h3>${esc(window.label)}</h3><p>Active users ${window.activeUsers}. Average ${money(window.average)}. Total ${money(window.cost)}.</p><ul class="log">${providers || `<li class="meta">No provider calls.</li>`}</ul><ul class="log">${features || `<li class="meta">No feature calls.</li>`}</ul><ul class="log">${users || `<li class="meta">No users.</li>`}</ul>`;
+  }).join("");
+  return `<section class="card"><h2>Assistant limits</h2><p class="hint">Counts, token totals, and cost only. This page does not show meals, photos, or chat text. Premium has no daily cap. Payments stay off unless PREMIUM_PAYMENTS_ENABLED is true, and even then no charge is live. RM uses the configured rate${ai.cost ? ` (${ai.cost.usdToRm})` : ""}.</p>
+    <form id="limitForm">${fields}<button type="submit">Save limits</button></form>
+    <ul class="log">${usage || `<li class="meta">No assistant use today.</li>`}</ul>
+    ${windows}
+    <form id="premiumForm"><label>Player id<input name="userId" required></label><button type="submit" name="grant" value="yes">Grant premium</button><button type="submit" name="grant" value="no">Remove premium</button></form>
+    <ul class="log">${people || `<li class="meta">No premium players.</li>`}</ul></section>`;
+}
+
 function shopCard() {
   const shop = state.shop;
   if (!shop) return "";
@@ -117,6 +139,7 @@ function render() {
     <button type="button" id="reload">Refresh</button><button type="button" id="signOut">Sign out</button></div>
     <input id="find" placeholder="Find a name or id" value="${esc(state.query)}">
     ${shopCard()}
+    ${aiCard()}
     ${report && report.vouchers ? `<section class="card"><h2>Restaurant vouchers</h2><p class="hint">${report.vouchers.enabled ? "On. Separate from SOSM+." : "Off. Players cannot see this. Set VOUCHERS_ENABLED to true only after you decide to use it."}</p><p>Issued ${report.vouchers.issued} · Redeemed ${report.vouchers.redeemed} · Expired ${report.vouchers.expired}</p>${report.vouchers.configError ? `<p class="bad">${esc(report.vouchers.configError)}</p>` : ""}</section>` : ""}
     ${report ? list.map(playerCard).join("") || `<p class="card">No players in this filter.</p>` : `<p class="card">No report yet.</p>`}
     <p class="hint">Improving means they were active in the last 3 days and this week's XP gain is ahead of the week before (new players with any XP count as improving). Steady means the two weeks match, or they are new and have not gained XP. Slipping means this week is behind the week before. Inactive means no finished quest for more than 3 days.</p>`;
@@ -125,6 +148,17 @@ function render() {
       state.filter = button.getAttribute("data-filter");
       render();
     });
+  });
+  const limitForm = document.getElementById("limitForm");
+  if (limitForm) limitForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveLimits(new FormData(limitForm));
+  });
+  const premiumForm = document.getElementById("premiumForm");
+  if (premiumForm) premiumForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const grant = event.submitter && event.submitter.value === "yes";
+    savePremium(new FormData(premiumForm).get("userId"), grant);
   });
   const productForm = document.getElementById("productForm");
   if (productForm) productForm.addEventListener("submit", (event) => {
@@ -192,6 +226,30 @@ async function removeOrder(orderId) {
   render();
 }
 
+async function saveLimits(data) {
+  try {
+    for (const name of ["food_photo", "text_log", "recommend", "chat"]) {
+      await ownerShop("/v1/admin/ai/limits", state.key, { feature: name, dailyCap: Number(data.get(name)) });
+    }
+    state.ai = await ownerShop("/v1/admin/ai", state.key);
+    state.error = "";
+  } catch (err) {
+    state.error = err.message || "Could not save the limits.";
+  }
+  render();
+}
+
+async function savePremium(userId, grant) {
+  try {
+    await ownerShop("/v1/admin/ai/premium", state.key, { userId: String(userId || ""), grant });
+    state.ai = await ownerShop("/v1/admin/ai", state.key);
+    state.error = "";
+  } catch (err) {
+    state.error = err.message || "Could not update premium.";
+  }
+  render();
+}
+
 async function load() {
   state.loading = true;
   state.error = "";
@@ -199,6 +257,7 @@ async function load() {
   try {
     state.report = await api.admin(state.key, localDay());
     state.shop = await loadOwnerShop(state.key);
+    state.ai = await ownerShop("/v1/admin/ai", state.key);
   } catch (err) {
     state.report = null;
     state.error = err.message || "Could not load the owner page.";

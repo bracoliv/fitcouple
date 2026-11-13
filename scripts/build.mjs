@@ -64,6 +64,7 @@ for (const [source, name] of [["src/web/play.css", "play.css"], ["src/web/admin.
 const fitMin = await esbuild.transform(await readFile(path.join(root, "fit.js"), "utf8"), { loader: "js", minify: true, legalComments: "none" });
 await writeFile(path.join(dist, "fit.js"), JavaScriptObfuscator.obfuscate(fitMin.code, options).getObfuscatedCode());
 const storeOn = process.env.STORE_ENABLED === "true";
+const payOn = process.env.PREMIUM_PAYMENTS_ENABLED === "true";
 const shopPhrases = ["Add to cart", "shop-terms.html", "Pay in sandbox", "X-Age-Confirm"];
 const shopOffPlugin = {
   name: "shop-off",
@@ -73,8 +74,16 @@ const shopOffPlugin = {
     }));
   },
 };
+const premiumOffPlugin = {
+  name: "premium-off",
+  setup(build) {
+    build.onResolve({ filter: /premium-ui\.js$/ }, () => ({
+      path: path.join(root, "src/web/premium-off.js"),
+    }));
+  },
+};
 await bundle(path.join(root, "src/web/main.js"), path.join(dist, "play.js"), {
-  plugins: storeOn ? [] : [shopOffPlugin],
+  plugins: [...(storeOn ? [] : [shopOffPlugin]), ...(payOn ? [] : [premiumOffPlugin])],
   define: storeOn ? { "globalThis.SHOP_BUILD": "true" } : {},
   guard(source) {
     const found = shopPhrases.filter((phrase) => source.includes(phrase));
@@ -84,6 +93,12 @@ await bundle(path.join(root, "src/web/main.js"), path.join(dist, "play.js"), {
       }
     } else if (found.length) {
       throw new Error("Shop code leaked into the player bundle: " + found.join(", "));
+    }
+    const payPhrase = "Future Malaysian payment gateway";
+    if (payOn) {
+      if (!source.includes(payPhrase)) throw new Error("Premium payment build is missing the payment hook.");
+    } else if (source.includes(payPhrase)) {
+      throw new Error("Premium payment UI leaked into the player bundle.");
     }
   },
 });

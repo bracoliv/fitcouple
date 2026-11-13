@@ -77,6 +77,22 @@ Expected cost if you stay on the free plans: **$0**.
 
 `npm test` checks the scoring rules. `test/MANUAL.md` is a click-through list.
 
+The assistant calls providers in order: Google `gemini-3.5-flash-lite`, then Alibaba Cloud Model Studio in Singapore `qwen3-vl-plus`, then OpenAI `gpt-6-luna`. A rate limit, a server error, a timeout, or a network failure moves to the next one. A content or validation error does not. A missing key is skipped. The model names, base URLs, and order are in `wrangler.jsonc` (`AI_PROVIDER_ORDER`, `AI_GOOGLE_MODEL`, `AI_GOOGLE_BASE_URL`, `AI_QWEN_MODEL`, `AI_QWEN_BASE_URL`, `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`). Do not point the Google model at an older Gemini model.
+
+Put the keys on the server, not in the page. Leave a key unset to skip that provider:
+
+`npx wrangler secret put GEMINI_API_KEY`
+
+`npx wrangler secret put QWEN_API_KEY`
+
+`npx wrangler secret put OPENAI_API_KEY`
+
+Prices are US dollars per 1 million tokens. The defaults are Gemini $0.30 in / $2.50 out, Qwen $0.20 / $1.60, and OpenAI $0.10 / $0.50. Override them with `AI_PRICE_TABLE` as JSON if a price changes. `AI_USD_TO_RM` defaults to `4.084`. The owner page shows calls, tokens, USD, RM, and fallback counts for today, 7 days, 30 days, and 66 days. It does not show the meals or photos.
+
+Daily caps live in `wrangler.jsonc` (`AI_LIMIT_FOOD_PHOTO` 10, `AI_LIMIT_TEXT_LOG` 20, `AI_LIMIT_RECOMMEND` 5, `AI_LIMIT_CHAT` 20). The owner page can change them. It stores only the numbers. Premium removes the cap for a player id you grant there. `PREMIUM_PAYMENTS_ENABLED` stays `false`, so the release build has no payment screen. Apply the new database tables with the other migrations:
+
+`npx wrangler d1 migrations apply fitcouple-game --remote`
+
 Google sign-in will not complete until step 2 is done. The button is already wired. Until the client id is filled in, it tells you to edit `config.js`.
 
 ### 2. Create the Google sign-in client

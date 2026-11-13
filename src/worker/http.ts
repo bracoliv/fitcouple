@@ -22,6 +22,7 @@ import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
 import { readVoucherConfig } from "./vouchers.ts";
 import { cleanOrder, readStoreConfig } from "./store.ts";
 import { adminOrders, completeSandboxOrder, deleteOrder, listProducts, placeOrder, playerOrders, publicStore, saveProduct } from "./shop.ts";
+import { costReport, effectiveLimits, FOOD_RULE, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, usdToRmRate } from "./ai.ts";
 
 export interface AppEnv {
   DB: Db;
@@ -49,6 +50,24 @@ export interface AppEnv {
   TOYYIBPAY_SECRET?: string;
   TOYYIBPAY_CATEGORY?: string;
   STRIPE_SECRET?: string;
+  GEMINI_API_KEY?: string;
+  QWEN_API_KEY?: string;
+  OPENAI_API_KEY?: string;
+  AI_MODEL?: string;
+  AI_PROVIDER_ORDER?: string;
+  AI_GOOGLE_MODEL?: string;
+  AI_GOOGLE_BASE_URL?: string;
+  AI_QWEN_MODEL?: string;
+  AI_QWEN_BASE_URL?: string;
+  AI_OPENAI_MODEL?: string;
+  AI_OPENAI_BASE_URL?: string;
+  AI_PRICE_TABLE?: string;
+  AI_USD_TO_RM?: string;
+  AI_LIMIT_FOOD_PHOTO?: string;
+  AI_LIMIT_TEXT_LOG?: string;
+  AI_LIMIT_RECOMMEND?: string;
+  AI_LIMIT_CHAT?: string;
+  PREMIUM_PAYMENTS_ENABLED?: string;
 }
 
 function allowedOrigin(env: AppEnv, origin: string): boolean {
@@ -63,7 +82,7 @@ function responseHeaders(request: Request, env: AppEnv): Headers {
   if (origin && allowedOrigin(env, origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
-    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Ai-Key, X-Ai-Host, X-Age-Confirm");
+    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Ai-Key, X-Ai-Host, X-Ai-Consent, X-Age-Confirm");
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   }
   return headers;
@@ -256,6 +275,48 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       if (typeof body.orderId !== "string" || typeof body.proof !== "string") throw new GameError(400, "Payment is missing.");
       return json(request, env, 200, await completeSandboxOrder(env.DB, body.orderId, body.proof));
     }
+    if (url.pathname === "/v1/ai/quota" && request.method === "GET") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const day = now.toISOString().slice(0, 10);
+      const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
+      return json(request, env, 200, await quotaFor(env.DB, user.id, day, limits));
+    }
+    if (request.method === "POST" && url.pathname.startsWith("/v1/ai/")) {
+      return json(request, env, 200, await handleAi(request, env, url.pathname, now));
+    }
+    if (url.pathname === "/v1/admin/ai" && request.method === "GET") {
+      await assertAdmin(request, env);
+      const day = now.toISOString().slice(0, 10);
+      const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
+      const usage = await env.DB.prepare(
+        "SELECT feature, SUM(count) AS total FROM ai_usage WHERE day = ? GROUP BY feature",
+      ).bind(day).all<{ feature: string; total: number }>();
+      const premium = await env.DB.prepare("SELECT user_id, granted_day FROM premium_users ORDER BY granted_day DESC LIMIT 50").all();
+      const cost = await costReport(env.DB, day, usdToRmRate(env.AI_USD_TO_RM));
+      return json(request, env, 200, {
+        limits,
+        usage: usage.results || [],
+        premium: premium.results || [],
+        payments: String(env.PREMIUM_PAYMENTS_ENABLED || "") === "true",
+        cost,
+      });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/ai/limits") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readJson(request), ["feature", "dailyCap"]);
+      await saveLimit(env.DB, String(body.feature || ""), Number(body.dailyCap));
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/ai/premium") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readJson(request), ["userId", "grant"]);
+      await setPremium(env.DB, String(body.userId || ""), body.grant === true, now.toISOString().slice(0, 10));
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/premium/checkout") {
+      if (String(env.PREMIUM_PAYMENTS_ENABLED || "") !== "true") return json(request, env, 404, { error: "Not found." });
+      throw new GameError(403, "Premium payment is not live. No charge was made.");
+    }
     return json(request, env, 404, { error: "Not found." });
   } catch (err) {
     const status = err instanceof GameError ? err.status : 500;
@@ -305,6 +366,93 @@ async function readJson(request: Request): Promise<unknown> {
   const body = await readBody(request);
   assertNoPrivateFields(body);
   return body;
+}
+
+async function handleAi(request: Request, env: AppEnv, pathname: string, now: Date) {
+  if (request.headers.get("X-Ai-Consent") !== "yes") {
+    throw new GameError(400, "Agree to the assistant notice before the first request.");
+  }
+  const user = await userFromToken(env.DB, bearer(request));
+  const day = now.toISOString().slice(0, 10);
+  const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
+  const base = { db: env.DB, env, userId: user.id, day, limits };
+  if (pathname === "/v1/ai/food-photo") {
+    const image = await readFoodImage(request);
+    return runFeature(base.db, base.env, base.userId, base.day, "food_photo", base.limits, [
+      { text: FOOD_RULE },
+      image,
+    ], "items");
+  }
+  const body = await readAiObject(request);
+  if (pathname === "/v1/ai/food-text") {
+    return runFeature(base.db, base.env, base.userId, base.day, "text_log", base.limits, [
+      { text: FOOD_RULE + " Phrase only: " + clipped(body.text, 400) },
+    ], "items");
+  }
+  if (pathname === "/v1/ai/meals") {
+    const left = macros(body);
+    return runFeature(base.db, base.env, base.userId, base.day, "recommend", base.limits, [
+      { text: `Suggest two ordinary meals for these remaining numbers. JSON {meals:[{name,why,kcal,protein,carbs,fat}]}. No supplements, no slimming products, no medical advice. Remaining kcal ${left.kcal}, protein ${left.protein}, carbs ${left.carbs}, fat ${left.fat}.` },
+    ], "meals");
+  }
+  if (pathname === "/v1/ai/workout") {
+    const level = whole(body.level, 1, 80);
+    const streak = whole(body.streak, 0, 365);
+    const plan = clipped(body.plan, 40).replace(/[^a-z0-9 -]/gi, "").slice(0, 40);
+    const quests = Array.isArray(body.quests) ? body.quests.filter((id) => typeof id === "string" && /^[a-z0-9_]{1,32}$/.test(id)).slice(0, 8) : [];
+    return runFeature(base.db, base.env, base.userId, base.day, "recommend", base.limits, [
+      { text: `Suggest one short exercise session. JSON {session, notes}. No supplements, no slimming products, no medical advice. Level ${level}. Streak ${streak}. Plan ${plan || "none"}. Quest ids ${quests.join(",") || "none"}.` },
+    ], "session");
+  }
+  if (pathname === "/v1/ai/chat") {
+    return runFeature(base.db, base.env, base.userId, base.day, "chat", base.limits, [
+      { text: "Answer only general nutrition or exercise for healthy adults. If the question is medical, about disease, supplements, or slimming products, refuse and say to ask a clinician. Keep it under 120 words. Question: " + clipped(body.message, 500) },
+    ], "chat");
+  }
+  throw new GameError(404, "Not found.");
+}
+
+async function readAiObject(request: Request): Promise<Record<string, unknown>> {
+  const text = await request.text();
+  if (text.length > 8000) throw new GameError(413, "Request is too large.");
+  let body: unknown;
+  try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new GameError(400, "Send a JSON object.");
+  return body as Record<string, unknown>;
+}
+
+async function readFoodImage(request: Request): Promise<{ image: string; mime: string }> {
+  const body = await readAiObject(request);
+  const keys = Object.keys(body);
+  if (keys.some((key) => key !== "image" && key !== "mime")) throw new GameError(400, "Unexpected field.");
+  const mime = body.mime === "image/png" || body.mime === "image/webp" ? body.mime : "image/jpeg";
+  const image = typeof body.image === "string" ? body.image : "";
+  if (!/^[A-Za-z0-9+/=]+$/.test(image) || image.length < 100 || image.length > 1_500_000) {
+    throw new GameError(400, "Send a smaller photo.");
+  }
+  return { image, mime };
+}
+
+function clipped(value: unknown, max: number): string {
+  if (typeof value !== "string") throw new GameError(400, "Text is missing.");
+  const text = value.trim();
+  if (!text || text.length > max) throw new GameError(400, "Text is missing.");
+  return text;
+}
+
+function whole(value: unknown, min: number, max: number): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < min || n > max) return min;
+  return n;
+}
+
+function macros(body: Record<string, unknown>) {
+  const read = (key: string) => {
+    const n = Number(body[key]);
+    if (!Number.isFinite(n) || n < 0 || n > 20000) return 0;
+    return Math.round(n);
+  };
+  return { kcal: read("kcal"), protein: read("protein"), carbs: read("carbs"), fat: read("fat") };
 }
 
 function parseEvents(value: unknown): QuestEvent[] {
