@@ -47,7 +47,7 @@ function quotaLine(quota) {
 }
 
 function notice() {
-  return `<p class="hint">Fit sends assistant requests through our server to Google Gemini. FitCouple does not store the photo, the meal text, or the reply. Google processes them under Google's terms, and on the free tier Google may use that content to improve Google's products. Not medical advice.</p>`;
+  return `<p class="hint">Fit sends assistant requests through our server. They may be processed by Google, Alibaba Cloud (Singapore), or OpenAI, in that order, when the one being called is busy or unavailable. FitCouple does not store the photo, the meal text, or the reply. It does store token counts and the estimated cost against your player id. Each company's own terms apply. On Google's free tier, Google may use that content to improve Google's products. Not medical advice.</p>`;
 }
 
 export function assistHtml(state, day, esc) {

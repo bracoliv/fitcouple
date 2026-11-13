@@ -20,7 +20,7 @@ import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
 import { STORE_SQL, VOUCHER_SQL, AI_SQL } from "../src/worker/schema.ts";
-import { modelName } from "../src/worker/ai.ts";
+import { costMicroUsd, modelName, usageFromGoogle, DEFAULT_PRICES } from "../src/worker/ai.ts";
 import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
 
@@ -312,6 +312,10 @@ test("the gemini model stays on 3.5 and the usage table has no content columns",
   assert.throws(() => modelName("gemini-2.0-flash"));
   assert.equal(AI_SQL.includes("meal"), false);
   assert.equal(AI_SQL.includes("photo"), false);
+  assert.equal(costMicroUsd("gemini-3.5-flash-lite", 1_000_000, 0, DEFAULT_PRICES), 300000);
+  assert.equal(costMicroUsd("qwen3-vl-plus", 0, 1_000_000, DEFAULT_PRICES), 1600000);
+  assert.equal(costMicroUsd("gpt-6-luna", 2_000_000, 1_000_000, DEFAULT_PRICES), 700000);
+  assert.equal(usageFromGoogle({ usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 4, thoughtsTokenCount: 6 } }).output, 10);
 });
 
 test("flag text stays free of health details", () => {

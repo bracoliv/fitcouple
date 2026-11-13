@@ -118,13 +118,143 @@ export async function assertWithinLimit(db: Db, userId: string, day: string, fea
 
 interface GeminiEnv {
   GEMINI_API_KEY?: string;
+  QWEN_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   AI_MODEL?: string;
+  AI_PROVIDER_ORDER?: string;
+  AI_GOOGLE_MODEL?: string;
+  AI_GOOGLE_BASE_URL?: string;
+  AI_QWEN_MODEL?: string;
+  AI_QWEN_BASE_URL?: string;
+  AI_OPENAI_MODEL?: string;
+  AI_OPENAI_BASE_URL?: string;
+  AI_PRICE_TABLE?: string;
+  AI_USD_TO_RM?: string;
 }
 
-export async function askGemini(env: GeminiEnv, parts: { text?: string; image?: string; mime?: string }[], jsonMode: boolean): Promise<string> {
-  const key = String(env.GEMINI_API_KEY || "").trim();
-  if (!key) throw new GameError(503, "The assistant is not set up yet.");
-  const model = modelName(env.AI_MODEL);
+export interface ProviderConfig {
+  id: "google" | "qwen" | "openai";
+  model: string;
+  baseUrl: string;
+  key: string;
+}
+
+const PROVIDER_DEFAULTS = {
+  google: { model: "gemini-3.5-flash-lite", baseUrl: "https://generativelanguage.googleapis.com/v1beta", host: /(^|\.)generativelanguage\.googleapis\.com$/ },
+  qwen: { model: "qwen3-vl-plus", baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", host: /(^|\.)dashscope-intl\.aliyuncs\.com$/ },
+  openai: { model: "gpt-6-luna", baseUrl: "https://api.openai.com/v1", host: /(^|\.)api\.openai\.com$/ },
+} as const;
+
+function tokenName(raw: string | undefined, fallback: string): string {
+  const name = String(raw || "").trim();
+  return /^[A-Za-z0-9._-]{1,64}$/.test(name) ? name : fallback;
+}
+
+function httpsBase(raw: string | undefined, fallback: string, host: RegExp): string {
+  const value = String(raw || "").trim().replace(/\/$/, "");
+  if (!value) return fallback;
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:" && host.test(url.hostname)) return url.origin + url.pathname.replace(/\/$/, "");
+  } catch {
+    // Keep the built-in official address.
+  }
+  return fallback;
+}
+
+export function readProviders(env: GeminiEnv): ProviderConfig[] {
+  const order = String(env.AI_PROVIDER_ORDER || "google,qwen,openai").split(",").map((item) => item.trim().toLowerCase());
+  const seen = new Set<string>();
+  const list: ProviderConfig[] = [];
+  for (const id of order) {
+    if (seen.has(id) || !(id === "google" || id === "qwen" || id === "openai")) continue;
+    seen.add(id);
+    const defaults = PROVIDER_DEFAULTS[id];
+    const key = id === "google" ? env.GEMINI_API_KEY : id === "qwen" ? env.QWEN_API_KEY : env.OPENAI_API_KEY;
+    const model = id === "google"
+      ? modelName(env.AI_GOOGLE_MODEL || env.AI_MODEL)
+      : tokenName(id === "qwen" ? env.AI_QWEN_MODEL : env.AI_OPENAI_MODEL, defaults.model);
+    const baseRaw = id === "google" ? env.AI_GOOGLE_BASE_URL : id === "qwen" ? env.AI_QWEN_BASE_URL : env.AI_OPENAI_BASE_URL;
+    list.push({
+      id,
+      model,
+      baseUrl: httpsBase(baseRaw, defaults.baseUrl, defaults.host),
+      key: String(key || "").trim(),
+    });
+  }
+  return list;
+}
+
+type ModelPart = { text?: string; image?: string; mime?: string };
+type Usage = { input: number; output: number };
+type CallResult = { ok: true; text: string; usage: Usage } | { ok: false; retryable: boolean };
+
+export const DEFAULT_PRICES: Record<string, { input: number; output: number }> = {
+  "gemini-3.5-flash-lite": { input: 0.30, output: 2.50 },
+  "qwen3-vl-plus": { input: 0.20, output: 1.60 },
+  "gpt-6-luna": { input: 0.10, output: 0.50 },
+};
+
+export function priceTable(raw: string | undefined): Record<string, { input: number; output: number }> {
+  const table: Record<string, { input: number; output: number }> = { ...DEFAULT_PRICES };
+  if (!raw || !raw.trim()) return table;
+  try {
+    const data = JSON.parse(raw) as unknown;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return table;
+    for (const [model, price] of Object.entries(data as Record<string, unknown>)) {
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(model)) continue;
+      const row = price && typeof price === "object" ? price as { input?: unknown; output?: unknown } : {};
+      const input = Number(row.input);
+      const output = Number(row.output);
+      if (Number.isFinite(input) && input >= 0 && input < 1000 && Number.isFinite(output) && output >= 0 && output < 1000) {
+        table[model] = { input, output };
+      }
+    }
+  } catch {
+    // Keep the built-in prices.
+  }
+  return table;
+}
+
+export function usdToRmRate(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 100) return 4.084;
+  return n;
+}
+
+export function costMicroUsd(model: string, inputTokens: number, outputTokens: number, table: Record<string, { input: number; output: number }>): number {
+  const price = table[model] || { input: 0, output: 0 };
+  return Math.round(inputTokens * price.input + outputTokens * price.output);
+}
+
+function wholeTokens(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 50_000_000) return 0;
+  return Math.round(n);
+}
+
+export function usageFromGoogle(data: { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } }): Usage {
+  const usage = data.usageMetadata || {};
+  return {
+    input: wholeTokens(usage.promptTokenCount),
+    output: wholeTokens(usage.candidatesTokenCount) + wholeTokens(usage.thoughtsTokenCount),
+  };
+}
+
+export function usageFromChat(data: { usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } } }): Usage {
+  const usage = data.usage || {};
+  const input = usage.input_tokens != null ? wholeTokens(usage.input_tokens) : wholeTokens(usage.prompt_tokens);
+  const output = usage.output_tokens != null
+    ? wholeTokens(usage.output_tokens)
+    : wholeTokens(usage.completion_tokens);
+  return { input, output };
+}
+
+function retryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+async function callGoogle(provider: ProviderConfig, parts: ModelPart[], jsonMode: boolean): Promise<CallResult> {
   const body = {
     contents: [{
       parts: parts.map((part) => part.image
@@ -137,22 +267,107 @@ export async function askGemini(env: GeminiEnv, parts: { text?: string; image?: 
       ...(jsonMode ? { responseMimeType: "application/json" } : {}),
     },
   };
-  let res: Response;
-  try {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
-    });
-  } catch {
-    throw new GameError(502, "The assistant could not answer just now.");
+  const res = await fetch(`${provider.baseUrl}/models/${provider.model}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": provider.key },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    return { ok: false, retryable: retryableStatus(res.status) };
   }
-  if (!res.ok) throw new GameError(502, "The assistant could not answer just now.");
-  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } };
   const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() || "";
-  if (!text) throw new GameError(502, "The assistant could not answer just now.");
-  return text.slice(0, 4000);
+  if (!text) return { ok: false, retryable: true };
+  return { ok: true, text: text.slice(0, 4000), usage: usageFromGoogle(data) };
+}
+
+async function callChat(provider: ProviderConfig, parts: ModelPart[]): Promise<CallResult> {
+  const content: { type: string; text?: string; image_url?: { url: string } }[] = [];
+  for (const part of parts) {
+    if (part.image) content.push({ type: "image_url", image_url: { url: `data:${part.mime || "image/jpeg"};base64,${part.image}` } });
+    else if (part.text) content.push({ type: "text", text: part.text });
+  }
+  const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
+    body: JSON.stringify({
+      model: provider.model,
+      messages: [{ role: "user", content: content.length === 1 && content[0].text ? content[0].text : content }],
+      max_tokens: 700,
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    return { ok: false, retryable: retryableStatus(res.status) };
+  }
+  const data = await res.json() as { choices?: { message?: { content?: string | { text?: string }[] } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number } };
+  const raw = data.choices?.[0]?.message?.content;
+  const text = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.map((part) => part.text || "").join("") : "";
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, retryable: true };
+  return { ok: true, text: trimmed.slice(0, 4000), usage: usageFromChat(data) };
+}
+
+async function callProvider(provider: ProviderConfig, parts: ModelPart[], jsonMode: boolean): Promise<CallResult> {
+  try {
+    return provider.id === "google" ? await callGoogle(provider, parts, jsonMode) : await callChat(provider, parts);
+  } catch {
+    return { ok: false, retryable: true };
+  }
+}
+
+async function addProviderDay(db: Db, day: string, provider: string, calls: number, input: number, output: number, cost: number, fallbacks: number): Promise<void> {
+  await db.prepare(
+    `INSERT INTO ai_provider_counts (day, provider, calls, input_tokens, output_tokens, cost_micro, fallbacks)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(day, provider) DO UPDATE SET
+       calls = calls + excluded.calls,
+       input_tokens = input_tokens + excluded.input_tokens,
+       output_tokens = output_tokens + excluded.output_tokens,
+       cost_micro = cost_micro + excluded.cost_micro,
+       fallbacks = fallbacks + excluded.fallbacks`,
+  ).bind(day, provider, calls, input, output, cost, fallbacks).run();
+}
+
+async function addUserSpend(db: Db, day: string, userId: string, feature: AiFeature, provider: string, input: number, output: number, cost: number): Promise<void> {
+  await db.prepare(
+    `INSERT INTO ai_spend (day, user_id, feature, provider, calls, input_tokens, output_tokens, cost_micro)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+     ON CONFLICT(day, user_id, feature, provider) DO UPDATE SET
+       calls = calls + 1,
+       input_tokens = input_tokens + excluded.input_tokens,
+       output_tokens = output_tokens + excluded.output_tokens,
+       cost_micro = cost_micro + excluded.cost_micro`,
+  ).bind(day, userId, feature, provider, input, output, cost).run();
+}
+
+export async function askProviders(
+  db: Db,
+  day: string,
+  userId: string,
+  feature: AiFeature,
+  env: GeminiEnv,
+  parts: ModelPart[],
+  jsonMode: boolean,
+): Promise<string> {
+  const providers = readProviders(env).filter((provider) => provider.key);
+  if (!providers.length) throw new GameError(503, "The assistant is not set up yet.");
+  const prices = priceTable(env.AI_PRICE_TABLE);
+  for (const provider of providers) {
+    const result = await callProvider(provider, parts, jsonMode);
+    if (result.ok) {
+      const cost = costMicroUsd(provider.model, result.usage.input, result.usage.output, prices);
+      await addProviderDay(db, day, provider.id, 1, result.usage.input, result.usage.output, cost, 0);
+      await addUserSpend(db, day, userId, feature, provider.id, result.usage.input, result.usage.output, cost);
+      return result.text;
+    }
+    if (!result.retryable) throw new GameError(502, "The assistant could not answer just now.");
+    await addProviderDay(db, day, provider.id, 0, 0, 0, 0, 1);
+  }
+  throw new GameError(502, "The assistant could not answer just now.");
 }
 
 function asItems(value: unknown): { name: string; portion: string; kcal: number; protein: number; carbs: number; fat: number }[] {
@@ -199,7 +414,7 @@ export async function runFeature(
   shape: "items" | "meals" | "session" | "chat",
 ) {
   await assertWithinLimit(db, userId, day, feature, limits);
-  const raw = await askGemini(env, parts, shape !== "chat");
+  const raw = await askProviders(db, day, userId, feature, env, parts, shape !== "chat");
   await bump(db, userId, day, feature);
   if (shape === "chat") return { notice: NOTICE, reply: raw.slice(0, 900) };
   const data = parseJson(raw);
@@ -219,3 +434,79 @@ export async function runFeature(
 }
 
 export { FOOD_RULE };
+
+function dayShift(day: string, delta: number): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function money(micro: number, rate: number) {
+  const usd = micro / 1_000_000;
+  return { usd: Math.round(usd * 10000) / 10000, rm: Math.round(usd * rate * 10000) / 10000 };
+}
+
+export async function costReport(db: Db, today: string, rate: number) {
+  const windows = [
+    { id: "today", from: today, label: "Today" },
+    { id: "d7", from: dayShift(today, -6), label: "Last 7 days" },
+    { id: "d30", from: dayShift(today, -29), label: "Last 30 days" },
+    { id: "d66", from: dayShift(today, -65), label: "Last 66 days" },
+  ];
+  const report = [];
+  for (const window of windows) {
+    const providers = await db.prepare(
+      `SELECT provider, SUM(calls) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens,
+              SUM(cost_micro) AS cost_micro, SUM(fallbacks) AS fallbacks
+       FROM ai_provider_counts WHERE day >= ? AND day <= ? GROUP BY provider ORDER BY provider`,
+    ).bind(window.from, today).all<{ provider: string; calls: number; input_tokens: number; output_tokens: number; cost_micro: number; fallbacks: number }>();
+    const features = await db.prepare(
+      `SELECT feature, SUM(calls) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(cost_micro) AS cost_micro
+       FROM ai_spend WHERE day >= ? AND day <= ? GROUP BY feature ORDER BY feature`,
+    ).bind(window.from, today).all<{ feature: string; calls: number; input_tokens: number; output_tokens: number; cost_micro: number }>();
+    const totals = await db.prepare(
+      `SELECT COUNT(DISTINCT user_id) AS users, COALESCE(SUM(cost_micro), 0) AS cost_micro,
+              COALESCE(SUM(input_tokens), 0) AS input_tokens, COALESCE(SUM(output_tokens), 0) AS output_tokens, COALESCE(SUM(calls), 0) AS calls
+       FROM ai_spend WHERE day >= ? AND day <= ?`,
+    ).bind(window.from, today).first<{ users: number; cost_micro: number; input_tokens: number; output_tokens: number; calls: number }>();
+    const top = await db.prepare(
+      `SELECT user_id, SUM(calls) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(cost_micro) AS cost_micro
+       FROM ai_spend WHERE day >= ? AND day <= ? GROUP BY user_id ORDER BY SUM(cost_micro) DESC LIMIT 15`,
+    ).bind(window.from, today).all<{ user_id: string; calls: number; input_tokens: number; output_tokens: number; cost_micro: number }>();
+    const users = totals?.users || 0;
+    const cost = totals?.cost_micro || 0;
+    report.push({
+      id: window.id,
+      label: window.label,
+      calls: totals?.calls || 0,
+      inputTokens: totals?.input_tokens || 0,
+      outputTokens: totals?.output_tokens || 0,
+      cost: money(cost, rate),
+      activeUsers: users,
+      average: money(users ? Math.round(cost / users) : 0, rate),
+      providers: (providers.results || []).map((row) => ({
+        provider: row.provider,
+        calls: row.calls,
+        inputTokens: row.input_tokens,
+        outputTokens: row.output_tokens,
+        fallbacks: row.fallbacks,
+        cost: money(row.cost_micro, rate),
+      })),
+      features: (features.results || []).map((row) => ({
+        feature: row.feature,
+        calls: row.calls,
+        inputTokens: row.input_tokens,
+        outputTokens: row.output_tokens,
+        cost: money(row.cost_micro, rate),
+      })),
+      topUsers: (top.results || []).map((row) => ({
+        userId: row.user_id,
+        calls: row.calls,
+        inputTokens: row.input_tokens,
+        outputTokens: row.output_tokens,
+        cost: money(row.cost_micro, rate),
+      })),
+    });
+  }
+  return { usdToRm: rate, windows: report };
+}

@@ -86,9 +86,17 @@ function aiCard() {
   const fields = ["food_photo", "text_log", "recommend", "chat"].map((name) => `<label>${esc(name)}<input name="${esc(name)}" inputmode="numeric" value="${esc(limits[name] ?? "")}"></label>`).join("");
   const usage = (ai.usage || []).map((row) => `<li>${esc(row.feature)} · ${esc(row.total)} today</li>`).join("");
   const people = (ai.premium || []).map((row) => `<li>${esc(row.user_id)}</li>`).join("");
-  return `<section class="card"><h2>Assistant limits</h2><p class="hint">Counts only. This page does not show meals, photos, or chat text. Premium has no daily cap. Payments stay off unless PREMIUM_PAYMENTS_ENABLED is true, and even then no charge is live.</p>
+  const windows = ((ai.cost && ai.cost.windows) || []).map((window) => {
+    const money = (cost) => cost ? `$${Number(cost.usd).toFixed(4)} · RM ${Number(cost.rm).toFixed(4)}` : "";
+    const providers = (window.providers || []).map((row) => `<li>${esc(row.provider)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)} · fallbacks ${row.fallbacks}</li>`).join("");
+    const features = (window.features || []).map((row) => `<li>${esc(row.feature)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)}</li>`).join("");
+    const users = (window.topUsers || []).map((row) => `<li>${esc(row.userId)} · ${row.calls} calls · in ${row.inputTokens} · out ${row.outputTokens} · ${money(row.cost)}</li>`).join("");
+    return `<h3>${esc(window.label)}</h3><p>Active users ${window.activeUsers}. Average ${money(window.average)}. Total ${money(window.cost)}.</p><ul class="log">${providers || `<li class="meta">No provider calls.</li>`}</ul><ul class="log">${features || `<li class="meta">No feature calls.</li>`}</ul><ul class="log">${users || `<li class="meta">No users.</li>`}</ul>`;
+  }).join("");
+  return `<section class="card"><h2>Assistant limits</h2><p class="hint">Counts, token totals, and cost only. This page does not show meals, photos, or chat text. Premium has no daily cap. Payments stay off unless PREMIUM_PAYMENTS_ENABLED is true, and even then no charge is live. RM uses the configured rate${ai.cost ? ` (${ai.cost.usdToRm})` : ""}.</p>
     <form id="limitForm">${fields}<button type="submit">Save limits</button></form>
     <ul class="log">${usage || `<li class="meta">No assistant use today.</li>`}</ul>
+    ${windows}
     <form id="premiumForm"><label>Player id<input name="userId" required></label><button type="submit" name="grant" value="yes">Grant premium</button><button type="submit" name="grant" value="no">Remove premium</button></form>
     <ul class="log">${people || `<li class="meta">No premium players.</li>`}</ul></section>`;
 }

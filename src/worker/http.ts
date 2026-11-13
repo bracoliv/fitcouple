@@ -22,7 +22,7 @@ import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
 import { readVoucherConfig } from "./vouchers.ts";
 import { cleanOrder, readStoreConfig } from "./store.ts";
 import { adminOrders, completeSandboxOrder, deleteOrder, listProducts, placeOrder, playerOrders, publicStore, saveProduct } from "./shop.ts";
-import { effectiveLimits, FOOD_RULE, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium } from "./ai.ts";
+import { costReport, effectiveLimits, FOOD_RULE, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, usdToRmRate } from "./ai.ts";
 
 export interface AppEnv {
   DB: Db;
@@ -51,7 +51,18 @@ export interface AppEnv {
   TOYYIBPAY_CATEGORY?: string;
   STRIPE_SECRET?: string;
   GEMINI_API_KEY?: string;
+  QWEN_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   AI_MODEL?: string;
+  AI_PROVIDER_ORDER?: string;
+  AI_GOOGLE_MODEL?: string;
+  AI_GOOGLE_BASE_URL?: string;
+  AI_QWEN_MODEL?: string;
+  AI_QWEN_BASE_URL?: string;
+  AI_OPENAI_MODEL?: string;
+  AI_OPENAI_BASE_URL?: string;
+  AI_PRICE_TABLE?: string;
+  AI_USD_TO_RM?: string;
   AI_LIMIT_FOOD_PHOTO?: string;
   AI_LIMIT_TEXT_LOG?: string;
   AI_LIMIT_RECOMMEND?: string;
@@ -281,11 +292,13 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
         "SELECT feature, SUM(count) AS total FROM ai_usage WHERE day = ? GROUP BY feature",
       ).bind(day).all<{ feature: string; total: number }>();
       const premium = await env.DB.prepare("SELECT user_id, granted_day FROM premium_users ORDER BY granted_day DESC LIMIT 50").all();
+      const cost = await costReport(env.DB, day, usdToRmRate(env.AI_USD_TO_RM));
       return json(request, env, 200, {
         limits,
         usage: usage.results || [],
         premium: premium.results || [],
         payments: String(env.PREMIUM_PAYMENTS_ENABLED || "") === "true",
+        cost,
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/limits") {
