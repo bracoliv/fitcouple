@@ -1,0 +1,192 @@
+import { assertNearToday, isDay, isDifficulty, type QuestEvent } from "./brain.ts";
+import { secretsMatch } from "./crypto.ts";
+import {
+  adminCustomers,
+  confirmTeam,
+  createSession,
+  createTeam,
+  ensureSchema,
+  joinTeam,
+  recordEvents,
+  setDisplayName,
+  stateFor,
+  userFromToken,
+  type Db,
+} from "./data.ts";
+import { GameError } from "./errors.ts";
+import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
+
+export interface AppEnv {
+  DB: Db;
+  ALLOWED_ORIGINS: string;
+  ADMIN_KEY?: string;
+}
+
+function allowedOrigin(env: AppEnv, origin: string): boolean {
+  return (env.ALLOWED_ORIGINS || "").split(",").map((item) => item.trim()).filter(Boolean).includes(origin);
+}
+
+function responseHeaders(request: Request, env: AppEnv): Headers {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  headers.set("Cache-Control", "no-store");
+  const origin = request.headers.get("Origin");
+  if (origin && allowedOrigin(env, origin)) {
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.set("Vary", "Origin");
+    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  }
+  return headers;
+}
+
+function json(request: Request, env: AppEnv, status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: responseHeaders(request, env) });
+}
+
+async function readBody(request: Request): Promise<unknown> {
+  const text = await request.text();
+  if (text.length > 2000) throw new GameError(413, "Request is too large.");
+  if (!text) throw new GameError(400, "Send JSON.");
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new GameError(400, "Send JSON.");
+  }
+}
+
+function dayFrom(value: unknown, now: Date): string {
+  if (typeof value !== "string" || !isDay(value)) throw new GameError(400, "Send the day as YYYY-MM-DD.");
+  assertNearToday(value, now);
+  return value;
+}
+
+function bearer(request: Request): string {
+  const header = request.headers.get("Authorization") || "";
+  const match = /^Bearer\s+(\S+)$/.exec(header);
+  if (!match) throw new GameError(401, "Sign in to the game again on this device.");
+  return match[1];
+}
+
+async function assertAdmin(request: Request, env: AppEnv): Promise<void> {
+  const key = env.ADMIN_KEY || "";
+  if (key.length < 16) throw new GameError(503, "The owner key is not set on the server yet.");
+  const header = request.headers.get("Authorization") || "";
+  const match = /^Bearer\s+(\S+)$/.exec(header);
+  const provided = match ? match[1] : "";
+  const ok = await secretsMatch(provided, key);
+  if (!ok) throw new GameError(401, "That owner key is not right.");
+}
+
+export async function handle(request: Request, env: AppEnv): Promise<Response> {
+  const url = new URL(request.url);
+  const origin = request.headers.get("Origin");
+  try {
+    if (origin && !allowedOrigin(env, origin)) {
+      return json(request, env, 403, { error: "This website is not allowed to call the game server." });
+    }
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: responseHeaders(request, env) });
+    }
+    await ensureSchema(env.DB);
+    const now = new Date();
+    if (request.method === "GET" && url.pathname === "/health") {
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/session") {
+      const body = assertKeys(await readJson(request), ["anonId", "day"]);
+      const day = body.day == null ? now.toISOString().slice(0, 10) : dayFrom(body.day, now);
+      const created = await createSession(env.DB, String(body.anonId || ""), day);
+      return json(request, env, 200, created);
+    }
+    if (request.method === "GET" && url.pathname === "/v1/admin/customers") {
+      await assertAdmin(request, env);
+      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      return json(request, env, 200, await adminCustomers(env.DB, dayFrom(day, now)));
+    }
+    if (url.pathname === "/v1/me" && request.method === "GET") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now)));
+    }
+    if (url.pathname === "/v1/team" && request.method === "GET") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now)));
+    }
+    if (request.method === "POST" && url.pathname === "/v1/events") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const body = assertKeys(await readJson(request), ["day", "difficulty", "events"]);
+      const day = dayFrom(body.day, now);
+      if (body.difficulty != null && !isDifficulty(body.difficulty)) throw new GameError(400, "Difficulty must be easy, normal, or hard.");
+      const events = parseEvents(body.events);
+      const state = await recordEvents(env.DB, user, events, day, isDifficulty(body.difficulty) ? body.difficulty : undefined);
+      return json(request, env, 200, state);
+    }
+    if (request.method === "POST" && url.pathname === "/v1/profile") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const body = assertKeys(await readJson(request), ["displayName", "day"]);
+      const state = await setDisplayName(env.DB, user, body.displayName, dayFrom(body.day, now));
+      return json(request, env, 200, state);
+    }
+    if (request.method === "POST" && url.pathname === "/v1/team") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const body = assertKeys(await readJson(request), ["action", "code", "day"]);
+      const day = dayFrom(body.day, now);
+      if (body.action === "create") return json(request, env, 200, await createTeam(env.DB, user, day));
+      if (body.action === "join") return json(request, env, 200, await joinTeam(env.DB, user, body.code, day));
+      if (body.action === "confirm") return json(request, env, 200, await confirmTeam(env.DB, user, day));
+      throw new GameError(400, "Team action must be create, join, or confirm.");
+    }
+    return json(request, env, 404, { error: "Not found." });
+  } catch (err) {
+    const status = err instanceof GameError ? err.status : 500;
+    const message = err instanceof GameError ? err.message : "The game server had a problem.";
+    if (!(err instanceof GameError)) {
+      console.error(JSON.stringify({
+        service: "fitcouple-game",
+        error: err instanceof Error ? err.message : "unknown",
+      }));
+    }
+    return json(request, env, status, { error: message });
+  }
+}
+
+async function readJson(request: Request): Promise<unknown> {
+  const body = await readBody(request);
+  assertNoPrivateFields(body);
+  return body;
+}
+
+function parseEvents(value: unknown): QuestEvent[] {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new GameError(400, "Events must be a list.");
+  return value.map((item) => {
+    const event = assertKeys(item, ["questId", "count", "completed", "source", "hasProof", "durationMin"]);
+    if (typeof event.questId !== "string") throw new GameError(400, "Quest id is missing.");
+    const parsed: QuestEvent = { questId: event.questId, source: "manual" };
+    if (event.source != null) {
+      if (event.source !== "manual" && event.source !== "timer" && event.source !== "photo" && event.source !== "wearable") {
+        throw new GameError(400, "Source must be manual, timer, photo, or wearable.");
+      }
+      parsed.source = event.source;
+    }
+    if (event.count != null) {
+      if (!Number.isInteger(event.count)) throw new GameError(400, "Count must be a whole number.");
+      parsed.count = event.count as number;
+    }
+    if (event.completed != null) {
+      if (typeof event.completed !== "boolean") throw new GameError(400, "Completed must be true or false.");
+      parsed.completed = event.completed;
+    }
+    if (event.hasProof != null) {
+      if (typeof event.hasProof !== "boolean") throw new GameError(400, "Proof must be yes or no.");
+      parsed.hasProof = event.hasProof;
+    }
+    if (event.durationMin != null) {
+      if (!Number.isInteger(event.durationMin)) throw new GameError(400, "Duration must be a whole number of minutes.");
+      parsed.durationMin = event.durationMin as number;
+    }
+    return parsed;
+  });
+}

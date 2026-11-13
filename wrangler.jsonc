@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "fitcouple-game",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
+  // Logs and traces help Brian see errors. Query strings are stripped.
+  // Request bodies are never logged by the Worker code. See PRIVACY.md.
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://127.0.0.1:8788,http://localhost:8788,https://bracoliv.github.io"
+  },
+  // ADMIN_KEY is a secret. It is not listed here on purpose.
+  // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY`.
+  "secrets": {
+    "required": ["ADMIN_KEY"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fitcouple-game",
+      // Replace this after `npx wrangler d1 create fitcouple-game`.
+      // Any id works for local `wrangler dev`. Deploy needs the real one.
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
