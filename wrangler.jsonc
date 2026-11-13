@@ -13,7 +13,7 @@
     "traces": { "enabled": true, "head_sampling_rate": 0.01 }
   },
   "vars": {
-    "ALLOWED_ORIGINS": "http://127.0.0.1:8788,http://localhost:8788,https://bracoliv.github.io"
+    "ALLOWED_ORIGINS": "http://127.0.0.1:8788,http://localhost:8788,http://127.0.0.1:8790,http://localhost:8790,https://bracoliv.github.io"
   },
   // ADMIN_KEY is a secret. It is not listed here on purpose.
   // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY`.
