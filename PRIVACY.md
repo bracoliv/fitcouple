@@ -43,6 +43,8 @@ The browser also keeps a session token. The server stores only the SHA-256 hash 
 | flagged | 0 or 1 | The owner page should look at this player |
 | flag_codes | volume, rapid, duration | Why. These words are not health notes |
 | burst_start, burst_count | a clock time and a small number | Used to notice too many updates in a few minutes. Not what was logged |
+| program_choice | home, beginner_gym, fat_loss, or muscle | Which shared plan they picked. Not a log of exercises they did |
+| duel_wins | 1 | How many friendly duels they won |
 
 ### teams
 
@@ -122,4 +124,56 @@ Calories, food names, and workout names are still rejected. If a typed calorie i
 
 Flags the owner can see: too many workouts in one day (`volume`), too many updates in ten minutes (`rapid`), a duration that was not believable (`duration`).
 
-Phase 2, not built yet: a real wearable or health-app connection that can earn full XP, and an on-device check that a photo actually exists before `hasProof` is set.
+### duels
+
+| Column | Meaning |
+| --- | --- |
+| id, team_id | Duel and team |
+| challenger_id, opponent_id, winner_id | Player ids |
+| day, status | When, and open or done |
+| created_ms | Clock time |
+
+No exercise names and no step route. Step counts used to pick a winner already live on the steps quest row.
+
+## Still never stored
+
+Recipe names and calorie estimates stay in the app and, if you log them, in your sheet. Progress photos, weight or waist numbers, and your avatar stay on the phone. A selfie or uploaded photo is cropped and drawn into an avatar in the browser. IndexedDB on that phone holds the photo, the avatar, and earlier versions. Deleting the avatar removes those copies. An optional backup writes `Fit avatar.png` and `Fit avatar source.jpg` into your own Google Drive with the same `drive.file` permission used for the sheet. Fit's server never receives the photo or the avatar, and they are not stored in D1.
+
+The team board shows a generic face unless you opt in. That opt-in only changes the board on your phone. Teammates are not sent the picture. An optional AI portrait uses your own OpenAI key, once per tick of consent, and the crop goes from the phone to OpenAI. Fit does not see that request.
+
+The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
+
+Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
+
+Rewards shown to players are badge names and titles, including 66-Day Finisher. Restaurant vouchers exist in the server but stay off until `VOUCHERS_ENABLED` is the word `true`. While that is off, players are not offered them.
+
+If you turn vouchers on, the server also stores this table. It is not a meal log.
+
+| Column | Meaning |
+| --- | --- |
+| id | Voucher id |
+| user_id | Player id |
+| code_hash | Hash of the single-use code. The code itself is not stored |
+| milestone | Which rule created it, such as `streak:7` |
+| value | The number from your config |
+| status | issued or redeemed |
+| issued_day, expires_day, redeemed_day | Dates |
+
+There are no discount codes in the player app while the switch is off.
+
+The shop is off in the released player app until you rebuild with `STORE_ENABLED=true`. While it is off, players are not shown a Shop tab, and the shop address answers Not found. The game payload never includes products.
+
+If you turn the shop on, it is two lists. Pump Up is the evidence shortlist. Slimming is only your SOSM+ products, shown after an 18+ tick, and never chosen from a workout, goal, or quest. Neither list is built from food or fitness data, and they do not recommend each other.
+
+An order is stored apart from the game scores. The buyer must tick a consent box. The record is:
+
+| Column | Meaning |
+| --- | --- |
+| id, user_id | Order and the player id |
+| name, phone, address | Delivery only |
+| items, total_cents | What was ordered and the price |
+| status, gateway, provider_ref | Paid or not, and the sandbox payment reference |
+| created_day | The date |
+| consent | 1 when the buyer agreed the delivery details stay apart from health data |
+
+Delete an order from the owner page when someone asks. Product text is rejected if it makes a health claim or a sales pitch. 18+ products are not placed in the recommended list.

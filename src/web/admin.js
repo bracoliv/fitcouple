@@ -3,9 +3,38 @@ import { localDay } from "./summary.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787" };
 const api = createApi(config.workerUrl);
+
+async function ownerShop(path, key, body) {
+  const headers = { Authorization: "Bearer " + key };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(String(config.workerUrl || "").replace(/\/$/, "") + path, {
+    method: body === undefined ? "GET" : "POST",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || "The shop could not be updated.");
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+}
+
+function loadOwnerShop(key) {
+  return ownerShop("/v1/admin/products", key);
+}
+
+function saveOwnerProduct(key, product) {
+  return ownerShop("/v1/admin/products", key, product);
+}
+
+function deleteOwnerOrder(key, orderId) {
+  return ownerShop("/v1/admin/orders/delete", key, { orderId });
+}
 const KEY = "fitAdminKey";
 const filters = ["all", "improving", "steady", "slipping", "inactive"];
-const state = { key: sessionStorage.getItem(KEY) || "", report: null, error: "", filter: "all", query: "", loading: false };
+const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, error: "", filter: "all", query: "", loading: false };
 
 function esc(value) {
   return String(value == null ? "" : value)
@@ -50,6 +79,16 @@ function visible(player) {
   return (player.displayName || "").toLowerCase().includes(q) || player.id.toLowerCase().includes(q);
 }
 
+function shopCard() {
+  const shop = state.shop;
+  if (!shop) return "";
+  const products = (shop.products || []).map((item) => `<li>${item.store === "slim" ? "Slimming" : "Pump Up"} · ${esc(item.name)} · ${item.priceCents} sen · list ${item.listPriceCents} sen</li>`).join("");
+  const orders = (shop.orders || []).map((item) => `<li>${esc(item.day)} · ${esc(item.status)} · ${esc(item.name)} · ${esc(item.phone)} · ${esc(item.address)} <button type="button" data-delete-order="${esc(item.id)}">Delete</button></li>`).join("");
+  return `<section class="card"><h2>Shop</h2><p class="hint">${shop.enabled ? "The server flag is on. Players only see a Shop tab after you rebuild the site with STORE_ENABLED=true." : "Off. The released player app has no Shop tab and the shop address answers Not found. Rebuild with STORE_ENABLED=true only when you mean to show it."}</p><ul class="log">${products || `<li class="meta">No products yet.</li>`}</ul>
+    <form id="productForm"><label>Id<input name="id" required maxlength="32"></label><label>Name<input name="name" required maxlength="80"></label><label>Why it is listed<input name="why" required maxlength="200" placeholder="Plain reason. No health claim and no sales pitch."></label><label>Evidence<input name="evidence" required maxlength="200" placeholder="Label fact or source."></label><label>Dose<input name="dose" required maxlength="120"></label><label>Third-party testing<input name="testing" required maxlength="160" placeholder="Name the lab, or write Not third-party tested."></label><label>Halal<select name="halal"><option value="not-stated">Not stated</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>MAL<input name="mal" required maxlength="40" placeholder="MAL number, not-stated, or not-applicable"></label><label>Store<select name="store"><option value="pump">Pump Up</option><option value="slim">Slimming, owner's SOSM+</option></select></label><label>Kind<select name="kind"><option value="whey">Whey</option><option value="creatine">Creatine</option><option value="vitamin-d3">Vitamin D3</option><option value="omega-3">Omega-3</option><option value="magnesium">Magnesium</option><option value="sosm">SOSM+</option></select></label><label>Price in sen<input name="priceCents" inputmode="numeric" required></label><label>Supplier list price in sen<input name="listPriceCents" inputmode="numeric" required></label><label>Store link<input name="linkUrl" required placeholder="Myprotein, LazMall, or Shopee Mall for Pump Up. Shopee or WhatsApp for Slimming."></label><button type="submit">Save product</button></form>
+    ${orders ? `<h3>Orders</h3><p class="hint">Name, phone, and address are for delivery only. They are not used to recommend products. Delete a row if the buyer asks.</p><ul class="log">${orders}</ul>` : ""}</section>`;
+}
+
 function render() {
   const app = document.getElementById("app");
   if (!app) return;
@@ -77,6 +116,8 @@ function render() {
     <div class="filters">${filters.map((name) => `<button type="button" data-filter="${name}" class="${state.filter === name ? "on" : ""}">${name}${name === "all" || !report ? "" : " " + counts[name]}</button>`).join("")}
     <button type="button" id="reload">Refresh</button><button type="button" id="signOut">Sign out</button></div>
     <input id="find" placeholder="Find a name or id" value="${esc(state.query)}">
+    ${shopCard()}
+    ${report && report.vouchers ? `<section class="card"><h2>Restaurant vouchers</h2><p class="hint">${report.vouchers.enabled ? "On. Separate from SOSM+." : "Off. Players cannot see this. Set VOUCHERS_ENABLED to true only after you decide to use it."}</p><p>Issued ${report.vouchers.issued} · Redeemed ${report.vouchers.redeemed} · Expired ${report.vouchers.expired}</p>${report.vouchers.configError ? `<p class="bad">${esc(report.vouchers.configError)}</p>` : ""}</section>` : ""}
     ${report ? list.map(playerCard).join("") || `<p class="card">No players in this filter.</p>` : `<p class="card">No report yet.</p>`}
     <p class="hint">Improving means they were active in the last 3 days and this week's XP gain is ahead of the week before (new players with any XP count as improving). Steady means the two weeks match, or they are new and have not gained XP. Slipping means this week is behind the week before. Inactive means no finished quest for more than 3 days.</p>`;
   document.querySelectorAll("[data-filter]").forEach((button) => {
@@ -84,6 +125,15 @@ function render() {
       state.filter = button.getAttribute("data-filter");
       render();
     });
+  });
+  const productForm = document.getElementById("productForm");
+  if (productForm) productForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(productForm);
+    saveShopProduct(data);
+  });
+  document.querySelectorAll("[data-delete-order]").forEach((button) => {
+    button.addEventListener("click", () => removeOrder(button.getAttribute("data-delete-order")));
   });
   document.getElementById("reload").addEventListener("click", load);
   document.getElementById("signOut").addEventListener("click", () => {
@@ -105,12 +155,50 @@ function render() {
   });
 }
 
+async function saveShopProduct(data) {
+  try {
+    state.shop = await saveOwnerProduct(state.key, {
+      id: String(data.get("id") || ""),
+      store: String(data.get("store") || "pump"),
+      kind: String(data.get("kind") || ""),
+      brand: String(data.get("store") || "") === "slim" ? "sosm" : "other",
+      name: String(data.get("name") || ""),
+      why: String(data.get("why") || ""),
+      evidence: String(data.get("evidence") || ""),
+      dose: String(data.get("dose") || ""),
+      testing: String(data.get("testing") || ""),
+      halal: String(data.get("halal") || "not-stated"),
+      mal: String(data.get("mal") || ""),
+      priceCents: Number(data.get("priceCents") || 0),
+      listPriceCents: Number(data.get("listPriceCents") || 0),
+      linkUrl: String(data.get("linkUrl") || ""),
+      active: true,
+    });
+    state.error = "";
+  } catch (err) {
+    state.error = err.message || "Could not save the product.";
+  }
+  render();
+}
+
+async function removeOrder(orderId) {
+  try {
+    await deleteOwnerOrder(state.key, orderId);
+    state.shop = await loadOwnerShop(state.key);
+    state.error = "";
+  } catch (err) {
+    state.error = err.message || "Could not delete the order.";
+  }
+  render();
+}
+
 async function load() {
   state.loading = true;
   state.error = "";
   render();
   try {
     state.report = await api.admin(state.key, localDay());
+    state.shop = await loadOwnerShop(state.key);
   } catch (err) {
     state.report = null;
     state.error = err.message || "Could not load the owner page.";

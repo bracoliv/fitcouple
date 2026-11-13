@@ -5,12 +5,12 @@ const FORBIDDEN_KEY = /^(food|meal|meals|workout|workouts|weight|weights|note|no
 
 const NAME_PATTERN = /^[\p{L}\p{N} .'_-]{1,24}$/u;
 
-export function assertNoPrivateFields(value: unknown, depth = 0): void {
+export function assertNoPrivateFields(value: unknown, depth = 0, maxString = 80): void {
   if (value == null) return;
   if (depth > 5) throw new GameError(400, "Request is too nested.");
   if (Array.isArray(value)) {
     if (value.length > 8) throw new GameError(400, "Too many items.");
-    for (const item of value) assertNoPrivateFields(item, depth + 1);
+    for (const item of value) assertNoPrivateFields(item, depth + 1, maxString);
     return;
   }
   if (typeof value === "object") {
@@ -18,12 +18,12 @@ export function assertNoPrivateFields(value: unknown, depth = 0): void {
     if (keys.length > 8) throw new GameError(400, "Too many fields.");
     for (const key of keys) {
       if (FORBIDDEN_KEY.test(key)) throw new GameError(400, "Private fields are not accepted.");
-      assertNoPrivateFields((value as Record<string, unknown>)[key], depth + 1);
+      assertNoPrivateFields((value as Record<string, unknown>)[key], depth + 1, maxString);
     }
     return;
   }
   if (typeof value === "string") {
-    if (value.length > 80) throw new GameError(400, "Text is too long.");
+    if (value.length > maxString) throw new GameError(400, "Text is too long.");
     if (value.includes("@") || /https?:\/\//i.test(value)) {
       throw new GameError(400, "Links and email addresses are not accepted.");
     }

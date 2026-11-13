@@ -1,4 +1,5 @@
 import { GameError } from "./errors.ts";
+import { sessionFor } from "./programs.ts";
 
 export const PROGRAM_LENGTH = 66;
 export const TEAM_QUEST_XP = 20;
@@ -121,7 +122,69 @@ const QUESTS: QuestDef[] = [
     attribute: "mind",
     required: { easy: false, normal: false, hard: true },
   },
+  {
+    id: "steps",
+    title: "Steps",
+    detail: "Type today's step count. A phone health app can use this same quest later. The server stores the count, not a route.",
+    kind: "count",
+    targets: { easy: 4000, normal: 7000, hard: 10000 },
+    xp: { easy: 10, normal: 15, hard: 25 },
+    attribute: "health",
+    required: { easy: false, normal: false, hard: false },
+  },
+  {
+    id: "program_session",
+    title: "Today's session",
+    detail: "The plan for today. Mark it when you finish. The server does not store a workout log.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 20, normal: 30, hard: 40 },
+    attribute: "strength",
+    required: { easy: false, normal: false, hard: false },
+  },
+  {
+    id: "guided_log",
+    title: "Recipe log",
+    detail: "You used a built-in recipe. The meal name stays in your sheet.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 8, normal: 12, hard: 16 },
+    attribute: "discipline",
+    required: { easy: false, normal: false, hard: false },
+  },
+  {
+    id: "weekly_checkin",
+    title: "Weekly check-in",
+    detail: "A short coach note from your own AI key. The reply is not stored.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 12, normal: 16, hard: 20 },
+    attribute: "mind",
+    required: { easy: false, normal: false, hard: false },
+  },
+  {
+    id: "progress_photo",
+    title: "Progress photo",
+    detail: "Saved on this phone or in your Drive. The picture is not sent here.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 8, normal: 10, hard: 12 },
+    attribute: "discipline",
+    required: { easy: false, normal: false, hard: false },
+  },
+  {
+    id: "restaurant_meal",
+    title: "Restaurant meal",
+    detail: "You logged a meal at the restaurant. The server does not learn the dish.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 10, normal: 15, hard: 20 },
+    attribute: "discipline",
+    required: { easy: false, normal: false, hard: false },
+  },
 ];
+
+const HIDDEN_QUESTS = new Set(["guided_log", "weekly_checkin", "progress_photo"]);
 
 const QUEST_BY_ID = new Map(QUESTS.map((quest) => [quest.id, quest]));
 const CLEAR_XP: Record<Difficulty, number> = { easy: 20, normal: 30, hard: 40 };
@@ -218,7 +281,7 @@ export function visibleStreak(streak: number, lastActiveDay: string | null, toda
 // Wearable is accepted in the schema but pays the manual rate until a real sync exists.
 export function sourceWeight(source: Source | undefined, questId: string, hasProof?: boolean): number {
   if (source === "timer" && questId === "focus") return 1;
-  if (source === "photo" && hasProof === true && (questId === "log_meals" || questId === "log_workout")) return 0.8;
+  if (source === "photo" && hasProof === true && (questId === "log_meals" || questId === "log_workout" || questId === "restaurant_meal")) return 0.8;
   return 0.5;
 }
 
@@ -256,7 +319,7 @@ export function applyEvents(
   const map = new Map(completions.map((row) => [row.questId, { ...row }]));
   let awarded = false;
   const theme = planFor(programPosition(next.programStart, today).day);
-  const outside = new Set(["streak_bonus", "partner_confirm", "team_show_up", "team_move", "gave_confirm"]);
+  const outside = new Set(["streak_bonus", "partner_confirm", "team_show_up", "team_move", "gave_confirm", "team_week", "duel_bonus"]);
   let spent = 0;
   for (const row of completions) {
     if (!outside.has(row.questId)) spent += row.xpAwarded;
@@ -275,11 +338,13 @@ export function applyEvents(
     let count = prev.count;
     let done = prev.done;
     if (quest.kind === "count") {
-      if (!Number.isInteger(event.count) || (event.count as number) < 0 || (event.count as number) > 20) {
-        throw new GameError(400, "Send a count from 0 to 20.");
+      const cap = quest.id === "steps" ? 100000 : 20;
+      if (!Number.isInteger(event.count) || (event.count as number) < 0 || (event.count as number) > cap) {
+        throw new GameError(400, quest.id === "steps" ? "Steps must be a whole number up to 100000." : "Send a count from 0 to 20.");
       }
       count = Math.max(prev.count, event.count as number);
       if (quest.id === "log_workout" && count > 4) flags.push("volume");
+      if (quest.id === "steps" && count > 60000) flags.push("volume");
       if (count >= quest.targets[next.difficulty]) done = true;
     } else if (event.completed === true) {
       count = Math.max(count, 1);
@@ -340,16 +405,33 @@ export function applyEvents(
   return { player: next, completions: [...map.values()], dirty, flags: [...new Set(flags)] };
 }
 
-export function viewQuests(player: Player, completions: CompletionState[], today: string): QuestView[] {
-  const theme = planFor(programPosition(player.programStart, today).day);
-  return QUESTS.map((quest) => {
+export function viewQuests(
+  player: Player,
+  completions: CompletionState[],
+  today: string,
+  programId?: string | null,
+  vouchersEnabled = false,
+): QuestView[] {
+  const position = programPosition(player.programStart, today);
+  const theme = planFor(position.day);
+  const session = sessionFor(programId, position.day);
+  return QUESTS.filter((quest) => {
+    if (HIDDEN_QUESTS.has(quest.id)) return false;
+    if (quest.id === "program_session" && !session) return false;
+    if (quest.id === "restaurant_meal" && !vouchersEnabled) return false;
+    return true;
+  }).map((quest) => {
     const row = completions.find((item) => item.questId === quest.id);
     const full = quest.xp[player.difficulty] + (theme.bonusQuestId === quest.id ? THEME_BONUS : 0);
     const listed = quest.id === "focus" ? full : Math.round(full * 0.5);
+    const detail = quest.id === "program_session" && session
+      ? session.moves.map((move) => move.name).join(" · ") + " " + session.note
+      : quest.detail;
+    const title = quest.id === "program_session" && session ? session.title : quest.title;
     return {
       id: quest.id,
-      title: quest.title,
-      detail: quest.detail,
+      title,
+      detail,
       kind: quest.kind,
       target: quest.targets[player.difficulty],
       count: row?.count || 0,
@@ -360,6 +442,45 @@ export function viewQuests(player: Player, completions: CompletionState[], today
       bonus: theme.bonusQuestId === quest.id,
     };
   });
+}
+
+export function checkinAllowed(lastDay: string | null, today: string): boolean {
+  if (!lastDay) return true;
+  return daysBetween(lastDay, today) >= 7;
+}
+
+export function pickDuelWinner(
+  challenger: { id: string; session: boolean; steps: number },
+  opponent: { id: string; session: boolean; steps: number },
+): { status: "open" | "done"; winnerId: string | null } {
+  if (!challenger.session || !opponent.session) return { status: "open", winnerId: null };
+  if (challenger.steps === opponent.steps) return { status: "done", winnerId: null };
+  return { status: "done", winnerId: challenger.steps > opponent.steps ? challenger.id : opponent.id };
+}
+
+export interface Badge {
+  id: string;
+  title: string;
+}
+
+export function badgesFor(input: { streak: number; level: number; programDay: number; duelWins: number }): Badge[] {
+  const list: Badge[] = [];
+  if (input.streak >= 3) list.push({ id: "spark", title: "Spark" });
+  if (input.streak >= 7) list.push({ id: "week_flame", title: "Week Flame" });
+  if (input.streak >= 30) list.push({ id: "iron_month", title: "Iron Month" });
+  if (input.level >= 5) list.push({ id: "apprentice", title: "Apprentice" });
+  if (input.level >= 10) list.push({ id: "regular", title: "Regular" });
+  if (input.programDay >= 66) list.push({ id: "finisher", title: "66-Day Finisher" });
+  if (input.duelWins >= 1) list.push({ id: "challenger", title: "Challenger" });
+  return list;
+}
+
+export function titleFor(badges: Badge[], level: number): string {
+  if (badges.some((badge) => badge.id === "finisher")) return "66-Day Finisher";
+  if (level >= 10) return "Regular";
+  if (level >= 5) return "Apprentice";
+  if (badges.some((badge) => badge.id === "week_flame")) return "Week Flame";
+  return "Rookie";
 }
 
 export interface SnapPoint {

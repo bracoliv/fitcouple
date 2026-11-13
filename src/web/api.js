@@ -4,8 +4,8 @@ import { buildEventsPayload } from "./summary.js";
 export function createApi(workerUrl) {
   const base = String(workerUrl || "http://127.0.0.1:8787").replace(/\/$/, "");
 
-  async function request(path, { method = "GET", token, body } = {}) {
-    const headers = {};
+  async function request(path, { method = "GET", token, body, headers: extra } = {}) {
+    const headers = { ...(extra || {}) };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
     let res;
@@ -58,6 +58,25 @@ export function createApi(workerUrl) {
     },
     confirmTeam(token, day) {
       return request("/v1/team", { method: "POST", token, body: { action: "confirm", day } });
+    },
+    program(token, choice, day) {
+      return request("/v1/profile", { method: "POST", token, body: { programChoice: choice, day } });
+    },
+    duel(token, day, opponentId) {
+      const body = { action: "duel", day };
+      if (opponentId) body.opponentId = opponentId;
+      return request("/v1/team", { method: "POST", token, body });
+    },
+    redeem(staffKey, code) {
+      return request("/v1/vouchers/redeem", { method: "POST", token: staffKey, body: { code } });
+    },
+    coach(token, day, key, host) {
+      return request("/v1/coach", {
+        method: "POST",
+        token,
+        body: { day },
+        headers: { "X-Ai-Key": key, "X-Ai-Host": host || "api.openai.com" },
+      });
     },
     admin(key, day) {
       return request("/v1/admin/customers?day=" + encodeURIComponent(day), { token: key });

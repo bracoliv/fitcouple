@@ -52,3 +52,70 @@ CREATE TABLE IF NOT EXISTS snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_users_team ON users (team_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_day ON snapshots (day);`;
+
+export const PHASE2_SQL = `ALTER TABLE users ADD COLUMN program_choice TEXT;
+ALTER TABLE users ADD COLUMN duel_wins INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS duels (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL,
+  challenger_id TEXT NOT NULL,
+  opponent_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  status TEXT NOT NULL,
+  winner_id TEXT,
+  created_ms INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_duels_team_day ON duels (team_id, day);`;
+
+export const VOUCHER_SQL = `CREATE TABLE IF NOT EXISTS vouchers (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  code_hash TEXT NOT NULL UNIQUE,
+  milestone TEXT NOT NULL,
+  value INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  issued_day TEXT NOT NULL,
+  expires_day TEXT NOT NULL,
+  redeemed_day TEXT,
+  UNIQUE (user_id, milestone)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_user ON vouchers (user_id);`;
+
+export const STORE_SQL = `CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY,
+  store TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  brand TEXT NOT NULL,
+  name TEXT NOT NULL,
+  why TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  dose TEXT NOT NULL,
+  testing TEXT NOT NULL,
+  halal TEXT NOT NULL,
+  mal TEXT NOT NULL,
+  audience TEXT NOT NULL,
+  price_cents INTEGER NOT NULL,
+  list_price_cents INTEGER NOT NULL,
+  link_url TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  address TEXT NOT NULL,
+  items TEXT NOT NULL,
+  total_cents INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  gateway TEXT NOT NULL,
+  provider_ref TEXT,
+  created_day TEXT NOT NULL,
+  consent INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_id);`;

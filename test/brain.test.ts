@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   applyEvents,
+  badgesFor,
+  checkinAllowed,
   explainFlags,
+  pickDuelWinner,
   levelProgress,
   planFor,
   programPosition,
@@ -14,7 +17,11 @@ import {
   type Player,
 } from "../src/worker/brain.ts";
 import { cleanDisplayName } from "../src/worker/privacy.ts";
-import { SCHEMA_SQL } from "../src/worker/schema.ts";
+import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
+import { sessionFor } from "../src/worker/programs.ts";
+import { STORE_SQL, VOUCHER_SQL } from "../src/worker/schema.ts";
+import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
+import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
 
 function player(over: Partial<Player> = {}): Player {
   return {
@@ -197,6 +204,101 @@ test("daily quest XP is capped and a streak still pays on top", () => {
   const heavy = applyEvents(player({ programStart: day }), [], [{ questId: "log_workout", count: 6 }], day);
   assert.equal(heavy.flags.includes("volume"), true);
   assert.equal(heavy.completions.find((row) => row.questId === "log_workout")?.done, true);
+});
+
+test("phase 2 schema matches the migration", () => {
+  const file = readFileSync(new URL("../migrations/0002_phase2.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), PHASE2_SQL.trim());
+});
+
+test("steps, plans, badges, and duels stay free of meal text", () => {
+  const day = "2026-11-13";
+  const steps = applyEvents(player({ difficulty: "normal", programStart: day }), [], [{ questId: "steps", count: 7000, source: "manual" }], day);
+  assert.equal(steps.completions.find((row) => row.questId === "steps")?.done, true);
+  assert.throws(() => applyEvents(player(), [], [{ questId: "steps", count: 100001 }], day), /100000/);
+  const home = sessionFor("home", 1);
+  const later = sessionFor("home", 8);
+  assert.ok(home && home.moves.length >= 2);
+  assert.notEqual(home && home.title, later && later.title);
+  assert.equal(JSON.stringify(home).includes("nasi"), false);
+  assert.equal(badgesFor({ streak: 1, level: 1, programDay: 66, duelWins: 0 }).some((badge) => badge.id === "finisher"), true);
+  assert.equal(pickDuelWinner({ id: "a", session: true, steps: 8000 }, { id: "b", session: true, steps: 4000 }).winnerId, "a");
+  assert.equal(pickDuelWinner({ id: "a", session: true, steps: 10 }, { id: "b", session: false, steps: 0 }).status, "open");
+  assert.equal(checkinAllowed("2026-11-01", "2026-11-01"), false);
+  assert.equal(checkinAllowed("2026-11-01", "2026-11-08"), true);
+  const shown = viewQuests(player({ programStart: day }), [], day, "home");
+  assert.equal(shown.some((quest) => quest.id === "program_session"), true);
+  assert.equal(shown.some((quest) => quest.id === "steps"), true);
+  assert.equal(viewQuests(player({ programStart: day }), [], day, null).some((quest) => quest.id === "program_session"), false);
+});
+
+function sampleProduct() {
+  return {
+    id: "whey",
+    store: "pump",
+    kind: "whey",
+    brand: "other",
+    name: "ON Gold Standard Whey, Double Rich Chocolate",
+    why: "A widely sold whey with the serving printed on the tub.",
+    evidence: "The label lists the serving size.",
+    dose: "One scoop, as printed on the tub.",
+    testing: "Not third-party tested.",
+    halal: "not-stated",
+    mal: "not-stated",
+    priceCents: 19900,
+    listPriceCents: 19900,
+    linkUrl: "https://www.myprotein.com.my/sports-nutrition/whey",
+    active: true,
+  };
+}
+
+test("the shop stays off unless the flag is exactly true", () => {
+  const file = readFileSync(new URL("../migrations/0004_store.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), STORE_SQL.trim());
+  assert.equal(readStoreConfig({}).enabled, false);
+  assert.equal(readStoreConfig({}).mode, "external");
+  assert.equal(readStoreConfig({ STORE_ENABLED: "false" }).enabled, false);
+  assert.equal(readStoreConfig({ STORE_ENABLED: "true", STORE_MODE: "checkout", STORE_GATEWAY: "billplz" }).mode, "checkout");
+  assert.equal(hasHealthClaim("Burns fat fast"), true);
+  assert.equal(hasHealthClaim("Limited offer, 20% off"), true);
+  assert.equal(hasHealthClaim("Chocolate whey, 900 g"), false);
+  const listed = productFrom(sampleProduct());
+  assert.equal(listed.audience, "all");
+  assert.equal(listed.listPriceCents, 19900);
+  assert.equal(listed.store, "pump");
+  assert.throws(() => productFrom({ ...sampleProduct(), priceCents: 1000, listPriceCents: 19900 }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "pack", name: "Starter bundle" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), suggest: "after_workout" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "burn", name: "MateBurn" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "sosm-whey", brand: "sosm" }));
+  const slim = productFrom({
+    ...sampleProduct(),
+    id: "mate",
+    store: "slim",
+    kind: "sosm",
+    brand: "sosm",
+    name: "MateBurn",
+    linkUrl: "https://shopee.com.my/mateburn",
+  });
+  assert.equal(slim.store, "slim");
+  assert.equal(slim.audience, "adult");
+  assert.throws(() => productFrom({ ...slim, store: "slim", why: "Burns fat fast" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "other", store: "slim", brand: "other", linkUrl: "https://shopee.com.my/whey" }));
+  assert.equal(cleanShopeeUrl("https://shopee.com.my/protein-powder").includes("shopee.com.my"), true);
+  assert.throws(() => cleanShopeeUrl("https://example.com/shop"));
+  assert.throws(() => productFrom({ ...sampleProduct(), linkUrl: "https://shopee.com.my/not-a-mall-link" }));
+});
+
+test("voucher rules come from config and favour verified activity", () => {
+  const file = readFileSync(new URL("../migrations/0003_vouchers.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), VOUCHER_SQL.trim());
+  const rules = parseMilestones("streak:7:5,level:10:15,verified:3:8");
+  assert.equal(rules.length, 3);
+  assert.throws(() => parseMilestones("food:1:1"));
+  const config = { enabled: true, milestones: rules, expiryDays: 30, valueLabel: "value", verifiedDays: 1, prefix: "FIT", configError: "" };
+  assert.equal(milestoneReached(rules[0], { streak: 7, level: 1, verifiedDays: 0 }, config), true);
+  assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 0 }, config), false);
+  assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 1 }, config), true);
 });
 
 test("flag text stays free of health details", () => {

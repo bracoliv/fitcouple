@@ -35,10 +35,13 @@ test.after(async () => {
   await dispose();
 });
 
-async function call(path: string, options: { method?: string; token?: string; body?: unknown; raw?: string; origin?: string | null } = {}) {
+async function call(path: string, options: { method?: string; token?: string; body?: unknown; raw?: string; origin?: string | null; headers?: Record<string, string> } = {}) {
   const headers = new Headers();
   if (options.origin !== null) headers.set("Origin", options.origin || "http://127.0.0.1:8788");
   if (options.token) headers.set("Authorization", "Bearer " + options.token);
+  if (options.headers) {
+    for (const [key, value] of Object.entries(options.headers)) headers.set(key, value);
+  }
   if (options.body !== undefined || options.raw !== undefined) headers.set("Content-Type", "application/json");
   const res = await handle(new Request("http://game.test" + path, {
     method: options.method || "GET",
@@ -190,6 +193,259 @@ test("display name, team, and owner dashboard", async () => {
   assert.ok(suspect?.flagCodes.includes("volume"));
   assert.ok(suspect?.flagCodes.includes("duration"));
   assert.equal(JSON.stringify(suspect).includes("9999"), false);
+});
+
+test("plans, duels, and the coach stay off the health log", async () => {
+  const day = utcDay();
+  const one = await session("7");
+  const two = await session("8");
+  const chosen = await call("/v1/profile", { method: "POST", token: one.token, body: { day, programChoice: "home" } });
+  assert.equal(chosen.status, 200, chosen.text);
+  const sessionPlan = chosen.json as { session: { moves: { name: string }[] }; quests: { id: string }[] };
+  assert.ok(sessionPlan.session.moves.length >= 2);
+  assert.equal(sessionPlan.quests.some((quest) => quest.id === "program_session"), true);
+  assert.equal(JSON.stringify(chosen.json).includes("nasi"), false);
+  await call("/v1/team", { method: "POST", token: one.token, body: { action: "create", day } });
+  const code = ((await call("/v1/me?day=" + day, { token: one.token })).json as { team: { id: string } }).team.id;
+  assert.equal((await call("/v1/team", { method: "POST", token: two.token, body: { action: "join", code, day } })).status, 200);
+  await call("/v1/profile", { method: "POST", token: two.token, body: { day, programChoice: "home" } });
+  assert.equal((await call("/v1/team", { method: "POST", token: one.token, body: { action: "duel", day } })).status, 200);
+  const play = (token: string, steps: number) => call("/v1/events", {
+    method: "POST",
+    token,
+    body: { day, events: [{ questId: "program_session", completed: true, source: "manual" }, { questId: "steps", count: steps, source: "manual" }] },
+  });
+  assert.equal((await play(one.token, 3000)).status, 200);
+  const finished = await play(two.token, 9000);
+  assert.equal(finished.status, 200, finished.text);
+  const duel = (finished.json as { duel: { status: string; winnerId: string | null } }).duel;
+  assert.equal(duel.status, "done");
+  assert.equal(duel.winnerId, two.id);
+  const coach = await call("/v1/coach", { method: "POST", token: one.token, body: { day, food: "rice" } });
+  assert.equal(coach.status, 400);
+  assert.equal(coach.text.includes("rice"), false);
+  const noKey = await call("/v1/coach", { method: "POST", token: one.token, body: { day } });
+  assert.equal(noKey.status, 400);
+});
+
+test("restaurant vouchers stay hidden until the flag is on", async () => {
+  const day = utcDay();
+  const quiet = await session("c");
+  assert.equal((quiet.body as { vouchersEnabled: boolean }).vouchersEnabled, false);
+  assert.equal(((quiet.body as { quests: { id: string }[] }).quests || []).some((quest) => quest.id === "restaurant_meal"), false);
+  const skipped = await call("/v1/events", {
+    method: "POST",
+    token: quiet.token,
+    body: { day, events: [{ questId: "restaurant_meal", completed: true, source: "manual", food: "rice" }] },
+  });
+  assert.equal(skipped.status, 400);
+  assert.equal(skipped.text.includes("rice"), false);
+  assert.equal((await call("/v1/vouchers/redeem", { method: "POST", token: "staff-test-key-012345", body: { code: "FIT-ABCDEF12345678" } })).status, 404);
+
+  env.VOUCHERS_ENABLED = "true";
+  env.VOUCHER_MILESTONES = "streak:1:5,level:1:9";
+  env.VOUCHER_EXPIRY_DAYS = "14";
+  env.VOUCHER_VERIFIED_DAYS = "1";
+  env.VOUCHER_VALUE_LABEL = "RM";
+  env.VOUCHER_PREFIX = "FIT";
+  env.STAFF_KEY = "staff-test-key-012345";
+  try {
+    const player = await session("d");
+    const water = await call("/v1/events", {
+      method: "POST",
+      token: player.token,
+      body: { day, events: [{ questId: "water", completed: true, source: "manual" }] },
+    });
+    assert.equal(water.status, 200, water.text);
+    const waterBody = water.json as { vouchersEnabled: boolean; voucherCodes: { code: string; milestone: string }[]; vouchers: { milestone: string }[]; quests: { id: string }[] };
+    assert.equal(waterBody.vouchersEnabled, true);
+    assert.equal(waterBody.quests.some((quest) => quest.id === "restaurant_meal"), true);
+    assert.equal(waterBody.voucherCodes.length, 1);
+    assert.equal(waterBody.voucherCodes[0].milestone, "streak:1");
+    assert.equal(JSON.stringify(water.json).includes("nasi"), false);
+    const timer = await call("/v1/events", {
+      method: "POST",
+      token: player.token,
+      body: { day, events: [{ questId: "focus", completed: true, source: "timer", durationMin: 25 }] },
+    });
+    const timerCodes = (timer.json as { voucherCodes: { code: string; milestone: string }[] }).voucherCodes;
+    assert.equal(timerCodes.length, 1);
+    assert.equal(timerCodes[0].milestone, "level:1");
+    const yesterday = shiftDay(day, -1);
+    await env.DB.prepare("UPDATE vouchers SET expires_day = ? WHERE user_id = ? AND milestone = 'level:1'").bind(yesterday, player.id).run();
+    const expired = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: timerCodes[0].code } });
+    assert.equal(expired.status, 410);
+    const used = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: waterBody.voucherCodes[0].code } });
+    assert.equal(used.status, 200, used.text);
+    const again = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: waterBody.voucherCodes[0].code } });
+    assert.equal(again.status, 409);
+    const admin = await call("/v1/admin/customers?day=" + day, { token: TEST_KEY });
+    const counts = (admin.json as { vouchers: { enabled: boolean; issued: number; redeemed: number } }).vouchers;
+    assert.equal(counts.enabled, true);
+    assert.ok(counts.issued >= 2);
+    assert.ok(counts.redeemed >= 1);
+  } finally {
+    delete env.VOUCHERS_ENABLED;
+    delete env.VOUCHER_MILESTONES;
+    delete env.VOUCHER_EXPIRY_DAYS;
+    delete env.VOUCHER_VERIFIED_DAYS;
+    delete env.VOUCHER_VALUE_LABEL;
+    delete env.VOUCHER_PREFIX;
+    delete env.STAFF_KEY;
+  }
+});
+
+test("the shop stays out of the game and does not use health data", async () => {
+  const day = utcDay();
+  const quiet = await session("e");
+  assert.equal((quiet.body as { store?: unknown }).store, undefined);
+  assert.equal((await call("/v1/store/catalog", { token: quiet.token })).status, 404);
+  assert.equal((await call("/v1/store/checkout", {
+    method: "POST",
+    token: quiet.token,
+    body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
+  })).status, 404);
+
+  const product = {
+    id: "whey",
+    store: "pump",
+    kind: "whey",
+    brand: "other",
+    name: "ON Gold Standard Whey, Double Rich Chocolate",
+    why: "A widely sold whey with the serving printed on the tub.",
+    evidence: "The label lists the serving size.",
+    dose: "One scoop, as printed on the tub.",
+    testing: "Not third-party tested.",
+    halal: "not-stated",
+    mal: "not-stated",
+    priceCents: 19900,
+    listPriceCents: 19900,
+    linkUrl: "https://www.myprotein.com.my/sports-nutrition/whey",
+    active: true,
+  };
+  env.STORE_ENABLED = "true";
+  env.STORE_MODE = "external";
+  env.STORE_SANDBOX = "true";
+  env.STORE_CURRENCY = "RM";
+  env.STORE_SELLER_NAME = "Ari Shop";
+  env.STORE_SELLER_LINE = "Kuala Lumpur";
+  env.STORE_SELLER_CONTACT = "0123456789";
+  try {
+    const saved = await call("/v1/admin/products", { method: "POST", token: TEST_KEY, body: product });
+    assert.equal(saved.status, 200, saved.text);
+    const claim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "bad", name: "Burns fat fast" },
+    });
+    assert.equal(claim.status, 400);
+    const cheap = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "cheap", priceCents: 1000, listPriceCents: 19900 },
+    });
+    assert.equal(cheap.status, 400);
+    const burner = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "burn", kind: "whey", name: "MateBurn" },
+    });
+    assert.equal(burner.status, 400);
+    const slim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: {
+        ...product,
+        id: "mate",
+        store: "slim",
+        kind: "sosm",
+        brand: "sosm",
+        name: "MateBurn",
+        why: "The owner's SOSM+ product.",
+        linkUrl: "https://shopee.com.my/mateburn",
+      },
+    });
+    assert.equal(slim.status, 200, slim.text);
+    const slimClaim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "mate2", store: "slim", kind: "sosm", brand: "sosm", name: "Night Booster", why: "Burns fat fast", linkUrl: "https://wa.me/60123456789" },
+    });
+    assert.equal(slimClaim.status, 400);
+    const shown = await call("/v1/store/catalog", { token: quiet.token });
+    const store = shown.json as { mode: string; pump: { products: { id: string }[] }; slim: { locked: boolean; products: { id: string }[]; adLine: string } };
+    assert.equal(store.mode, "external");
+    assert.equal(store.pump.products.length, 1);
+    assert.equal(store.pump.products[0].id, "whey");
+    assert.equal(store.slim.products.length, 0);
+    assert.equal(store.slim.locked, true);
+    assert.equal(store.slim.adLine.includes("balanced diet"), true);
+    assert.equal(JSON.stringify(store.pump).includes("mate"), false);
+    const moved = await call("/v1/events", {
+      method: "POST",
+      token: quiet.token,
+      body: { day, events: [{ questId: "log_workout", count: 1, source: "manual" }] },
+    });
+    assert.equal(JSON.stringify(moved.json).includes("MateBurn"), false);
+    assert.equal(JSON.stringify(moved.json).includes("Gold Standard"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(moved.json, "store"), false);
+    const again = await call("/v1/store/catalog", { token: quiet.token });
+    assert.equal(JSON.stringify((again.json as { pump: { products: unknown[] } }).pump.products), JSON.stringify(store.pump.products));
+    const opened = await call("/v1/store/catalog", { token: quiet.token, headers: { "X-Age-Confirm": "18" } });
+    const aged = opened.json as { pump: { products: { id: string }[] }; slim: { products: { id: string }[] } };
+    assert.equal(aged.slim.products[0].id, "mate");
+    assert.equal(aged.pump.products.some((item) => item.id === "mate"), false);
+    assert.equal(aged.slim.products.some((item) => item.id === "whey"), false);
+    const linked = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true, weight: 70 },
+    });
+    assert.equal(linked.status, 400);
+    assert.equal(linked.text.includes("70"), false);
+    env.STORE_MODE = "checkout";
+    env.STORE_GATEWAY = "stripe";
+    const refused = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+    });
+    assert.equal(refused.status, 400);
+    const tooYoung = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "mate", qty: 1 }], consent: true },
+    });
+    assert.equal(tooYoung.status, 400);
+    const order = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
+    });
+    assert.equal(order.status, 200, order.text);
+    const paid = order.json as { orderId: string; url: string; sandbox: boolean };
+    assert.equal(paid.sandbox, true);
+    const params = new URL(paid.url).searchParams;
+    const done = await call("/v1/store/sandbox-complete", { method: "POST", body: { orderId: paid.orderId, proof: params.get("proof") } });
+    assert.equal(done.status, 200, done.text);
+    env.STRIPE_SECRET = "sk_live_not_allowed";
+    const live = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
+    });
+    assert.equal(live.status, 403);
+  } finally {
+    delete env.STORE_ENABLED;
+    delete env.STORE_MODE;
+    delete env.STORE_GATEWAY;
+    delete env.STORE_SANDBOX;
+    delete env.STORE_CURRENCY;
+    delete env.STORE_SELLER_NAME;
+    delete env.STORE_SELLER_LINE;
+    delete env.STORE_SELLER_CONTACT;
+    delete env.STRIPE_SECRET;
+  }
 });
 
 test("owner route stays closed when the key is missing", async () => {
