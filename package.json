@@ -10,7 +10,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
-    "test": "node --experimental-strip-types --test test/brain.test.ts test/summary.test.mjs test/worker.test.ts test/build.test.mjs",
+    "test": "node --experimental-strip-types --test test/brain.test.ts test/summary.test.mjs test/avatar.test.mjs test/worker.test.ts test/build.test.mjs",
     "worker": "wrangler dev --port 8787 --ip 127.0.0.1 --local --show-interactive-dev-session false",
     "types": "wrangler types",
     "db:apply": "wrangler d1 migrations apply fitcouple-game --local",

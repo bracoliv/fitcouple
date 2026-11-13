@@ -73,6 +73,22 @@ h2 { font-size: 1.05rem; }
 .pair { display: grid; gap: 8px; }
 .day-no { font-size: 2rem; font-weight: 800; }
 .clock { font-size: 3.2rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; letter-spacing: 0.04em; }
+.hero { display: flex; gap: 14px; align-items: center; }
+.frame { width: 96px; height: 96px; border-radius: 28px; padding: 3px; flex: none; }
+.frame.stone { background: #8d97a8; }
+.frame.bronze { background: #c47b3a; }
+.frame.gold { background: #e0b15a; }
+.frame.flame { background: linear-gradient(#ffb088, #ff7a45 40%, #c2410c); box-shadow: 0 0 16px #ff7a45; }
+.portrait { width: 100%; height: 100%; border-radius: 24px; object-fit: cover; display: block; background: #12171f; }
+.portrait.generic, .mini.generic { background:
+  radial-gradient(circle at 50% 38%, #d7dde8 0 16px, transparent 17px),
+  radial-gradient(circle at 50% 92%, #d7dde8 0 28px, transparent 29px),
+  #12171f; }
+.mini { width: 36px; height: 36px; border-radius: 12px; object-fit: cover; display: block; flex: none; }
+.member { display: flex; gap: 8px; align-items: center; padding: 8px 0; }
+.avatar-stage { width: 240px; height: 240px; background: #0e1116; border-radius: 16px; touch-action: none; }
+.versions { display: flex; gap: 8px; margin: 8px 0; }
+.versions img { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; display: block; }
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0;
   display: grid; grid-template-columns: repeat(5, 1fr);
@@ -89,6 +105,11 @@ input, select {
 }
 input[type="checkbox"] {
   width: 1.1rem; min-height: 1.1rem; margin: 0 8px 0 0; padding: 0; vertical-align: middle;
+}
+label.ghost { position: relative; display: inline-flex; align-items: center; }
+label.ghost input[type="file"] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
 }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .log { list-style: none; padding: 0; margin: 0; }

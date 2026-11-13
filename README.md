@@ -149,7 +149,7 @@ On the Path tab, pick Home, Beginner gym, Fat loss, or Muscle gain. That plan na
 On More:
 
 - Eight Malaysian-style plates with a calorie estimate per serving. Log writes the plate into your sheet or the practice log, and the server only hears that a recipe was used.
-- Weight, waist, and Day 1 / Day 66 photos stay on this phone. A 66-Day Finisher certificate can be printed. It is not a medical document.
+- Weight, waist, and Day 1 / Day 66 photos stay on this phone. A personal avatar is made from a selfie on the phone and stays there too, with an optional copy in your own Google Drive. A 66-Day Finisher certificate can be printed. It is not a medical document.
 - A weekly coach uses **your** OpenAI or Groq key, once a week. The server sends your level, streak, and plan name. It does not keep the key or the reply.
 
 On Team, a weekly challenge needs each person to finish the day's session on 3 days. A friendly duel compares step counts after both finish the session. The prize is XP and a title.

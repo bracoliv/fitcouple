@@ -137,7 +137,11 @@ No exercise names and no step route. Step counts used to pick a winner already l
 
 ## Still never stored
 
-Recipe names and calorie estimates stay in the app and, if you log them, in your sheet. Progress photos and weight or waist numbers stay on the phone. The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
+Recipe names and calorie estimates stay in the app and, if you log them, in your sheet. Progress photos, weight or waist numbers, and your avatar stay on the phone. A selfie or uploaded photo is cropped and drawn into an avatar in the browser. IndexedDB on that phone holds the photo, the avatar, and earlier versions. Deleting the avatar removes those copies. An optional backup writes `Fit avatar.png` and `Fit avatar source.jpg` into your own Google Drive with the same `drive.file` permission used for the sheet. Fit's server never receives the photo or the avatar, and they are not stored in D1.
+
+The team board shows a generic face unless you opt in. That opt-in only changes the board on your phone. Teammates are not sent the picture. An optional AI portrait uses your own OpenAI key, once per tick of consent, and the crop goes from the phone to OpenAI. Fit does not see that request.
+
+The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
 
 Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
 

@@ -5,6 +5,7 @@ import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } 
 import { voucherQr } from "./qr.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
 import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
+import { bindAvatar, editorHtml, loadAvatar, miniHtml, portraitHtml, tierFor } from "./avatar.js";
 import { bindShop, navClass, screenList, shopHtml } from "./shop-ui.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787", googleClientId: "" };
@@ -27,6 +28,7 @@ const state = {
   measures: [],
   photoUrls: { day1: "", day66: "" },
   coachReply: "",
+  avatar: { url: "", share: false, versions: [], source: false },
 };
 
 let busy = false;
@@ -164,7 +166,8 @@ function todayHtml() {
     return `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${progress} · ${quest.xp} XP · ${esc(quest.attribute)}${extra}${bonus}</span></div>${questActions(quest)}</li>`;
   }).join("");
   const cleared = profile.dayClear ? `<p class="banner">Day cleared. +${profile.dayClearXp} XP.</p>` : "";
-  return `<section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
+  return `<section class="card hero">${portraitHtml(state.avatar, profile.level, "Your avatar")}<div><strong>${esc(profile.displayName || "Player")}</strong><p class="meta">Level ${profile.level} · ${tierFor(profile.level)} frame · streak ${profile.streak}</p></div></section>
+    <section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
     <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level) => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
     <p class="meta">Day ${profile.program.day} of ${profile.program.length}. Typing earns half XP. The focus timer earns full XP for that quest. A streak adds more than extra volume.</p>
     ${cleared}<ul class="quests">${quests}</ul>${attrGrid(profile.attributes)}`;
@@ -207,13 +210,13 @@ function teamHtml() {
   if (!team) {
     return `<section class="card"><h2>Team quests</h2><p class="sub">For a couple or a family. Share the code. The server stores the code and scores, not your sheet.</p><div class="actions"><button type="button" class="primary" id="createTeam">Create a team</button></div><label>Join with a code<input id="joinCode" autocapitalize="characters" maxlength="8"></label><button type="button" id="joinTeam">Join</button></section><section class="card">${name}</section>`;
   }
-  const members = team.members.map((member) => `<div class="member"><span>${esc(member.displayName || member.tag)}${member.you ? " · you" : ""}</span><span class="meta">#${member.rank || "-"} · Lv ${member.level} · ${member.xp} XP · ${member.streak} streak</span></div>`).join("");
+  const members = team.members.map((member) => `<div class="member">${member.you ? miniHtml(state.avatar, state.avatar.share) : miniHtml(null, false)}<div><span>${esc(member.displayName || member.tag)}${member.you ? " · you" : ""}</span><span class="meta">#${member.rank || "-"} · Lv ${member.level} · ${member.xp} XP · ${member.streak} streak</span></div></div>`).join("");
   const quests = team.quests.map((quest) => `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${quest.have}/${quest.need}</span></div></li>`).join("");
   const challenge = team.challenge ? `<p class="sub">${esc(team.challenge.detail)} ${team.challenge.have}/${team.challenge.need}${team.challenge.done ? " · done" : ""}</p>` : "";
   const duel = profile.duel;
   const duelText = duel
-    ? `<p>Duel ${esc(duel.status)}. ${duel.winnerId ? (duel.winnerId === profile.id ? "You won." : "Your teammate won.") : "Finish today's session. More steps wins."}</p>`
-    : `<button type="button" id="startDuel">Friendly duel</button><p class="hint">Both finish today's session. The higher step count wins XP and a title. No prizes you can spend.</p>`;
+    ? `<div class="member">${miniHtml(state.avatar, state.avatar.share)}${miniHtml(null, false)}<p>Duel ${esc(duel.status)}. ${duel.winnerId ? (duel.winnerId === profile.id ? "You won." : "Your teammate won.") : "Finish today's session. More steps wins."}</p></div>`
+    : `<button type="button" id="startDuel">Friendly duel</button><p class="hint">Both finish today's session. The higher step count wins XP and a title. No prizes you can spend. Avatars on this card stay on each phone.</p>`;
   return `<section class="card"><h2>Team ${esc(team.id)}</h2><p class="hint">Share this code with your household.</p><button type="button" id="copyCode">Copy code</button><button type="button" id="confirmTeam">Confirm the team showed up</button>${challenge}<div class="card">${duelText}</div><p class="hint">One confirmation a day. It adds bonus XP for teammates who already finished a quest. It does not send what anyone ate or did.</p><ul class="quests">${quests}</ul>${members}</section><section class="card">${name}</section>`;
 }
 
@@ -251,7 +254,7 @@ function moreHtml() {
     : "";
   const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
   const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
-  return `${voucherSection()}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+  return `${voucherSection()}${editorHtml(state.avatar)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
       <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
@@ -390,6 +393,7 @@ function render() {
     }));
   });
   bindShop({ state, config, run, render });
+  bindAvatar({ state, render, run });
   document.querySelectorAll("[data-recipe]").forEach((button) => {
     button.addEventListener("click", () => run(() => logRecipe(button.getAttribute("data-recipe"))));
   });
@@ -607,6 +611,7 @@ async function boot() {
   render();
   try {
     state.measures = loadMeasurements();
+    state.avatar = await loadAvatar();
     for (const slot of ["day1", "day66"]) {
       const blob = await loadPhoto(slot).catch(() => null);
       if (blob) state.photoUrls[slot] = URL.createObjectURL(blob);
