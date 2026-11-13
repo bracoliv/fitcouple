@@ -90,6 +90,14 @@ input, select {
 .log li { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .foot { text-align: center; color: var(--muted); font-size: 0.75rem; margin-top: 16px; }
 .foot a { color: var(--gold); }
+.shot { width: 100%; border-radius: 12px; margin: 8px 0; }
+.cert { border-color: var(--gold); }
+figure { margin: 0; }
+@media print {
+  body * { visibility: hidden; }
+  .cert, .cert * { visibility: visible; }
+  .cert { position: absolute; inset: 24px auto auto 24px; color: #111; background: #fff; }
+}
 .member { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

@@ -104,7 +104,7 @@ export function peopleIn(rows) {
   return names;
 }
 
-const QUESTS = new Set(["log_meals", "log_workout", "water", "sleep", "focus"]);
+const QUESTS = new Set(["log_meals", "log_workout", "water", "sleep", "focus", "steps", "program_session", "guided_log", "weekly_checkin", "progress_photo"]);
 const SOURCES = new Set(["manual", "timer", "photo", "wearable"]);
 const EVENT_KEYS = new Set(["questId", "count", "completed", "source", "hasProof", "durationMin"]);
 

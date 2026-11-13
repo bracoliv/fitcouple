@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { RECIPES, guidedLogEvent } from "../src/web/catalog.js";
 import { buildEventsPayload, countToday, countsPayload, parseCsv, rowCountsForScore, rowsFromTable } from "../src/web/summary.js";
 
 const csv = `Date,Time,Person,Food/Workout,Calories (kcal)
@@ -48,4 +49,14 @@ test("quest payload drops anything that is not a count or a flag", () => {
   assert.equal(proof.events[0].source, "photo");
   assert.equal(proof.events[0].hasProof, true);
   assert.equal(JSON.stringify(proof).includes("9000"), false);
+});
+
+test("a recipe log does not send the dish", () => {
+  const event = guidedLogEvent();
+  const encoded = JSON.stringify(event);
+  for (const recipe of RECIPES) {
+    assert.equal(encoded.includes(recipe.name), false);
+    assert.equal(encoded.includes(String(recipe.kcal)), false);
+  }
+  assert.equal(event.questId, "guided_log");
 });

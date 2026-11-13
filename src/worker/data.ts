@@ -10,9 +10,14 @@ import {
   PARTNER_BONUS_XP,
   MAX_TEAM,
   applyEvents,
+  badgesFor,
+  checkinAllowed,
   durationProblem,
   explainFlags,
   isDifficulty,
+  pickDuelWinner,
+  shiftDay,
+  titleFor,
   levelProgress,
   programPosition,
   progressStatus,
@@ -23,7 +28,9 @@ import {
 import { makeTeamCode, normalizeTeamCode, randomHex, sha256Hex } from "./crypto.ts";
 import { GameError } from "./errors.ts";
 import { cleanDisplayName, isAnonId } from "./privacy.ts";
-import { SCHEMA_SQL } from "./schema.ts";
+import { PHASE2_SQL, SCHEMA_SQL } from "./schema.ts";
+import { isProgramId, PROGRAM_CHOICES, sessionFor } from "./programs.ts";
+import { askCoach } from "./coach.ts";
 
 export interface DbStatement {
   bind(...values: unknown[]): DbStatement;
@@ -57,6 +64,8 @@ interface UserRow {
   flag_codes: string | null;
   burst_start: number | null;
   burst_count: number | null;
+  program_choice: string | null;
+  duel_wins: number | null;
 }
 
 export interface StoredUser extends Player {
@@ -68,6 +77,8 @@ export interface StoredUser extends Player {
   flagCodes: string;
   burstStart: number;
   burstCount: number;
+  programChoice: string | null;
+  duelWins: number;
 }
 
 const ready = new WeakMap<Db, Promise<void>>();
@@ -102,6 +113,14 @@ async function applySchema(db: Db): Promise<void> {
       // The column is already there on databases created from the current schema.
     }
   }
+  const phase2 = PHASE2_SQL.split(";").map((part) => part.trim()).filter(Boolean);
+  for (const sql of phase2) {
+    try {
+      await db.prepare(sql).run();
+    } catch {
+      // Phase 2 columns already exist after the first boot.
+    }
+  }
 }
 
 function mapUser(row: UserRow): StoredUser {
@@ -125,10 +144,12 @@ function mapUser(row: UserRow): StoredUser {
     flagCodes: row.flag_codes || "",
     burstStart: row.burst_start || 0,
     burstCount: row.burst_count || 0,
+    programChoice: isProgramId(row.program_choice) ? row.program_choice : null,
+    duelWins: row.duel_wins || 0,
   };
 }
 
-const USER_COLUMNS = `id, display_name, xp, level, streak, last_active_day, strength, discipline, health, mind, difficulty, program_start, team_id, rank, flagged, flag_codes, burst_start, burst_count`;
+const USER_COLUMNS = `id, display_name, xp, level, streak, last_active_day, strength, discipline, health, mind, difficulty, program_start, team_id, rank, flagged, flag_codes, burst_start, burst_count, program_choice, duel_wins`;
 
 async function reload(db: Db, id: string): Promise<StoredUser> {
   const row = await db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).bind(id).first<UserRow>();
@@ -296,6 +317,7 @@ async function teamView(db: Db, user: StoredUser, day: string) {
   return {
     id: user.teamId,
     members: members.map((member) => ({
+      id: member.id,
       tag: member.display_name || member.id.slice(0, 4),
       displayName: member.display_name,
       level: member.level,
@@ -327,16 +349,27 @@ async function teamView(db: Db, user: StoredUser, day: string) {
 
 export async function stateFor(db: Db, userId: string, day: string) {
   let user = await reload(db, userId);
+  let challenge: { done: boolean; have: number; need: number; detail: string } | null = null;
   if (user.teamId) {
     await settleTeam(db, user.teamId, day);
+    challenge = await weekChallenge(db, user.teamId, day);
     user = await reload(db, userId);
   }
   await touchSnapshot(db, user, day);
   const completions = await loadCompletions(db, user.id, day);
-  const quests = viewQuests(user, completions, day);
+  const quests = viewQuests(user, completions, day, user.programChoice);
   const levels = levelProgress(user.xp);
   const clear = completions.find((row) => row.questId === "daily_clear");
-  const team = user.teamId ? await teamView(db, user, day) : null;
+  const position = programPosition(user.programStart, day);
+  const badges = badgesFor({
+    streak: visibleStreak(user.streak, user.lastActiveDay, day),
+    level: levels.level,
+    programDay: position.day,
+    duelWins: user.duelWins,
+  });
+  let team = user.teamId ? await teamView(db, user, day) : null;
+  if (team && challenge) team = { ...team, challenge };
+  const duel = user.teamId ? await duelView(db, user, day) : null;
   return {
     id: user.id,
     displayName: user.displayName,
@@ -356,9 +389,16 @@ export async function stateFor(db: Db, userId: string, day: string) {
     rank: user.rank,
     dayClear: quests.filter((quest) => quest.required).every((quest) => quest.done),
     dayClearXp: clear?.xpAwarded || 0,
-    program: programPosition(user.programStart, day),
+    program: position,
+    programChoice: user.programChoice,
+    programChoices: PROGRAM_CHOICES,
+    session: sessionFor(user.programChoice, position.day),
+    badges,
+    title: titleFor(badges, levels.level),
+    rewards: "Badges and titles only. No discounts, vouchers, or shop rewards.",
     quests,
     team,
+    duel,
   };
 }
 
@@ -426,11 +466,21 @@ export async function recordEvents(db: Db, user: StoredUser, events: QuestEvent[
     }
     accepted.push(event);
   }
+  let scoring = accepted;
+  if (scoring.some((event) => event.questId === "weekly_checkin" && event.completed)) {
+    const last = await db.prepare(
+      "SELECT day FROM completions WHERE user_id = ? AND quest_id = 'weekly_checkin' AND done = 1 ORDER BY day DESC LIMIT 1",
+    ).bind(user.id).first<{ day: string }>();
+    if (last && !checkinAllowed(last.day, day)) {
+      scoring = scoring.filter((event) => event.questId !== "weekly_checkin");
+    }
+  }
   const completions = await loadCompletions(db, user.id, day);
-  const result = applyEvents(user, completions, accepted, day, difficulty);
+  const result = applyEvents(user, completions, scoring, day, difficulty);
   for (const flag of result.flags) flags.add(flag);
   if (flags.size) await addFlags(db, user.id, [...flags]);
   if (result.dirty) await saveProgress(db, user, result.player, result.completions, day);
+  if (user.teamId) await resolveOpenDuel(db, user.teamId, day);
   const state = await stateFor(db, user.id, day);
   if (flags.has("duration")) {
     return { ...state, warning: "A duration was ignored, so it did not earn XP." };
@@ -472,6 +522,141 @@ export async function joinTeam(db: Db, user: StoredUser, codeValue: unknown, day
   await db.prepare("UPDATE users SET team_id = ? WHERE id = ?").bind(code, user.id).run();
   await refreshRanks(db, code);
   return stateFor(db, user.id, day);
+}
+
+export async function setProgramChoice(db: Db, user: StoredUser, value: unknown, day: string) {
+  if (value !== "" && value != null && !isProgramId(value)) {
+    throw new GameError(400, "Pick home, beginner gym, fat loss, or muscle.");
+  }
+  const choice = value === "" || value == null ? null : value;
+  await db.prepare("UPDATE users SET program_choice = ? WHERE id = ?").bind(choice, user.id).run();
+  return stateFor(db, user.id, day);
+}
+
+export async function startDuel(db: Db, user: StoredUser, day: string, opponentId?: string) {
+  if (!user.teamId) throw new GameError(400, "Join a team first.");
+  const memberRows = await db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE team_id = ?`).bind(user.teamId).all<UserRow>();
+  const members = (memberRows.results || []).map(mapUser).filter((member) => member.id !== user.id);
+  if (!members.length) throw new GameError(400, "A duel needs a teammate.");
+  const opponent = opponentId ? members.find((member) => member.id === opponentId) : members[0];
+  if (!opponent) throw new GameError(400, "That teammate is not on your team.");
+  const existing = await db.prepare(
+    "SELECT id FROM duels WHERE team_id = ? AND day = ? AND status = 'open'",
+  ).bind(user.teamId, day).first();
+  if (!existing) {
+    await db.prepare(
+      `INSERT INTO duels (id, team_id, challenger_id, opponent_id, day, status, winner_id, created_ms)
+       VALUES (?, ?, ?, ?, ?, 'open', NULL, ?)`,
+    ).bind(randomHex(8), user.teamId, user.id, opponent.id, day, Date.now()).run();
+  }
+  await resolveOpenDuel(db, user.teamId, day);
+  return stateFor(db, user.id, day);
+}
+
+export async function weeklyCoach(db: Db, user: StoredUser, day: string, apiKey: string, host: string) {
+  const last = await db.prepare(
+    "SELECT day FROM completions WHERE user_id = ? AND quest_id = 'weekly_checkin' AND done = 1 ORDER BY day DESC LIMIT 1",
+  ).bind(user.id).first<{ day: string }>();
+  if (last && !checkinAllowed(last.day, day)) throw new GameError(429, "The coach is once a week.");
+  const done = (await loadCompletions(db, user.id, day)).filter((row) => row.done).map((row) => row.questId);
+  const position = programPosition(user.programStart, day);
+  const reply = await askCoach({
+    level: user.level,
+    streak: visibleStreak(user.streak, user.lastActiveDay, day),
+    programDay: position.day,
+    programTitle: user.programChoice || "none",
+    questIds: done,
+    apiKey,
+    host,
+  });
+  const state = await recordEvents(db, user, [{ questId: "weekly_checkin", completed: true, source: "manual" }], day);
+  return { ...state, reply };
+}
+
+async function weekChallenge(db: Db, teamId: string, day: string) {
+  const start = shiftDay(day, -6);
+  const memberRows = await db.prepare("SELECT id FROM users WHERE team_id = ?").bind(teamId).all<{ id: string }>();
+  const ids = (memberRows.results || []).map((row) => row.id);
+  if (ids.length < 2) return { done: false, have: 0, need: 3, detail: "Invite one more person for the weekly challenge." };
+  const rows = await db.prepare(
+    "SELECT user_id, day FROM completions WHERE quest_id = 'program_session' AND done = 1 AND day >= ? AND day <= ?",
+  ).bind(start, day).all<{ user_id: string; day: string }>();
+  const days = new Map(ids.map((id) => [id, new Set<string>()]));
+  for (const row of rows.results || []) days.get(row.user_id)?.add(row.day);
+  const have = Math.min(...ids.map((id) => days.get(id)?.size || 0));
+  const done = have >= 3;
+  if (done) {
+    const awarded = await db.prepare(
+      "SELECT user_id FROM completions WHERE quest_id = 'team_week' AND done = 1 AND day >= ? AND day <= ?",
+    ).bind(start, day).all<{ user_id: string }>();
+    const haveAward = new Set((awarded.results || []).map((row) => row.user_id));
+    const stmts: DbStatement[] = [];
+    for (const id of ids) {
+      if (haveAward.has(id)) continue;
+      const member = await reload(db, id);
+      const xp = member.xp + 20;
+      const level = levelProgress(xp).level;
+      stmts.push(db.prepare("UPDATE users SET xp = ?, level = ? WHERE id = ?").bind(xp, level, id));
+      stmts.push(completionUpsert(db, id, day, "team_week", 3, 20));
+      stmts.push(snapshotStatement(db, { ...member, xp, level }, day));
+    }
+    if (stmts.length) await db.batch(stmts);
+  }
+  return { done, have, need: 3, detail: "Each person finishes the day's session on 3 days this week." };
+}
+
+async function duelView(db: Db, user: StoredUser, day: string) {
+  if (!user.teamId) return null;
+  const row = await db.prepare(
+    "SELECT challenger_id, opponent_id, status, winner_id FROM duels WHERE team_id = ? AND day = ? ORDER BY created_ms DESC LIMIT 1",
+  ).bind(user.teamId, day).first<{ challenger_id: string; opponent_id: string; status: string; winner_id: string | null }>();
+  if (!row) return null;
+  const youAre = row.challenger_id === user.id ? "challenger" : row.opponent_id === user.id ? "opponent" : "watcher";
+  return { status: row.status, winnerId: row.winner_id, youAre, opponentId: row.challenger_id === user.id ? row.opponent_id : row.challenger_id };
+}
+
+async function resolveOpenDuel(db: Db, teamId: string, day: string) {
+  const duel = await db.prepare(
+    "SELECT id, challenger_id, opponent_id FROM duels WHERE team_id = ? AND day = ? AND status = 'open' LIMIT 1",
+  ).bind(teamId, day).first<{ id: string; challenger_id: string; opponent_id: string }>();
+  if (!duel) return;
+  const side = async (id: string) => {
+    const rows = await loadCompletions(db, id, day);
+    return {
+      id,
+      session: rows.some((row) => row.questId === "program_session" && row.done),
+      steps: rows.find((row) => row.questId === "steps")?.count || 0,
+    };
+  };
+  const result = pickDuelWinner(await side(duel.challenger_id), await side(duel.opponent_id));
+  if (result.status !== "done") return;
+  const prior = await db.prepare(
+    "SELECT user_id FROM completions WHERE quest_id = 'duel_bonus' AND day = ? AND (user_id = ? OR user_id = ?)",
+  ).bind(day, duel.challenger_id, duel.opponent_id).all();
+  if ((prior.results || []).length) {
+    await db.prepare("UPDATE duels SET status = 'done', winner_id = ? WHERE id = ?").bind(result.winnerId, duel.id).run();
+    return;
+  }
+  const pay = async (id: string, xpGain: number, win: boolean) => {
+    const member = await reload(db, id);
+    const xp = member.xp + xpGain;
+    const level = levelProgress(xp).level;
+    const wins = member.duelWins + (win ? 1 : 0);
+    await db.batch([
+      db.prepare("UPDATE users SET xp = ?, level = ?, duel_wins = ? WHERE id = ?").bind(xp, level, wins, id),
+      completionUpsert(db, id, day, "duel_bonus", 1, xpGain),
+      snapshotStatement(db, { ...member, xp, level }, day),
+    ]);
+  };
+  if (result.winnerId) {
+    const other = result.winnerId === duel.challenger_id ? duel.opponent_id : duel.challenger_id;
+    await pay(result.winnerId, 20, true);
+    await pay(other, 5, false);
+  } else {
+    await pay(duel.challenger_id, 10, false);
+    await pay(duel.opponent_id, 10, false);
+  }
+  await db.prepare("UPDATE duels SET status = 'done', winner_id = ? WHERE id = ?").bind(result.winnerId, duel.id).run();
 }
 
 export async function confirmTeam(db: Db, user: StoredUser, day: string) {

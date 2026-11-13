@@ -43,6 +43,8 @@ The browser also keeps a session token. The server stores only the SHA-256 hash 
 | flagged | 0 or 1 | The owner page should look at this player |
 | flag_codes | volume, rapid, duration | Why. These words are not health notes |
 | burst_start, burst_count | a clock time and a small number | Used to notice too many updates in a few minutes. Not what was logged |
+| program_choice | home, beginner_gym, fat_loss, or muscle | Which shared plan they picked. Not a log of exercises they did |
+| duel_wins | 1 | How many friendly duels they won |
 
 ### teams
 
@@ -122,4 +124,21 @@ Calories, food names, and workout names are still rejected. If a typed calorie i
 
 Flags the owner can see: too many workouts in one day (`volume`), too many updates in ten minutes (`rapid`), a duration that was not believable (`duration`).
 
-Phase 2, not built yet: a real wearable or health-app connection that can earn full XP, and an on-device check that a photo actually exists before `hasProof` is set.
+### duels
+
+| Column | Meaning |
+| --- | --- |
+| id, team_id | Duel and team |
+| challenger_id, opponent_id, winner_id | Player ids |
+| day, status | When, and open or done |
+| created_ms | Clock time |
+
+No exercise names and no step route. Step counts used to pick a winner already live on the steps quest row.
+
+## Still never stored
+
+Recipe names and calorie estimates stay in the app and, if you log them, in your sheet. Progress photos and weight or waist numbers stay on the phone. The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
+
+Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
+
+Rewards are badge names and titles, including 66-Day Finisher. There are no discount codes, vouchers, or shop rewards.

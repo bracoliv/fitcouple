@@ -1,11 +1,13 @@
 import { createApi } from "./api.js";
+import { RECIPES, guidedLogEvent, videoFor } from "./catalog.js";
 import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, pickSheet, readLog, requestGoogleToken } from "./google.js";
+import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } from "./progress.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
 import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787", googleClientId: "" };
 const api = createApi(config.workerUrl);
-const screens = ["today", "path", "focus", "team", "sheet"];
+const screens = ["today", "path", "focus", "team", "more"];
 
 const state = {
   loading: true,
@@ -21,6 +23,9 @@ const state = {
   googleToken: "",
   sheetStatus: "",
   timer: { total: 25 * 60, left: 25 * 60, running: false, endsAt: 0 },
+  measures: [],
+  photoUrls: { day1: "", day66: "" },
+  coachReply: "",
 };
 
 let busy = false;
@@ -120,6 +125,7 @@ async function run(fn) {
 
 function screenNow() {
   const name = location.hash.slice(1);
+  if (name === "sheet") return "more";
   return screens.includes(name) ? name : "today";
 }
 
@@ -136,10 +142,13 @@ function flame() {
 
 function questActions(quest) {
   if (quest.id === "focus") return `<span class="meta">Timer</span>`;
+  if (quest.id === "steps") {
+    return `<span class="step"><input id="stepsInput" inputmode="numeric" placeholder="Steps" aria-label="Steps today"><button type="button" id="saveSteps">Save</button></span>`;
+  }
   if (quest.kind === "check") {
     return `<button type="button" data-check="${esc(quest.id)}" ${quest.done ? "disabled" : ""}>${quest.done ? "Done" : "Mark done"}</button>`;
   }
-  if (state.sheetMode) return `<button type="button" data-refresh>Update</button>`;
+  if (state.sheetMode && quest.id !== "steps") return `<button type="button" data-refresh>Update</button>`;
   return `<button type="button" data-add="${esc(quest.id)}">Add one</button>`;
 }
 
@@ -168,10 +177,19 @@ function pathHtml() {
   const program = state.profile.program;
   const pct = Math.round(program.day / program.length * 100);
   const same = program.day === 1;
-  return `<section class="card"><p class="meta">66-day program</p><p class="day-no">Day ${program.day}</p><div class="track"><span style="width:${pct}%"></span></div><p class="meta">${program.complete ? "You reached day 66." : `${program.length - program.day} days left`}</p></section>
+  const choices = (state.profile.programChoices || []).map((choice) => `<button type="button" data-program="${esc(choice.id)}" class="${state.profile.programChoice === choice.id ? "on" : ""}">${esc(choice.title)}</button>`).join("");
+  const session = state.profile.session;
+  const moves = session ? session.moves.map((move) => {
+    const video = videoFor(move.videoKey);
+    return `<li>${esc(move.name)}${video ? ` · <a href="${esc(video.url)}" target="_blank" rel="noopener">${esc(video.title)} on YouTube</a>` : ""}</li>`;
+  }).join("") : "";
+  const plan = `<section class="card"><h2>Exercise plan</h2><div class="actions">${choices}</div>${session ? `<p>${esc(session.title)}</p><p class="sub">${esc(session.note)}</p><ul>${moves}</ul><p class="hint">Videos play on YouTube. Fit does not host them. Mark Today's session on the Today tab when you finish.</p>` : `<p class="hint">Pick a plan. It drives one daily session. The server stores the plan name, not a workout diary.</p>`}</section>`;
+  return `<section class="card"><p class="meta">66-day program</p><p class="day-no">Day ${program.day}</p><div class="track"><span style="width:${pct}%"></span></div><p class="meta">${program.complete ? "You reached day 66." : `${program.length - program.day} days left`}</p>${program.complete ? `<button type="button" id="printCert">66-Day Finisher certificate</button>` : ""}</section>
+    ${plan}
     <div class="pair"><article class="card"><h2>Day 1</h2><p>${esc(program.dayOne.title)}</p><p class="sub">${esc(program.dayOne.detail)}</p></article>
     <article class="card"><h2>${same ? "You are on day 1" : "Today"}</h2><p>${esc(program.current.title)}</p><p class="sub">${esc(program.current.detail)}</p></article></div>
-    ${attrGrid(state.profile.attributes)}`;
+    ${attrGrid(state.profile.attributes)}
+    ${program.complete ? `<article class="card cert"><h2>66-Day Finisher</h2><p>${esc(state.profile.displayName || "Player")}</p><p class="sub">Day 66 of ${esc(state.profile.programChoice || "the plan")}. A game certificate. Not medical proof. It cannot be spent, and there is no discount or voucher.</p></article>` : ""}`;
 }
 
 function focusHtml() {
@@ -190,7 +208,12 @@ function teamHtml() {
   }
   const members = team.members.map((member) => `<div class="member"><span>${esc(member.displayName || member.tag)}${member.you ? " · you" : ""}</span><span class="meta">#${member.rank || "-"} · Lv ${member.level} · ${member.xp} XP · ${member.streak} streak</span></div>`).join("");
   const quests = team.quests.map((quest) => `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${quest.have}/${quest.need}</span></div></li>`).join("");
-  return `<section class="card"><h2>Team ${esc(team.id)}</h2><p class="hint">Share this code with your household.</p><button type="button" id="copyCode">Copy code</button><button type="button" id="confirmTeam">Confirm the team showed up</button><p class="hint">One confirmation a day. It adds bonus XP for teammates who already finished a quest. It does not send what anyone ate or did.</p><ul class="quests">${quests}</ul>${members}</section><section class="card">${name}</section>`;
+  const challenge = team.challenge ? `<p class="sub">${esc(team.challenge.detail)} ${team.challenge.have}/${team.challenge.need}${team.challenge.done ? " · done" : ""}</p>` : "";
+  const duel = profile.duel;
+  const duelText = duel
+    ? `<p>Duel ${esc(duel.status)}. ${duel.winnerId ? (duel.winnerId === profile.id ? "You won." : "Your teammate won.") : "Finish today's session. More steps wins."}</p>`
+    : `<button type="button" id="startDuel">Friendly duel</button><p class="hint">Both finish today's session. The higher step count wins XP and a title. No prizes you can spend.</p>`;
+  return `<section class="card"><h2>Team ${esc(team.id)}</h2><p class="hint">Share this code with your household.</p><button type="button" id="copyCode">Copy code</button><button type="button" id="confirmTeam">Confirm the team showed up</button>${challenge}<div class="card">${duelText}</div><p class="hint">One confirmation a day. It adds bonus XP for teammates who already finished a quest. It does not send what anyone ate or did.</p><ul class="quests">${quests}</ul>${members}</section><section class="card">${name}</section>`;
 }
 
 function sheetHtml() {
@@ -220,6 +243,27 @@ function modeLabel() {
   return "No sheet yet.";
 }
 
+function moreHtml() {
+  const recipes = RECIPES.map((recipe) => `<li class="quest"><div><strong>${esc(recipe.name)}</strong><span class="sub">${esc(recipe.note)}</span><span class="meta">${recipe.kcal} kcal per serving · estimate</span></div><button type="button" data-recipe="${esc(recipe.id)}">Log</button></li>`).join("");
+  const badges = state.profile
+    ? `<p><strong>${esc(state.profile.title || "Rookie")}</strong></p><p>${(state.profile.badges || []).map((badge) => `<span class="level">${esc(badge.title)}</span>`).join(" ") || "No badges yet."}</p><p class="hint">${esc(state.profile.rewards || "Badges and titles only. No discounts, vouchers, or shop rewards.")}</p>`
+    : "";
+  const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
+  const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
+  return `<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+    <section class="card"><h2>Badges</h2>${badges}</section>
+    <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
+      <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
+      <ul class="log">${measures || `<li class="meta">No measurements yet.</li>`}</ul>
+      <div class="pair">${photos}</div></section>
+    <section class="card"><h2>Weekly coach</h2><p class="hint">Your own key, once a week. The server asks the coach using your level, streak, and plan name only. The key and the reply are not stored.</p>
+      <label>AI key<input id="aiKey" type="password" autocomplete="off"></label>
+      <label>Host<select id="aiHost"><option value="api.openai.com">OpenAI</option><option value="api.groq.com">Groq</option></select></label>
+      <button type="button" id="coachBtn">Check in</button>
+      ${state.coachReply ? `<p>${esc(state.coachReply)}</p>` : ""}</section>
+    ${sheetHtml()}`;
+}
+
 function shell(screen) {
   const level = state.profile ? state.profile.level : 1;
   const parts = {
@@ -227,11 +271,11 @@ function shell(screen) {
     path: state.profile ? pathHtml() : "",
     focus: focusHtml(),
     team: state.profile ? teamHtml() : "",
-    sheet: sheetHtml(),
+    more: moreHtml(),
   };
   const problem = state.loading
     ? `<p class="banner">Loading your game…</p>`
-    : (!state.profile && screen !== "sheet" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : ""));
+    : (!state.profile && screen !== "more" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : ""));
   return `<div class="app"><header class="top"><div class="brand"><a href="index.html">Fit</a></div><span class="level">LV ${level}</span>${flame()}</header>${problem}${parts[screen] || ""}<p class="foot">Not medical advice. Food and workouts stay in your sheet. <a href="admin.html">Owner</a></p></div>
     <nav class="nav">${screens.map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
 }
@@ -294,6 +338,63 @@ function render() {
     state.profile = await api.confirmTeam(state.token, localDay());
     return "Team confirmation sent.";
   }));
+  on("startDuel", () => run(async () => {
+    state.profile = await api.duel(state.token, localDay());
+    return "Duel started. Finish today's session.";
+  }));
+  on("saveSteps", () => run(async () => {
+    const raw = Number(document.getElementById("stepsInput").value);
+    if (!Number.isInteger(raw) || raw < 0 || raw > 100000) throw new Error("Enter a whole step count up to 100000.");
+    state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{ questId: "steps", count: raw, source: "manual" }]);
+  }));
+  on("printCert", () => window.print());
+  on("coachBtn", () => run(async () => {
+    const key = document.getElementById("aiKey").value.trim();
+    const host = document.getElementById("aiHost").value;
+    localStorage.setItem("fitAiKey", key);
+    localStorage.setItem("fitAiHost", host);
+    const result = await api.coach(state.token, localDay(), key, host);
+    state.coachReply = result.reply || "";
+    state.profile = result;
+  }));
+  document.querySelectorAll("[data-program]").forEach((button) => {
+    button.addEventListener("click", () => run(async () => {
+      state.profile = await api.program(state.token, button.getAttribute("data-program"), localDay());
+    }));
+  });
+  document.querySelectorAll("[data-recipe]").forEach((button) => {
+    button.addEventListener("click", () => run(() => logRecipe(button.getAttribute("data-recipe"))));
+  });
+  const measure = document.getElementById("measureForm");
+  if (measure) measure.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(measure);
+    state.measures = saveMeasurement({
+      day: localDay(),
+      weight: String(data.get("weight") || "").trim(),
+      waist: String(data.get("waist") || "").trim(),
+    });
+    render();
+  });
+  document.querySelectorAll("[data-photo]").forEach((input) => {
+    input.addEventListener("change", () => run(async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const blob = await shrinkPhoto(file);
+      const slot = input.getAttribute("data-photo");
+      await savePhoto(slot, blob);
+      if (state.photoUrls[slot]) URL.revokeObjectURL(state.photoUrls[slot]);
+      state.photoUrls[slot] = URL.createObjectURL(blob);
+      if (state.token) {
+        state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{ questId: "progress_photo", completed: true, source: "photo", hasProof: true }]);
+      }
+      return "Photo saved on this phone. It was not uploaded to Fit.";
+    }));
+  });
+  const aiKey = document.getElementById("aiKey");
+  if (aiKey) aiKey.value = localStorage.getItem("fitAiKey") || "";
+  const aiHost = document.getElementById("aiHost");
+  if (aiHost) aiHost.value = localStorage.getItem("fitAiHost") || "api.openai.com";
   on("copyCode", () => run(async () => {
     await navigator.clipboard.writeText(state.profile.team.id);
     state.sheetStatus = "Team code copied.";
@@ -429,11 +530,13 @@ async function addRow(row) {
     calories: row.calories,
     workout: /^workout\b/i.test(row.text),
   };
+  if (state.sheetMode === "link") throw new Error("A view link is read-only. Use practice mode or Google sign-in to log.");
   if (state.sheetMode === "google") {
     if (!state.googleToken) throw new Error("Sign in with Google again.");
     await appendLog(state.googleToken, state.sheetId, entry);
     state.rows = await readLog(state.googleToken, state.sheetId);
   } else {
+    if (!state.sheetMode) state.sheetMode = "practice";
     state.rows = loadPractice().concat([entry]);
     savePractice(state.rows);
   }
@@ -444,6 +547,14 @@ async function addRow(row) {
   if (!rowCountsForScore(entry)) {
     return "That number looks too high to count for XP. It stays on this phone and was not sent.";
   }
+}
+
+async function logRecipe(id) {
+  const recipe = RECIPES.find((item) => item.id === id);
+  if (!recipe) throw new Error("That recipe is missing.");
+  const notice = await addRow({ text: recipe.name, calories: String(recipe.kcal), person: state.person || "Me" });
+  state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [guidedLogEvent()]);
+  return notice;
 }
 
 async function finishFocus() {
@@ -467,6 +578,11 @@ async function boot() {
   state.error = "";
   render();
   try {
+    state.measures = loadMeasurements();
+    for (const slot of ["day1", "day66"]) {
+      const blob = await loadPhoto(slot).catch(() => null);
+      if (blob) state.photoUrls[slot] = URL.createObjectURL(blob);
+    }
     await ensureSession();
     await restoreSheet();
     if (state.sheetMode) await pushCounts();

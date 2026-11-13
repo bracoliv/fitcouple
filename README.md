@@ -140,7 +140,21 @@ Open `https://your-site/admin.html` and type the owner key. You should see each 
 
 Short version: an anonymous player id, a hash of their session token, an optional display name, XP, level, four attribute numbers, a streak, the last active date, difficulty, the day they started the 66-day plan, a team code, a rank, which quest ids they finished (not what they ate), how that quest was verified (`manual`, `timer`, `photo`, or `wearable`), a yes/no that a photo exists, a daily snapshot of those scores, and a suspicious flag if the pattern looks like farming.
 
-Typing a count earns about half XP. The focus timer earns full XP for that one quest. A photo is never uploaded; the phone may send only “yes, a photo is in my Drive”. There is a daily XP cap, each quest pays once, and a streak bonus pays for showing up again. A partner can confirm the team once a day for a small bonus. The owner page marks a player if workouts pile up, updates arrive too fast, or a duration is not believable. Calorie numbers are not accepted. A claimed wearable source does not earn full XP yet. That is phase 2, when a real health-app sync exists. Details are in [PRIVACY.md](PRIVACY.md).
+Typing a count earns about half XP. The focus timer earns full XP for that one quest. A photo is never uploaded; the phone may send only “yes, a photo is in my Drive”. There is a daily XP cap, each quest pays once, and a streak bonus pays for showing up again. A partner can confirm the team once a day for a small bonus. The owner page marks a player if workouts pile up, updates arrive too fast, or a duration is not believable. Calorie numbers are not accepted. A claimed wearable source does not earn full XP yet. Phone health sync can use the same step, water, and sleep quests later. Details are in [PRIVACY.md](PRIVACY.md).
+
+### Play, part 2
+
+On the Path tab, pick Home, Beginner gym, Fat loss, or Muscle gain. That plan names today's session for all 66 days. YouTube links open on YouTube. Fit does not host video.
+
+On More:
+
+- Eight Malaysian-style plates with a calorie estimate per serving. Log writes the plate into your sheet or the practice log, and the server only hears that a recipe was used.
+- Weight, waist, and Day 1 / Day 66 photos stay on this phone. A 66-Day Finisher certificate can be printed. It is not a medical document.
+- A weekly coach uses **your** OpenAI or Groq key, once a week. The server sends your level, streak, and plan name. It does not keep the key or the reply.
+
+On Team, a weekly challenge needs each person to finish the day's session on 3 days. A friendly duel compares step counts after both finish the session. The prize is XP and a title.
+
+Rewards are badges and titles only. There are no discounts, vouchers, or shop rewards.
 
 It does not store food, meals, workout names, weights, notes, emails, Google tokens, or sheet links.
 

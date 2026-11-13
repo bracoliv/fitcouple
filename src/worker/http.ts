@@ -9,8 +9,11 @@ import {
   joinTeam,
   recordEvents,
   setDisplayName,
+  setProgramChoice,
+  startDuel,
   stateFor,
   userFromToken,
+  weeklyCoach,
   type Db,
 } from "./data.ts";
 import { GameError } from "./errors.ts";
@@ -125,18 +128,33 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     if (request.method === "POST" && url.pathname === "/v1/profile") {
       const user = await userFromToken(env.DB, bearer(request));
-      const body = assertKeys(await readJson(request), ["displayName", "day"]);
-      const state = await setDisplayName(env.DB, user, body.displayName, dayFrom(body.day, now));
+      const body = assertKeys(await readJson(request), ["displayName", "day", "programChoice"]);
+      const day = dayFrom(body.day, now);
+      let state = null;
+      if ("displayName" in body) state = await setDisplayName(env.DB, user, body.displayName, day);
+      if ("programChoice" in body) state = await setProgramChoice(env.DB, user, body.programChoice, day);
+      if (!state) throw new GameError(400, "Nothing to update.");
       return json(request, env, 200, state);
     }
     if (request.method === "POST" && url.pathname === "/v1/team") {
       const user = await userFromToken(env.DB, bearer(request));
-      const body = assertKeys(await readJson(request), ["action", "code", "day"]);
+      const body = assertKeys(await readJson(request), ["action", "code", "day", "opponentId"]);
       const day = dayFrom(body.day, now);
       if (body.action === "create") return json(request, env, 200, await createTeam(env.DB, user, day));
       if (body.action === "join") return json(request, env, 200, await joinTeam(env.DB, user, body.code, day));
       if (body.action === "confirm") return json(request, env, 200, await confirmTeam(env.DB, user, day));
-      throw new GameError(400, "Team action must be create, join, or confirm.");
+      if (body.action === "duel") {
+        const opponentId = typeof body.opponentId === "string" ? body.opponentId : undefined;
+        return json(request, env, 200, await startDuel(env.DB, user, day, opponentId));
+      }
+      throw new GameError(400, "Team action must be create, join, confirm, or duel.");
+    }
+    if (request.method === "POST" && url.pathname === "/v1/coach") {
+      const user = await userFromToken(env.DB, bearer(request));
+      const body = assertKeys(await readJson(request), ["day"]);
+      const key = request.headers.get("X-Ai-Key") || "";
+      const host = request.headers.get("X-Ai-Host") || "api.openai.com";
+      return json(request, env, 200, await weeklyCoach(env.DB, user, dayFrom(body.day, now), key, host));
     }
     return json(request, env, 404, { error: "Not found." });
   } catch (err) {

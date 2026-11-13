@@ -192,6 +192,39 @@ test("display name, team, and owner dashboard", async () => {
   assert.equal(JSON.stringify(suspect).includes("9999"), false);
 });
 
+test("plans, duels, and the coach stay off the health log", async () => {
+  const day = utcDay();
+  const one = await session("7");
+  const two = await session("8");
+  const chosen = await call("/v1/profile", { method: "POST", token: one.token, body: { day, programChoice: "home" } });
+  assert.equal(chosen.status, 200, chosen.text);
+  const sessionPlan = chosen.json as { session: { moves: { name: string }[] }; quests: { id: string }[] };
+  assert.ok(sessionPlan.session.moves.length >= 2);
+  assert.equal(sessionPlan.quests.some((quest) => quest.id === "program_session"), true);
+  assert.equal(JSON.stringify(chosen.json).includes("nasi"), false);
+  await call("/v1/team", { method: "POST", token: one.token, body: { action: "create", day } });
+  const code = ((await call("/v1/me?day=" + day, { token: one.token })).json as { team: { id: string } }).team.id;
+  assert.equal((await call("/v1/team", { method: "POST", token: two.token, body: { action: "join", code, day } })).status, 200);
+  await call("/v1/profile", { method: "POST", token: two.token, body: { day, programChoice: "home" } });
+  assert.equal((await call("/v1/team", { method: "POST", token: one.token, body: { action: "duel", day } })).status, 200);
+  const play = (token: string, steps: number) => call("/v1/events", {
+    method: "POST",
+    token,
+    body: { day, events: [{ questId: "program_session", completed: true, source: "manual" }, { questId: "steps", count: steps, source: "manual" }] },
+  });
+  assert.equal((await play(one.token, 3000)).status, 200);
+  const finished = await play(two.token, 9000);
+  assert.equal(finished.status, 200, finished.text);
+  const duel = (finished.json as { duel: { status: string; winnerId: string | null } }).duel;
+  assert.equal(duel.status, "done");
+  assert.equal(duel.winnerId, two.id);
+  const coach = await call("/v1/coach", { method: "POST", token: one.token, body: { day, food: "rice" } });
+  assert.equal(coach.status, 400);
+  assert.equal(coach.text.includes("rice"), false);
+  const noKey = await call("/v1/coach", { method: "POST", token: one.token, body: { day } });
+  assert.equal(noKey.status, 400);
+});
+
 test("owner route stays closed when the key is missing", async () => {
   const saved = env.ADMIN_KEY;
   env.ADMIN_KEY = "";

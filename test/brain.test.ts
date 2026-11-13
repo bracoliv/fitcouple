@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   applyEvents,
+  badgesFor,
+  checkinAllowed,
   explainFlags,
+  pickDuelWinner,
   levelProgress,
   planFor,
   programPosition,
@@ -14,7 +17,8 @@ import {
   type Player,
 } from "../src/worker/brain.ts";
 import { cleanDisplayName } from "../src/worker/privacy.ts";
-import { SCHEMA_SQL } from "../src/worker/schema.ts";
+import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
+import { sessionFor } from "../src/worker/programs.ts";
 
 function player(over: Partial<Player> = {}): Player {
   return {
@@ -197,6 +201,32 @@ test("daily quest XP is capped and a streak still pays on top", () => {
   const heavy = applyEvents(player({ programStart: day }), [], [{ questId: "log_workout", count: 6 }], day);
   assert.equal(heavy.flags.includes("volume"), true);
   assert.equal(heavy.completions.find((row) => row.questId === "log_workout")?.done, true);
+});
+
+test("phase 2 schema matches the migration", () => {
+  const file = readFileSync(new URL("../migrations/0002_phase2.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), PHASE2_SQL.trim());
+});
+
+test("steps, plans, badges, and duels stay free of meal text", () => {
+  const day = "2026-11-13";
+  const steps = applyEvents(player({ difficulty: "normal", programStart: day }), [], [{ questId: "steps", count: 7000, source: "manual" }], day);
+  assert.equal(steps.completions.find((row) => row.questId === "steps")?.done, true);
+  assert.throws(() => applyEvents(player(), [], [{ questId: "steps", count: 100001 }], day), /100000/);
+  const home = sessionFor("home", 1);
+  const later = sessionFor("home", 8);
+  assert.ok(home && home.moves.length >= 2);
+  assert.notEqual(home && home.title, later && later.title);
+  assert.equal(JSON.stringify(home).includes("nasi"), false);
+  assert.equal(badgesFor({ streak: 1, level: 1, programDay: 66, duelWins: 0 }).some((badge) => badge.id === "finisher"), true);
+  assert.equal(pickDuelWinner({ id: "a", session: true, steps: 8000 }, { id: "b", session: true, steps: 4000 }).winnerId, "a");
+  assert.equal(pickDuelWinner({ id: "a", session: true, steps: 10 }, { id: "b", session: false, steps: 0 }).status, "open");
+  assert.equal(checkinAllowed("2026-11-01", "2026-11-01"), false);
+  assert.equal(checkinAllowed("2026-11-01", "2026-11-08"), true);
+  const shown = viewQuests(player({ programStart: day }), [], day, "home");
+  assert.equal(shown.some((quest) => quest.id === "program_session"), true);
+  assert.equal(shown.some((quest) => quest.id === "steps"), true);
+  assert.equal(viewQuests(player({ programStart: day }), [], day, null).some((quest) => quest.id === "program_session"), false);
 });
 
 test("flag text stays free of health details", () => {
