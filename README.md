@@ -77,6 +77,14 @@ Expected cost if you stay on the free plans: **$0**.
 
 `npm test` checks the scoring rules. `test/MANUAL.md` is a click-through list.
 
+The assistant uses Google Gemini through the game server. The model defaults to `gemini-3.5-flash-lite`. Do not point `AI_MODEL` at an older model. Put the key on the server, not in the page:
+
+`npx wrangler secret put GEMINI_API_KEY`
+
+Daily caps live in `wrangler.jsonc` (`AI_LIMIT_FOOD_PHOTO` 10, `AI_LIMIT_TEXT_LOG` 20, `AI_LIMIT_RECOMMEND` 5, `AI_LIMIT_CHAT` 20). The owner page can change them. It stores only the numbers. Premium removes the cap for a player id you grant there. `PREMIUM_PAYMENTS_ENABLED` stays `false`, so the release build has no payment screen. Apply the new database tables with the other migrations:
+
+`npx wrangler d1 migrations apply fitcouple-game --remote`
+
 Google sign-in will not complete until step 2 is done. The button is already wired. Until the client id is filled in, it tells you to edit `config.js`.
 
 ### 2. Create the Google sign-in client

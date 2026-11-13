@@ -143,6 +143,8 @@ The team board shows a generic face unless you opt in. That opt-in only changes 
 
 The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
 
+The in-app assistant is separate. After you agree once, a food photo, a typed meal, a meal or workout idea, or a question can be sent through Fit's server to Google Gemini (`gemini-3.5-flash-lite` unless you set another `gemini-3.5` model). FitCouple does not store that photo, meal text, or reply in D1, and the worker does not write them to logs. It only adds 1 to a daily counter: player id, date, feature, and count. Google processes the request under Google's terms. On the free tier, Google may use that content to improve Google's products. Common questions and common Malaysian foods are answered on the phone first and are not sent. Your avatar photo is not part of this. That stays on the phone, or goes only to an AI app you open yourself, or to OpenAI if you tick consent and use your own key.
+
 Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
 
 Rewards shown to players are badge names and titles, including 66-Day Finisher. Restaurant vouchers exist in the server but stay off until `VOUCHERS_ENABLED` is the word `true`. While that is off, players are not offered them.

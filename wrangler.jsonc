@@ -29,10 +29,16 @@
     "STORE_SLIM_CATALOG": "",
     "STORE_SELLER_NAME": "",
     "STORE_SELLER_LINE": "",
-    "STORE_SELLER_CONTACT": ""
+    "STORE_SELLER_CONTACT": "",
+    "AI_MODEL": "gemini-3.5-flash-lite",
+    "AI_LIMIT_FOOD_PHOTO": "10",
+    "AI_LIMIT_TEXT_LOG": "20",
+    "AI_LIMIT_RECOMMEND": "5",
+    "AI_LIMIT_CHAT": "20",
+    "PREMIUM_PAYMENTS_ENABLED": "false"
   },
-  // ADMIN_KEY is a secret. It is not listed here on purpose.
-  // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY`.
+  // ADMIN_KEY and GEMINI_API_KEY are secrets. They are not listed here on purpose.
+  // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY` and `npx wrangler secret put GEMINI_API_KEY`.
   "secrets": {
     "required": ["ADMIN_KEY"]
   },

@@ -235,6 +235,12 @@ export async function makeLocalAvatar(img, zoom, panX, panY) {
   return remember(png, sourceBlob);
 }
 
+export function ownAiPrompt(preset, level) {
+  const look = PRESETS[preset] || PRESETS.anime;
+  const tier = tierFor(level);
+  return `${look} Use a ${tier} portrait frame (stone, bronze, gold, or flame) that matches level ${level || 1}. The person should still look like the attached selfie. No text in the image.`;
+}
+
 const PRESETS = {
   anime: "Anime portrait, head and shoulders, clean line art, flat colours, plain background, no text.",
   cartoon: "3D cartoon portrait, head and shoulders, soft light, simple background, no text.",
@@ -341,6 +347,8 @@ export function editorHtml(avatar) {
     <label>Style<select id="avatarStyle"><option value="anime">Anime</option><option value="cartoon">3D cartoon</option><option value="chibi">Chibi</option></select></label>
     <label class="hint"><input id="avatarConsent" type="checkbox"> I agree to send this crop to OpenAI for one portrait.</label>
     <button type="button" id="avatarAi">Make with my AI key</button>
+    <button type="button" id="avatarCopy">Make it with your own AI</button>
+    ${avatar.prompt ? `<textarea id="avatarPrompt" readonly rows="5">${avatar.prompt}</textarea><p class="hint">Paste this with your selfie into your own ChatGPT or Gemini app, then upload the picture here. Fit does not send that selfie.</p>` : ""}
     <div class="actions"><button type="button" id="avatarBackup">Back up to my Drive</button><button type="button" id="avatarRestore">Restore from my Drive</button><button type="button" id="avatarDelete">Delete photo and avatar</button></div>
     </section>`;
 }
@@ -408,6 +416,12 @@ export function bindAvatar(ctx) {
     await saveShare(share.checked);
     state.avatar.share = share.checked;
   }));
+  const copyPrompt = document.getElementById("avatarCopy");
+  if (copyPrompt) copyPrompt.addEventListener("click", () => {
+    const preset = (document.getElementById("avatarStyle") || {}).value || "anime";
+    state.avatar.prompt = ownAiPrompt(preset, state.profile ? state.profile.level : 1);
+    render();
+  });
   const ai = document.getElementById("avatarAi");
   if (ai) ai.addEventListener("click", () => run(async () => {
     const consent = document.getElementById("avatarConsent");

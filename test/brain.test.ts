@@ -19,7 +19,8 @@ import {
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
-import { STORE_SQL, VOUCHER_SQL } from "../src/worker/schema.ts";
+import { STORE_SQL, VOUCHER_SQL, AI_SQL } from "../src/worker/schema.ts";
+import { modelName } from "../src/worker/ai.ts";
 import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
 
@@ -299,6 +300,18 @@ test("voucher rules come from config and favour verified activity", () => {
   assert.equal(milestoneReached(rules[0], { streak: 7, level: 1, verifiedDays: 0 }, config), true);
   assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 0 }, config), false);
   assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 1 }, config), true);
+});
+
+test("the gemini model stays on 3.5 and the usage table has no content columns", () => {
+  const file = readFileSync(new URL("../migrations/0005_ai.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), AI_SQL.trim());
+  assert.equal(modelName(undefined), "gemini-3.5-flash-lite");
+  assert.equal(modelName(""), "gemini-3.5-flash-lite");
+  assert.equal(modelName("gemini-3.5-flash-lite"), "gemini-3.5-flash-lite");
+  assert.throws(() => modelName("gemini-1.5-flash"));
+  assert.throws(() => modelName("gemini-2.0-flash"));
+  assert.equal(AI_SQL.includes("meal"), false);
+  assert.equal(AI_SQL.includes("photo"), false);
 });
 
 test("flag text stays free of health details", () => {

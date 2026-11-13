@@ -6,6 +6,8 @@ import { voucherQr } from "./qr.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
 import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
 import { bindAvatar, editorHtml, loadAvatar, miniHtml, portraitHtml, tierFor } from "./avatar.js";
+import { bindAssist, assistHtml, chatHtml } from "./assist.js";
+import { bindPremium, premiumHtml } from "./premium-ui.js";
 import { bindShop, navClass, screenList, shopHtml } from "./shop-ui.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787", googleClientId: "" };
@@ -29,6 +31,10 @@ const state = {
   photoUrls: { day1: "", day66: "" },
   coachReply: "",
   avatar: { url: "", share: false, versions: [], source: false },
+  aiQuota: null,
+  aiDraft: null,
+  aiNote: "",
+  aiChat: [],
 };
 
 let busy = false;
@@ -167,6 +173,7 @@ function todayHtml() {
   }).join("");
   const cleared = profile.dayClear ? `<p class="banner">Day cleared. +${profile.dayClearXp} XP.</p>` : "";
   return `<section class="card hero">${portraitHtml(state.avatar, profile.level, "Your avatar")}<div><strong>${esc(profile.displayName || "Player")}</strong><p class="meta">Level ${profile.level} · ${tierFor(profile.level)} frame · streak ${profile.streak}</p></div></section>
+    ${assistHtml(state, localDay(), esc)}
     <section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
     <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level) => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
     <p class="meta">Day ${profile.program.day} of ${profile.program.length}. Typing earns half XP. The focus timer earns full XP for that quest. A streak adds more than extra volume.</p>
@@ -254,7 +261,7 @@ function moreHtml() {
     : "";
   const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
   const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
-  return `${voucherSection()}${editorHtml(state.avatar)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+  return `${voucherSection()}${editorHtml(state.avatar)}${chatHtml(state, esc)}${premiumHtml(state.aiQuota)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
       <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
@@ -394,6 +401,25 @@ function render() {
   });
   bindShop({ state, config, run, render });
   bindAvatar({ state, render, run });
+  bindAssist({
+    state,
+    api,
+    render,
+    run,
+    day: localDay,
+    saveItems: async (items) => {
+      for (const item of items) {
+        await addRow({
+          text: `${item.name}${item.portion ? " · " + item.portion : ""}`,
+          calories: String(item.kcal || ""),
+          protein: item.protein,
+          carbs: item.carbs,
+          fat: item.fat,
+        });
+      }
+    },
+  });
+  bindPremium({ state, config, run });
   document.querySelectorAll("[data-recipe]").forEach((button) => {
     button.addEventListener("click", () => run(() => logRecipe(button.getAttribute("data-recipe"))));
   });
@@ -560,6 +586,9 @@ async function addRow(row) {
     person: row.person || state.person || "Me",
     text: row.text,
     calories: row.calories,
+    protein: row.protein,
+    carbs: row.carbs,
+    fat: row.fat,
     workout: /^workout\b/i.test(row.text),
   };
   if (state.sheetMode === "link") throw new Error("A view link is read-only. Use practice mode or Google sign-in to log.");
@@ -620,6 +649,7 @@ async function boot() {
     await restoreSheet();
     if (state.sheetMode) await pushCounts();
     if (!state.profile) state.profile = await api.me(state.token, localDay());
+    if (state.token) state.aiQuota = await api.aiQuota(state.token).catch(() => null);
   } catch (err) {
     state.error = err.message || "The game server is not running.";
   } finally {

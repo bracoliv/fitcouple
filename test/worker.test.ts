@@ -448,6 +448,64 @@ test("the shop stays out of the game and does not use health data", async () => 
   }
 });
 
+test("the assistant counts use and does not store the message", async () => {
+  const player = await session("f");
+  const phrase = "secret-meal-phrase-xyz";
+  const denied = await call("/v1/ai/food-text", {
+    method: "POST",
+    token: player.token,
+    body: { text: phrase },
+  });
+  assert.equal(denied.status, 400);
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.AI_MODEL = "gemini-3.5-flash-lite";
+  const original = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com")) {
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"items":[{"name":"egg","portion":"1","kcal":70,"protein":6,"carbs":0,"fat":5}]}' }] } }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const first = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: phrase },
+    });
+    assert.equal(first.status, 200, first.text);
+    assert.equal((first.json as { items: { name: string }[] }).items[0].name, "egg");
+    const rows = await env.DB.prepare("SELECT feature, count FROM ai_usage").all<{ feature: string; count: number }>();
+    assert.equal(JSON.stringify(rows).includes(phrase), false);
+    assert.equal((rows.results || []).some((row) => row.feature === "text_log" && row.count === 1), true);
+    await call("/v1/admin/ai/limits", { method: "POST", token: TEST_KEY, body: { feature: "text_log", dailyCap: 1 } });
+    const blocked = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "another plate" },
+    });
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.text.includes("another plate"), false);
+    await call("/v1/admin/ai/premium", { method: "POST", token: TEST_KEY, body: { userId: player.id, grant: true } });
+    const open = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { text: "still not stored" },
+    });
+    assert.equal(open.status, 200, open.text);
+    assert.equal((await call("/v1/premium/checkout", { method: "POST", token: player.token, body: {} })).status, 404);
+  } finally {
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.AI_MODEL;
+  }
+});
+
 test("owner route stays closed when the key is missing", async () => {
   const saved = env.ADMIN_KEY;
   env.ADMIN_KEY = "";

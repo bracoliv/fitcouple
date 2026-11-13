@@ -28,7 +28,7 @@ import {
 import { makeTeamCode, normalizeTeamCode, randomHex, sha256Hex } from "./crypto.ts";
 import { GameError } from "./errors.ts";
 import { cleanDisplayName, isAnonId } from "./privacy.ts";
-import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL } from "./schema.ts";
+import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL, AI_SQL } from "./schema.ts";
 import { hashVoucherCode, milestoneReached, shiftDay as addDays, VOUCHERS_OFF, type VoucherConfig } from "./vouchers.ts";
 import { isProgramId, PROGRAM_CHOICES, sessionFor } from "./programs.ts";
 import { askCoach } from "./coach.ts";
@@ -126,6 +126,8 @@ async function applySchema(db: Db): Promise<void> {
   for (const sql of voucherSql) await db.prepare(sql).run();
   const storeSql = STORE_SQL.split(";").map((part) => part.trim()).filter(Boolean);
   for (const sql of storeSql) await db.prepare(sql).run();
+  const aiSql = AI_SQL.split(";").map((part) => part.trim()).filter(Boolean);
+  for (const sql of aiSql) await db.prepare(sql).run();
 }
 
 function mapUser(row: UserRow): StoredUser {

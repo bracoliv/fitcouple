@@ -119,3 +119,21 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_id);`;
+
+export const AI_SQL = `CREATE TABLE IF NOT EXISTS ai_usage (
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  feature TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (user_id, day, feature)
+);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS premium_users (
+  user_id TEXT PRIMARY KEY,
+  granted_day TEXT NOT NULL
+);`;
