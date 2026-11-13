@@ -67,6 +67,9 @@ export function createApi(workerUrl) {
       if (opponentId) body.opponentId = opponentId;
       return request("/v1/team", { method: "POST", token, body });
     },
+    redeem(staffKey, code) {
+      return request("/v1/vouchers/redeem", { method: "POST", token: staffKey, body: { code } });
+    },
     coach(token, day, key, host) {
       return request("/v1/coach", {
         method: "POST",

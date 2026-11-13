@@ -172,6 +172,16 @@ const QUESTS: QuestDef[] = [
     attribute: "discipline",
     required: { easy: false, normal: false, hard: false },
   },
+  {
+    id: "restaurant_meal",
+    title: "Restaurant meal",
+    detail: "You logged a meal at the restaurant. The server does not learn the dish.",
+    kind: "check",
+    targets: { easy: 1, normal: 1, hard: 1 },
+    xp: { easy: 10, normal: 15, hard: 20 },
+    attribute: "discipline",
+    required: { easy: false, normal: false, hard: false },
+  },
 ];
 
 const HIDDEN_QUESTS = new Set(["guided_log", "weekly_checkin", "progress_photo"]);
@@ -271,7 +281,7 @@ export function visibleStreak(streak: number, lastActiveDay: string | null, toda
 // Wearable is accepted in the schema but pays the manual rate until a real sync exists.
 export function sourceWeight(source: Source | undefined, questId: string, hasProof?: boolean): number {
   if (source === "timer" && questId === "focus") return 1;
-  if (source === "photo" && hasProof === true && (questId === "log_meals" || questId === "log_workout")) return 0.8;
+  if (source === "photo" && hasProof === true && (questId === "log_meals" || questId === "log_workout" || questId === "restaurant_meal")) return 0.8;
   return 0.5;
 }
 
@@ -400,6 +410,7 @@ export function viewQuests(
   completions: CompletionState[],
   today: string,
   programId?: string | null,
+  vouchersEnabled = false,
 ): QuestView[] {
   const position = programPosition(player.programStart, today);
   const theme = planFor(position.day);
@@ -407,6 +418,7 @@ export function viewQuests(
   return QUESTS.filter((quest) => {
     if (HIDDEN_QUESTS.has(quest.id)) return false;
     if (quest.id === "program_session" && !session) return false;
+    if (quest.id === "restaurant_meal" && !vouchersEnabled) return false;
     return true;
   }).map((quest) => {
     const row = completions.find((item) => item.questId === quest.id);

@@ -2,6 +2,7 @@ import { createApi } from "./api.js";
 import { RECIPES, guidedLogEvent, videoFor } from "./catalog.js";
 import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, pickSheet, readLog, requestGoogleToken } from "./google.js";
 import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } from "./progress.js";
+import { voucherQr } from "./qr.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
 import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
 
@@ -250,7 +251,7 @@ function moreHtml() {
     : "";
   const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
   const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
-  return `<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+  return `${voucherSection()}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
       <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
@@ -280,7 +281,32 @@ function shell(screen) {
     <nav class="nav">${screens.map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
 }
 
+function rememberVoucherCodes(codes) {
+  if (!codes || !codes.length) return;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
+  for (const item of codes) if (item && item.code) saved[item.id] = item.code;
+  localStorage.setItem("fitVoucherCodes", JSON.stringify(saved));
+}
+
+function voucherSection() {
+  const profile = state.profile;
+  if (!profile || profile.vouchersEnabled !== true) return "";
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
+  const cards = (profile.vouchers || []).map((item) => {
+    const code = saved[item.id] || "";
+    const qr = code && item.status === "issued" ? voucherQr(code) : "";
+    return `<article class="card"><p><strong>${esc(profile.voucherLabel || "value")} ${item.value}</strong> · ${esc(item.status)}</p><p class="meta">${esc(item.milestone)} · until ${esc(item.expiresDay)}</p>${qr}${code ? `<p class="id">${esc(code)}</p>` : `<p class="hint">The code was saved on the phone that earned this.</p>`}</article>`;
+  }).join("");
+  return `<section><h2>Restaurant vouchers</h2><p class="hint">Separate from SOSM+. One use. Show the code at the restaurant. Streaks unlock them. Level rewards also need a verified timer, photo, or future health-app day.</p>${cards || `<p class="hint">None yet.</p>`}</section>`;
+}
+
 function render() {
+  if (state.profile && state.profile.voucherCodes) {
+    rememberVoucherCodes(state.profile.voucherCodes);
+    state.profile.voucherCodes = [];
+  }
   const app = document.getElementById("app");
   if (!app) return;
   const screen = screenNow();

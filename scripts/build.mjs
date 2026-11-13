@@ -61,6 +61,7 @@ const fitMin = await esbuild.transform(await readFile(path.join(root, "fit.js"),
 await writeFile(path.join(dist, "fit.js"), JavaScriptObfuscator.obfuscate(fitMin.code, options).getObfuscatedCode());
 await bundle(path.join(root, "src/web/main.js"), path.join(dist, "play.js"));
 await bundle(path.join(root, "src/web/admin.js"), path.join(dist, "admin.js"));
+await bundle(path.join(root, "src/web/redeem.js"), path.join(dist, "redeem.js"));
 
 let playHtml = await readFile(path.join(dist, "play.html"), "utf8");
 playHtml = playHtml
@@ -73,6 +74,12 @@ adminHtml = adminHtml
   .replace('href="src/web/admin.css"', 'href="admin.css"')
   .replace('<script type="module" src="src/web/admin.js"></script>', '<script src="admin.js"></script>');
 await writeFile(path.join(dist, "admin.html"), adminHtml);
+
+let redeemHtml = await readFile(path.join(dist, "redeem.html"), "utf8");
+redeemHtml = redeemHtml
+  .replace('href="src/web/admin.css"', 'href="admin.css"')
+  .replace('<script type="module" src="src/web/redeem.js"></script>', '<script src="redeem.js"></script>');
+await writeFile(path.join(dist, "redeem.html"), redeemHtml);
 
 let config = await readFile(path.join(root, "config.js"), "utf8");
 if (process.env.GOOGLE_CLIENT_ID) {
@@ -89,7 +96,7 @@ if (process.env.WORKER_URL) {
 }
 await writeFile(path.join(dist, "config.js"), config);
 
-for (const file of ["play.js", "admin.js", "fit.js"]) {
+for (const file of ["play.js", "admin.js", "redeem.js", "fit.js"]) {
   const checked = spawnSync(process.execPath, ["--check", path.join(dist, file)], { encoding: "utf8" });
   if (checked.status !== 0) {
     console.error(checked.stderr);

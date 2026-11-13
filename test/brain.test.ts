@@ -19,6 +19,8 @@ import {
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
+import { VOUCHER_SQL } from "../src/worker/schema.ts";
+import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
 
 function player(over: Partial<Player> = {}): Player {
   return {
@@ -227,6 +229,18 @@ test("steps, plans, badges, and duels stay free of meal text", () => {
   assert.equal(shown.some((quest) => quest.id === "program_session"), true);
   assert.equal(shown.some((quest) => quest.id === "steps"), true);
   assert.equal(viewQuests(player({ programStart: day }), [], day, null).some((quest) => quest.id === "program_session"), false);
+});
+
+test("voucher rules come from config and favour verified activity", () => {
+  const file = readFileSync(new URL("../migrations/0003_vouchers.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), VOUCHER_SQL.trim());
+  const rules = parseMilestones("streak:7:5,level:10:15,verified:3:8");
+  assert.equal(rules.length, 3);
+  assert.throws(() => parseMilestones("food:1:1"));
+  const config = { enabled: true, milestones: rules, expiryDays: 30, valueLabel: "value", verifiedDays: 1, prefix: "FIT", configError: "" };
+  assert.equal(milestoneReached(rules[0], { streak: 7, level: 1, verifiedDays: 0 }, config), true);
+  assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 0 }, config), false);
+  assert.equal(milestoneReached(rules[1], { streak: 7, level: 10, verifiedDays: 1 }, config), true);
 });
 
 test("flag text stays free of health details", () => {

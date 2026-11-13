@@ -91,6 +91,7 @@ input, select {
 .foot { text-align: center; color: var(--muted); font-size: 0.75rem; margin-top: 16px; }
 .foot a { color: var(--gold); }
 .shot { width: 100%; border-radius: 12px; margin: 8px 0; }
+.card svg { width: 180px; height: 180px; background: #fff; }
 .cert { border-color: var(--gold); }
 figure { margin: 0; }
 @media print {

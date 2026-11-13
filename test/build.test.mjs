@@ -18,7 +18,7 @@ test("publish build minifies and obfuscates the front end", () => {
   assert.equal(admin.includes("ADMIN_KEY"), false);
   assert.ok(play.length > 1000);
   assert.ok(fit.length > 1000);
-  for (const file of ["dist/play.js", "dist/admin.js", "dist/fit.js"]) {
+  for (const file of ["dist/play.js", "dist/admin.js", "dist/redeem.js", "dist/fit.js"]) {
     const checked = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
     assert.equal(checked.status, 0, file + "\n" + checked.stderr);
   }

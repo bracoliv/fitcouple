@@ -141,4 +141,18 @@ Recipe names and calorie estimates stay in the app and, if you log them, in your
 
 Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
 
-Rewards are badge names and titles, including 66-Day Finisher. There are no discount codes, vouchers, or shop rewards.
+Rewards shown to players are badge names and titles, including 66-Day Finisher. Restaurant vouchers exist in the server but stay off until `VOUCHERS_ENABLED` is the word `true`. While that is off, players are not offered them.
+
+If you turn vouchers on, the server also stores this table. It is not a meal log.
+
+| Column | Meaning |
+| --- | --- |
+| id | Voucher id |
+| user_id | Player id |
+| code_hash | Hash of the single-use code. The code itself is not stored |
+| milestone | Which rule created it, such as `streak:7` |
+| value | The number from your config |
+| status | issued or redeemed |
+| issued_day, expires_day, redeemed_day | Dates |
+
+There are no discount codes in the player app while the switch is off.

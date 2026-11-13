@@ -154,7 +154,29 @@ On More:
 
 On Team, a weekly challenge needs each person to finish the day's session on 3 days. A friendly duel compares step counts after both finish the session. The prize is XP and a title.
 
-Rewards are badges and titles only. There are no discounts, vouchers, or shop rewards.
+Rewards in the player app are badges and titles only. There are no discounts, vouchers, or shop rewards while the restaurant switch below is off.
+
+### Restaurant vouchers (off)
+
+This is for a possible future healthy-meal restaurant. It is separate from SOSM+. It is **off** until you turn it on. Players do not see it, and the app still says badges and titles only.
+
+The switch is `VOUCHERS_ENABLED` in `wrangler.jsonc`. It must be the exact word `true`. Anything else, including empty, means off.
+
+Before you turn it on, edit these settings in the same file. They are not buried in the program:
+
+- `VOUCHER_MILESTONES` — comma-separated rules, `kind:number:value`. Kinds are `streak`, `level`, and `verified`. Example: `streak:7:5,level:10:15,verified:3:8`. A 7-day streak unlocks value 5. A level reward also needs verified days. A verified day is a focus timer, a photo check, or a future health-app sync. Typed entries alone do not unlock level rewards.
+- `VOUCHER_VERIFIED_DAYS` — how many verified days a level reward needs. `1` is a start.
+- `VOUCHER_EXPIRY_DAYS` — how many days a code lasts.
+- `VOUCHER_VALUE_LABEL` — the word shown next to the number, such as `RM`. Letters only.
+- `VOUCHER_PREFIX` — letters on the code, such as `FIT`.
+
+Then set a staff key, which is different from the owner key:
+
+`npx wrangler secret put STAFF_KEY`
+
+Deploy again with `npx wrangler deploy`. Staff open `redeem.html`, type the staff key, and scan the QR or type the code. A code works once. The player sees the QR on the phone that earned it.
+
+The server stores the player id, a hash of the code (not the code itself), the milestone, the value number, and whether it was used or when it expires. It does not store the dish. Logging a restaurant meal, if you turn this on, is only a quest id.
 
 It does not store food, meals, workout names, weights, notes, emails, Google tokens, or sheet links.
 

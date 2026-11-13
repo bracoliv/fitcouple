@@ -225,6 +225,73 @@ test("plans, duels, and the coach stay off the health log", async () => {
   assert.equal(noKey.status, 400);
 });
 
+test("restaurant vouchers stay hidden until the flag is on", async () => {
+  const day = utcDay();
+  const quiet = await session("c");
+  assert.equal((quiet.body as { vouchersEnabled: boolean }).vouchersEnabled, false);
+  assert.equal(((quiet.body as { quests: { id: string }[] }).quests || []).some((quest) => quest.id === "restaurant_meal"), false);
+  const skipped = await call("/v1/events", {
+    method: "POST",
+    token: quiet.token,
+    body: { day, events: [{ questId: "restaurant_meal", completed: true, source: "manual", food: "rice" }] },
+  });
+  assert.equal(skipped.status, 400);
+  assert.equal(skipped.text.includes("rice"), false);
+  assert.equal((await call("/v1/vouchers/redeem", { method: "POST", token: "staff-test-key-012345", body: { code: "FIT-ABCDEF12345678" } })).status, 404);
+
+  env.VOUCHERS_ENABLED = "true";
+  env.VOUCHER_MILESTONES = "streak:1:5,level:1:9";
+  env.VOUCHER_EXPIRY_DAYS = "14";
+  env.VOUCHER_VERIFIED_DAYS = "1";
+  env.VOUCHER_VALUE_LABEL = "RM";
+  env.VOUCHER_PREFIX = "FIT";
+  env.STAFF_KEY = "staff-test-key-012345";
+  try {
+    const player = await session("d");
+    const water = await call("/v1/events", {
+      method: "POST",
+      token: player.token,
+      body: { day, events: [{ questId: "water", completed: true, source: "manual" }] },
+    });
+    assert.equal(water.status, 200, water.text);
+    const waterBody = water.json as { vouchersEnabled: boolean; voucherCodes: { code: string; milestone: string }[]; vouchers: { milestone: string }[]; quests: { id: string }[] };
+    assert.equal(waterBody.vouchersEnabled, true);
+    assert.equal(waterBody.quests.some((quest) => quest.id === "restaurant_meal"), true);
+    assert.equal(waterBody.voucherCodes.length, 1);
+    assert.equal(waterBody.voucherCodes[0].milestone, "streak:1");
+    assert.equal(JSON.stringify(water.json).includes("nasi"), false);
+    const timer = await call("/v1/events", {
+      method: "POST",
+      token: player.token,
+      body: { day, events: [{ questId: "focus", completed: true, source: "timer", durationMin: 25 }] },
+    });
+    const timerCodes = (timer.json as { voucherCodes: { code: string; milestone: string }[] }).voucherCodes;
+    assert.equal(timerCodes.length, 1);
+    assert.equal(timerCodes[0].milestone, "level:1");
+    const yesterday = shiftDay(day, -1);
+    await env.DB.prepare("UPDATE vouchers SET expires_day = ? WHERE user_id = ? AND milestone = 'level:1'").bind(yesterday, player.id).run();
+    const expired = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: timerCodes[0].code } });
+    assert.equal(expired.status, 410);
+    const used = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: waterBody.voucherCodes[0].code } });
+    assert.equal(used.status, 200, used.text);
+    const again = await call("/v1/vouchers/redeem", { method: "POST", token: env.STAFF_KEY, body: { code: waterBody.voucherCodes[0].code } });
+    assert.equal(again.status, 409);
+    const admin = await call("/v1/admin/customers?day=" + day, { token: TEST_KEY });
+    const counts = (admin.json as { vouchers: { enabled: boolean; issued: number; redeemed: number } }).vouchers;
+    assert.equal(counts.enabled, true);
+    assert.ok(counts.issued >= 2);
+    assert.ok(counts.redeemed >= 1);
+  } finally {
+    delete env.VOUCHERS_ENABLED;
+    delete env.VOUCHER_MILESTONES;
+    delete env.VOUCHER_EXPIRY_DAYS;
+    delete env.VOUCHER_VERIFIED_DAYS;
+    delete env.VOUCHER_VALUE_LABEL;
+    delete env.VOUCHER_PREFIX;
+    delete env.STAFF_KEY;
+  }
+});
+
 test("owner route stays closed when the key is missing", async () => {
   const saved = env.ADMIN_KEY;
   env.ADMIN_KEY = "";

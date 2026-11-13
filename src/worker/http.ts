@@ -3,6 +3,7 @@ import { secretsMatch } from "./crypto.ts";
 import {
   adminCustomers,
   confirmTeam,
+  redeemVoucher,
   createSession,
   createTeam,
   ensureSchema,
@@ -18,11 +19,19 @@ import {
 } from "./data.ts";
 import { GameError } from "./errors.ts";
 import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
+import { readVoucherConfig } from "./vouchers.ts";
 
 export interface AppEnv {
   DB: Db;
   ALLOWED_ORIGINS: string;
   ADMIN_KEY?: string;
+  STAFF_KEY?: string;
+  VOUCHERS_ENABLED?: string;
+  VOUCHER_MILESTONES?: string;
+  VOUCHER_EXPIRY_DAYS?: string;
+  VOUCHER_VALUE_LABEL?: string;
+  VOUCHER_VERIFIED_DAYS?: string;
+  VOUCHER_PREFIX?: string;
 }
 
 function allowedOrigin(env: AppEnv, origin: string): boolean {
@@ -37,7 +46,7 @@ function responseHeaders(request: Request, env: AppEnv): Headers {
   if (origin && allowedOrigin(env, origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
-    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Ai-Key, X-Ai-Host");
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   }
   return headers;
@@ -71,6 +80,16 @@ function bearer(request: Request): string {
   return match[1];
 }
 
+async function assertStaff(request: Request, env: AppEnv): Promise<void> {
+  const key = env.STAFF_KEY || "";
+  if (key.length < 16) throw new GameError(503, "The staff key is not set on the server yet.");
+  const header = request.headers.get("Authorization") || "";
+  const match = /^Bearer\s+(\S+)$/.exec(header);
+  const provided = match ? match[1] : "";
+  const ok = await secretsMatch(provided, key);
+  if (!ok) throw new GameError(401, "That staff key is not right.");
+}
+
 async function assertAdmin(request: Request, env: AppEnv): Promise<void> {
   const key = env.ADMIN_KEY || "";
   if (key.length < 16) throw new GameError(503, "The owner key is not set on the server yet.");
@@ -93,29 +112,30 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     await ensureSchema(env.DB);
     const now = new Date();
+    const offer = readVoucherConfig(env);
     if (request.method === "GET" && url.pathname === "/health") {
       return json(request, env, 200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/v1/session") {
       const body = assertKeys(await readJson(request), ["anonId", "day"]);
       const day = body.day == null ? now.toISOString().slice(0, 10) : dayFrom(body.day, now);
-      const created = await createSession(env.DB, String(body.anonId || ""), day);
+      const created = await createSession(env.DB, String(body.anonId || ""), day, offer);
       return json(request, env, 200, created);
     }
     if (request.method === "GET" && url.pathname === "/v1/admin/customers") {
       await assertAdmin(request, env);
       const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
-      return json(request, env, 200, await adminCustomers(env.DB, dayFrom(day, now)));
+      return json(request, env, 200, await adminCustomers(env.DB, dayFrom(day, now), offer));
     }
     if (url.pathname === "/v1/me" && request.method === "GET") {
       const user = await userFromToken(env.DB, bearer(request));
       const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
-      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now)));
+      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now), offer));
     }
     if (url.pathname === "/v1/team" && request.method === "GET") {
       const user = await userFromToken(env.DB, bearer(request));
       const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
-      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now)));
+      return json(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now), offer));
     }
     if (request.method === "POST" && url.pathname === "/v1/events") {
       const user = await userFromToken(env.DB, bearer(request));
@@ -123,7 +143,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const day = dayFrom(body.day, now);
       if (body.difficulty != null && !isDifficulty(body.difficulty)) throw new GameError(400, "Difficulty must be easy, normal, or hard.");
       const events = parseEvents(body.events);
-      const state = await recordEvents(env.DB, user, events, day, isDifficulty(body.difficulty) ? body.difficulty : undefined);
+      const state = await recordEvents(env.DB, user, events, day, isDifficulty(body.difficulty) ? body.difficulty : undefined, offer);
       return json(request, env, 200, state);
     }
     if (request.method === "POST" && url.pathname === "/v1/profile") {
@@ -131,8 +151,8 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const body = assertKeys(await readJson(request), ["displayName", "day", "programChoice"]);
       const day = dayFrom(body.day, now);
       let state = null;
-      if ("displayName" in body) state = await setDisplayName(env.DB, user, body.displayName, day);
-      if ("programChoice" in body) state = await setProgramChoice(env.DB, user, body.programChoice, day);
+      if ("displayName" in body) state = await setDisplayName(env.DB, user, body.displayName, day, offer);
+      if ("programChoice" in body) state = await setProgramChoice(env.DB, user, body.programChoice, day, offer);
       if (!state) throw new GameError(400, "Nothing to update.");
       return json(request, env, 200, state);
     }
@@ -140,12 +160,12 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const user = await userFromToken(env.DB, bearer(request));
       const body = assertKeys(await readJson(request), ["action", "code", "day", "opponentId"]);
       const day = dayFrom(body.day, now);
-      if (body.action === "create") return json(request, env, 200, await createTeam(env.DB, user, day));
-      if (body.action === "join") return json(request, env, 200, await joinTeam(env.DB, user, body.code, day));
-      if (body.action === "confirm") return json(request, env, 200, await confirmTeam(env.DB, user, day));
+      if (body.action === "create") return json(request, env, 200, await createTeam(env.DB, user, day, offer));
+      if (body.action === "join") return json(request, env, 200, await joinTeam(env.DB, user, body.code, day, offer));
+      if (body.action === "confirm") return json(request, env, 200, await confirmTeam(env.DB, user, day, offer));
       if (body.action === "duel") {
         const opponentId = typeof body.opponentId === "string" ? body.opponentId : undefined;
-        return json(request, env, 200, await startDuel(env.DB, user, day, opponentId));
+        return json(request, env, 200, await startDuel(env.DB, user, day, opponentId, offer));
       }
       throw new GameError(400, "Team action must be create, join, confirm, or duel.");
     }
@@ -154,7 +174,16 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const body = assertKeys(await readJson(request), ["day"]);
       const key = request.headers.get("X-Ai-Key") || "";
       const host = request.headers.get("X-Ai-Host") || "api.openai.com";
-      return json(request, env, 200, await weeklyCoach(env.DB, user, dayFrom(body.day, now), key, host));
+      return json(request, env, 200, await weeklyCoach(env.DB, user, dayFrom(body.day, now), key, host, offer));
+    }
+    if (request.method === "POST" && url.pathname === "/v1/vouchers/redeem") {
+      if (!offer.enabled) return json(request, env, 404, { error: "Not found." });
+      await assertStaff(request, env);
+      const body = assertKeys(await readJson(request), ["code"]);
+      if (typeof body.code !== "string" || body.code.length < 8 || body.code.length > 40) {
+        throw new GameError(400, "Enter the voucher code.");
+      }
+      return json(request, env, 200, await redeemVoucher(env.DB, body.code, now.toISOString().slice(0, 10)));
     }
     return json(request, env, 404, { error: "Not found." });
   } catch (err) {
