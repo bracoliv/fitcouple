@@ -19,7 +19,13 @@
     "VOUCHER_VERIFIED_DAYS": "1",
     "VOUCHER_VALUE_LABEL": "value",
     "VOUCHER_PREFIX": "FIT",
-    "VOUCHER_MILESTONES": ""
+    "VOUCHER_MILESTONES": "",
+    "STORE_ENABLED": "false",
+    "STORE_MODE": "external",
+    "STORE_GATEWAY": "",
+    "STORE_SANDBOX": "true",
+    "STORE_CURRENCY": "RM",
+    "STORE_CATALOG": ""
   },
   // ADMIN_KEY is a secret. It is not listed here on purpose.
   // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY`.

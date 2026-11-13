@@ -292,6 +292,82 @@ test("restaurant vouchers stay hidden until the flag is on", async () => {
   }
 });
 
+test("the refuel shop stays hidden and sandbox checkout does not charge", async () => {
+  const day = utcDay();
+  const quiet = await session("e");
+  assert.equal((quiet.body as { store?: unknown }).store, undefined);
+  assert.equal((await call("/v1/store/checkout", {
+    method: "POST",
+    token: quiet.token,
+    body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+  })).status, 404);
+
+  env.STORE_ENABLED = "true";
+  env.STORE_MODE = "external";
+  env.STORE_SANDBOX = "true";
+  env.STORE_CURRENCY = "RM";
+  try {
+    const saved = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { id: "whey", brand: "sosm", name: "Chocolate whey, 900 g", blurb: "One tub. Chocolate flavour.", priceCents: 9900, shopeeUrl: "https://shopee.com.my/whey", suggest: "after_workout", active: true },
+    });
+    assert.equal(saved.status, 200, saved.text);
+    const claim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { id: "bad", brand: "other", name: "Burns fat fast", blurb: "A tub.", priceCents: 1000, active: true },
+    });
+    assert.equal(claim.status, 400);
+    const shown = await call("/v1/me?day=" + day, { token: quiet.token });
+    const store = (shown.json as { store: { enabled: boolean; mode: string; products: { shopeeUrl: string }[]; suggestions: unknown[] } }).store;
+    assert.equal(store.enabled, true);
+    assert.equal(store.mode, "external");
+    assert.equal(store.products[0].shopeeUrl.includes("shopee.com.my"), true);
+    assert.equal(store.suggestions.length, 0);
+    const moved = await call("/v1/events", {
+      method: "POST",
+      token: quiet.token,
+      body: { day, events: [{ questId: "log_workout", count: 1, source: "manual" }] },
+    });
+    assert.equal(((moved.json as { store: { suggestions: unknown[] } }).store.suggestions || []).length, 1);
+    const linked = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], weight: 70 },
+    });
+    assert.equal(linked.status, 400);
+    assert.equal(linked.text.includes("70"), false);
+    env.STORE_MODE = "checkout";
+    env.STORE_GATEWAY = "stripe";
+    const order = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+    });
+    assert.equal(order.status, 200, order.text);
+    const paid = order.json as { orderId: string; url: string; sandbox: boolean };
+    assert.equal(paid.sandbox, true);
+    const params = new URL(paid.url).searchParams;
+    const done = await call("/v1/store/sandbox-complete", { method: "POST", body: { orderId: paid.orderId, proof: params.get("proof") } });
+    assert.equal(done.status, 200, done.text);
+    env.STRIPE_SECRET = "sk_live_not_allowed";
+    const live = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+    });
+    assert.equal(live.status, 403);
+  } finally {
+    delete env.STORE_ENABLED;
+    delete env.STORE_MODE;
+    delete env.STORE_GATEWAY;
+    delete env.STORE_SANDBOX;
+    delete env.STORE_CURRENCY;
+    delete env.STRIPE_SECRET;
+  }
+});
+
 test("owner route stays closed when the key is missing", async () => {
   const saved = env.ADMIN_KEY;
   env.ADMIN_KEY = "";

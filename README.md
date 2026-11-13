@@ -178,6 +178,24 @@ Deploy again with `npx wrangler deploy`. Staff open `redeem.html`, type the staf
 
 The server stores the player id, a hash of the code (not the code itself), the milestone, the value number, and whether it was used or when it expires. It does not store the dish. Logging a restaurant meal, if you turn this on, is only a quest id.
 
+### Refuel Station shop (off)
+
+This is a shop for SOSM+ products and other brands you resell. It is **off** until you confirm the supply with SOSM+ and, if you want in-app payment, finish payment-gateway registration. Players do not see it now.
+
+`STORE_ENABLED` must be the exact word `true`. Leave `STORE_MODE` as `external` for a zero-cost start: each product is a link to your Shopee listing, and Fit does not take payment.
+
+Products are added on the owner page, or as JSON in `STORE_CATALOG`. Use plain words: size and flavour. Do not write health claims such as burn fat, cure, or clinically proven. The page will reject those.
+
+In-app checkout stays in sandbox. `STORE_SANDBOX` must stay `true`. This version refuses a live Stripe key and will not turn on live Billplz or ToyyibPay. Set `STORE_MODE` to `checkout` and `STORE_GATEWAY` to `billplz`, `toyyibpay`, or `stripe` only after you have sandbox keys. Put the keys in with `npx wrangler secret put`, not in the source:
+
+- `BILLPLZ_API_KEY` and `BILLPLZ_COLLECTION_ID` for Billplz sandbox
+- `TOYYIBPAY_SECRET` and `TOYYIBPAY_CATEGORY` for ToyyibPay sandbox
+- `STRIPE_SECRET` must start with `sk_test_`
+
+With no keys, checkout opens a test page that marks the order paid and charges nothing.
+
+An order stores only the name, phone, address, and items needed to deliver it. That list is separate from food and workout scores. The checkout screen says so. On the owner page you can delete an order if the buyer asks. That is the PDPA-friendly path: collect delivery details for the order, keep them apart from health logs, and delete them on request.
+
 It does not store food, meals, workout names, weights, notes, emails, Google tokens, or sheet links.
 
 ## License

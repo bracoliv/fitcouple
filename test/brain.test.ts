@@ -19,7 +19,8 @@ import {
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
-import { VOUCHER_SQL } from "../src/worker/schema.ts";
+import { STORE_SQL, VOUCHER_SQL } from "../src/worker/schema.ts";
+import { cleanShopeeUrl, hasHealthClaim, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
 
 function player(over: Partial<Player> = {}): Player {
@@ -229,6 +230,18 @@ test("steps, plans, badges, and duels stay free of meal text", () => {
   assert.equal(shown.some((quest) => quest.id === "program_session"), true);
   assert.equal(shown.some((quest) => quest.id === "steps"), true);
   assert.equal(viewQuests(player({ programStart: day }), [], day, null).some((quest) => quest.id === "program_session"), false);
+});
+
+test("the shop stays off unless the flag is exactly true", () => {
+  const file = readFileSync(new URL("../migrations/0004_store.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), STORE_SQL.trim());
+  assert.equal(readStoreConfig({}).enabled, false);
+  assert.equal(readStoreConfig({ STORE_ENABLED: "false" }).enabled, false);
+  assert.equal(readStoreConfig({ STORE_ENABLED: "true", STORE_MODE: "checkout", STORE_GATEWAY: "billplz" }).mode, "checkout");
+  assert.equal(hasHealthClaim("Burns fat fast"), true);
+  assert.equal(hasHealthClaim("Chocolate whey, 900 g"), false);
+  assert.equal(cleanShopeeUrl("https://shopee.com.my/protein-powder").includes("shopee.com.my"), true);
+  assert.throws(() => cleanShopeeUrl("https://example.com/shop"));
 });
 
 test("voucher rules come from config and favour verified activity", () => {

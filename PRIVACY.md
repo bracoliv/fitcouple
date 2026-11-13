@@ -156,3 +156,15 @@ If you turn vouchers on, the server also stores this table. It is not a meal log
 | issued_day, expires_day, redeemed_day | Dates |
 
 There are no discount codes in the player app while the switch is off.
+
+The Refuel Station shop is also off until `STORE_ENABLED` is `true`. While it is off, players are not shown products. If you turn it on, an order is stored apart from the game scores:
+
+| Column | Meaning |
+| --- | --- |
+| id, user_id | Order and the player id |
+| name, phone, address | Delivery only |
+| items, total_cents | What was ordered and the price |
+| status, gateway, provider_ref | Paid or not, and the sandbox payment reference |
+| created_day | The date |
+
+Delete an order from the owner page when someone asks. Product text is rejected if it makes a health claim.

@@ -67,6 +67,18 @@ export function createApi(workerUrl) {
       if (opponentId) body.opponentId = opponentId;
       return request("/v1/team", { method: "POST", token, body });
     },
+    checkout(token, order) {
+      return request("/v1/store/checkout", { method: "POST", token, body: order });
+    },
+    shopAdmin(key) {
+      return request("/v1/admin/products", { token: key });
+    },
+    saveProduct(key, product) {
+      return request("/v1/admin/products", { method: "POST", token: key, body: product });
+    },
+    deleteOrder(key, orderId) {
+      return request("/v1/admin/orders/delete", { method: "POST", token: key, body: { orderId } });
+    },
     redeem(staffKey, code) {
       return request("/v1/vouchers/redeem", { method: "POST", token: staffKey, body: { code } });
     },

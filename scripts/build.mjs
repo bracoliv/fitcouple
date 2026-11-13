@@ -75,6 +75,10 @@ adminHtml = adminHtml
   .replace('<script type="module" src="src/web/admin.js"></script>', '<script src="admin.js"></script>');
 await writeFile(path.join(dist, "admin.html"), adminHtml);
 
+let sandboxHtml = await readFile(path.join(dist, "pay-sandbox.html"), "utf8");
+sandboxHtml = sandboxHtml.replace('href="src/web/admin.css"', 'href="admin.css"');
+await writeFile(path.join(dist, "pay-sandbox.html"), sandboxHtml);
+
 let redeemHtml = await readFile(path.join(dist, "redeem.html"), "utf8");
 redeemHtml = redeemHtml
   .replace('href="src/web/admin.css"', 'href="admin.css"')
