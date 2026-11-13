@@ -308,18 +308,19 @@ test("the shop stays out of the game and does not use health data", async () => 
 
   const product = {
     id: "whey",
-    brand: "sosm",
-    name: "Chocolate whey, 900 g",
-    why: "A plain powder the seller already stocks.",
-    evidence: "The tub label lists the serving size.",
-    dose: "One scoop, about 30 g.",
+    store: "pump",
+    kind: "whey",
+    brand: "other",
+    name: "ON Gold Standard Whey, Double Rich Chocolate",
+    why: "A widely sold whey with the serving printed on the tub.",
+    evidence: "The label lists the serving size.",
+    dose: "One scoop, as printed on the tub.",
     testing: "Not third-party tested.",
     halal: "not-stated",
     mal: "not-stated",
-    audience: "all",
-    priceCents: 9900,
-    listPriceCents: 9900,
-    shopeeUrl: "https://shopee.com.my/whey",
+    priceCents: 19900,
+    listPriceCents: 19900,
+    linkUrl: "https://www.myprotein.com.my/sports-nutrition/whey",
     active: true,
   };
   env.STORE_ENABLED = "true";
@@ -341,34 +342,60 @@ test("the shop stays out of the game and does not use health data", async () => 
     const cheap = await call("/v1/admin/products", {
       method: "POST",
       token: TEST_KEY,
-      body: { ...product, id: "cheap", priceCents: 1000, listPriceCents: 9900 },
+      body: { ...product, id: "cheap", priceCents: 1000, listPriceCents: 19900 },
     });
     assert.equal(cheap.status, 400);
-    const adult = await call("/v1/admin/products", {
+    const burner = await call("/v1/admin/products", {
       method: "POST",
       token: TEST_KEY,
-      body: { ...product, id: "pre", name: "Pre workout, 300 g", audience: "adult" },
+      body: { ...product, id: "burn", kind: "whey", name: "MateBurn" },
     });
-    assert.equal(adult.status, 200, adult.text);
+    assert.equal(burner.status, 400);
+    const slim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: {
+        ...product,
+        id: "mate",
+        store: "slim",
+        kind: "sosm",
+        brand: "sosm",
+        name: "MateBurn",
+        why: "The owner's SOSM+ product.",
+        linkUrl: "https://shopee.com.my/mateburn",
+      },
+    });
+    assert.equal(slim.status, 200, slim.text);
+    const slimClaim = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "mate2", store: "slim", kind: "sosm", brand: "sosm", name: "Night Booster", why: "Burns fat fast", linkUrl: "https://wa.me/60123456789" },
+    });
+    assert.equal(slimClaim.status, 400);
     const shown = await call("/v1/store/catalog", { token: quiet.token });
-    const store = shown.json as { mode: string; recommended: { id: string; shopeeUrl: string }[]; adult: unknown[]; adultLocked: boolean };
+    const store = shown.json as { mode: string; pump: { products: { id: string }[] }; slim: { locked: boolean; products: { id: string }[]; adLine: string } };
     assert.equal(store.mode, "external");
-    assert.equal(store.recommended.length, 1);
-    assert.equal(store.recommended[0].id, "whey");
-    assert.equal(store.adult.length, 0);
-    assert.equal(store.adultLocked, true);
-    assert.equal(JSON.stringify(shown.json).includes("suggestions"), false);
+    assert.equal(store.pump.products.length, 1);
+    assert.equal(store.pump.products[0].id, "whey");
+    assert.equal(store.slim.products.length, 0);
+    assert.equal(store.slim.locked, true);
+    assert.equal(store.slim.adLine.includes("balanced diet"), true);
+    assert.equal(JSON.stringify(store.pump).includes("mate"), false);
     const moved = await call("/v1/events", {
       method: "POST",
       token: quiet.token,
       body: { day, events: [{ questId: "log_workout", count: 1, source: "manual" }] },
     });
-    assert.equal(JSON.stringify(moved.json).includes("whey"), false);
+    assert.equal(JSON.stringify(moved.json).includes("MateBurn"), false);
+    assert.equal(JSON.stringify(moved.json).includes("Gold Standard"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(moved.json, "store"), false);
     const again = await call("/v1/store/catalog", { token: quiet.token });
-    assert.equal(JSON.stringify((again.json as { recommended: unknown[] }).recommended), JSON.stringify(store.recommended));
+    assert.equal(JSON.stringify((again.json as { pump: { products: unknown[] } }).pump.products), JSON.stringify(store.pump.products));
     const opened = await call("/v1/store/catalog", { token: quiet.token, headers: { "X-Age-Confirm": "18" } });
-    assert.equal((opened.json as { adult: { id: string }[] }).adult[0].id, "pre");
+    const aged = opened.json as { pump: { products: { id: string }[] }; slim: { products: { id: string }[] } };
+    assert.equal(aged.slim.products[0].id, "mate");
+    assert.equal(aged.pump.products.some((item) => item.id === "mate"), false);
+    assert.equal(aged.slim.products.some((item) => item.id === "whey"), false);
     const linked = await call("/v1/store/checkout", {
       method: "POST",
       token: quiet.token,
@@ -387,7 +414,7 @@ test("the shop stays out of the game and does not use health data", async () => 
     const tooYoung = await call("/v1/store/checkout", {
       method: "POST",
       token: quiet.token,
-      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "pre", qty: 1 }], consent: true },
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "mate", qty: 1 }], consent: true },
     });
     assert.equal(tooYoung.status, 400);
     const order = await call("/v1/store/checkout", {

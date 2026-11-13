@@ -39,7 +39,8 @@ export interface AppEnv {
   STORE_GATEWAY?: string;
   STORE_SANDBOX?: string;
   STORE_CURRENCY?: string;
-  STORE_CATALOG?: string;
+  STORE_PUMP_CATALOG?: string;
+  STORE_SLIM_CATALOG?: string;
   STORE_SELLER_NAME?: string;
   STORE_SELLER_LINE?: string;
   STORE_SELLER_CONTACT?: string;
@@ -211,10 +212,13 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
         await saveProduct(env.DB, await readProduct(request));
       }
       const shop = readStoreConfig(env);
+      const lists = await listProducts(env.DB, env.STORE_PUMP_CATALOG, env.STORE_SLIM_CATALOG);
       return json(request, env, 200, {
         enabled: shop.enabled,
         mode: shop.mode,
-        products: await listProducts(env.DB, env.STORE_CATALOG),
+        pump: lists.pump,
+        slim: lists.slim,
+        products: [...lists.pump, ...lists.slim],
         orders: shop.enabled ? await adminOrders(env.DB) : [],
       });
     }
@@ -232,7 +236,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const user = await userFromToken(env.DB, bearer(request));
       const ageConfirmed = request.headers.get("X-Age-Confirm") === "18";
       return json(request, env, 200, {
-        ...(await publicStore(env.DB, shop, env.STORE_CATALOG, ageConfirmed)),
+        ...(await publicStore(env.DB, shop, env.STORE_PUMP_CATALOG, env.STORE_SLIM_CATALOG, ageConfirmed)),
         orders: await playerOrders(env.DB, user.id),
       });
     }
@@ -243,7 +247,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const body = cleanOrder(await readLoose(request, 200));
       const origin = request.headers.get("Origin") || "http://127.0.0.1:8788";
       const page = `${origin}/pay-sandbox.html`;
-      return json(request, env, 200, await placeOrder(env.DB, user.id, now.toISOString().slice(0, 10), shop, body, env.STORE_CATALOG, env, page));
+      return json(request, env, 200, await placeOrder(env.DB, user.id, now.toISOString().slice(0, 10), shop, body, { pump: env.STORE_PUMP_CATALOG, slim: env.STORE_SLIM_CATALOG }, env, page));
     }
     if (request.method === "POST" && url.pathname === "/v1/store/sandbox-complete") {
       const shop = readStoreConfig(env);
@@ -273,7 +277,9 @@ async function readProduct(request: Request): Promise<unknown> {
   try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new GameError(400, "Product is not valid.");
   const copy = { ...(body as Record<string, unknown>) };
-  const link = copy.shopeeUrl ?? copy.shopee_url;
+  const link = copy.linkUrl ?? copy.link_url ?? copy.shopeeUrl ?? copy.shopee_url;
+  delete copy.linkUrl;
+  delete copy.link_url;
   delete copy.shopeeUrl;
   delete copy.shopee_url;
   for (const value of Object.values(copy)) {
@@ -281,7 +287,7 @@ async function readProduct(request: Request): Promise<unknown> {
       throw new GameError(400, "Links and email addresses are not accepted.");
     }
   }
-  if (link != null) copy.shopeeUrl = link;
+  if (link != null) copy.linkUrl = link;
   return copy;
 }
 

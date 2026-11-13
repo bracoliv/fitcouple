@@ -235,18 +235,19 @@ test("steps, plans, badges, and duels stay free of meal text", () => {
 function sampleProduct() {
   return {
     id: "whey",
-    brand: "sosm",
-    name: "Chocolate whey, 900 g",
-    why: "A plain powder the seller already stocks.",
-    evidence: "The tub label lists the serving size.",
-    dose: "One scoop, about 30 g.",
+    store: "pump",
+    kind: "whey",
+    brand: "other",
+    name: "ON Gold Standard Whey, Double Rich Chocolate",
+    why: "A widely sold whey with the serving printed on the tub.",
+    evidence: "The label lists the serving size.",
+    dose: "One scoop, as printed on the tub.",
     testing: "Not third-party tested.",
     halal: "not-stated",
     mal: "not-stated",
-    audience: "all",
-    priceCents: 9900,
-    listPriceCents: 9900,
-    shopeeUrl: "https://shopee.com.my/whey",
+    priceCents: 19900,
+    listPriceCents: 19900,
+    linkUrl: "https://www.myprotein.com.my/sports-nutrition/whey",
     active: true,
   };
 }
@@ -263,13 +264,29 @@ test("the shop stays off unless the flag is exactly true", () => {
   assert.equal(hasHealthClaim("Chocolate whey, 900 g"), false);
   const listed = productFrom(sampleProduct());
   assert.equal(listed.audience, "all");
-  assert.equal(listed.listPriceCents, 9900);
-  assert.throws(() => productFrom({ ...sampleProduct(), priceCents: 1000, listPriceCents: 9900 }));
+  assert.equal(listed.listPriceCents, 19900);
+  assert.equal(listed.store, "pump");
+  assert.throws(() => productFrom({ ...sampleProduct(), priceCents: 1000, listPriceCents: 19900 }));
   assert.throws(() => productFrom({ ...sampleProduct(), id: "pack", name: "Starter bundle" }));
   assert.throws(() => productFrom({ ...sampleProduct(), suggest: "after_workout" }));
-  assert.equal(productFrom({ ...sampleProduct(), id: "pre", audience: "adult" }).audience, "adult");
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "burn", name: "MateBurn" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "sosm-whey", brand: "sosm" }));
+  const slim = productFrom({
+    ...sampleProduct(),
+    id: "mate",
+    store: "slim",
+    kind: "sosm",
+    brand: "sosm",
+    name: "MateBurn",
+    linkUrl: "https://shopee.com.my/mateburn",
+  });
+  assert.equal(slim.store, "slim");
+  assert.equal(slim.audience, "adult");
+  assert.throws(() => productFrom({ ...slim, store: "slim", why: "Burns fat fast" }));
+  assert.throws(() => productFrom({ ...sampleProduct(), id: "other", store: "slim", brand: "other", linkUrl: "https://shopee.com.my/whey" }));
   assert.equal(cleanShopeeUrl("https://shopee.com.my/protein-powder").includes("shopee.com.my"), true);
   assert.throws(() => cleanShopeeUrl("https://example.com/shop"));
+  assert.throws(() => productFrom({ ...sampleProduct(), linkUrl: "https://shopee.com.my/not-a-mall-link" }));
 });
 
 test("voucher rules come from config and favour verified activity", () => {

@@ -25,7 +25,8 @@
     "STORE_GATEWAY": "",
     "STORE_SANDBOX": "true",
     "STORE_CURRENCY": "RM",
-    "STORE_CATALOG": "",
+    "STORE_PUMP_CATALOG": "",
+    "STORE_SLIM_CATALOG": "",
     "STORE_SELLER_NAME": "",
     "STORE_SELLER_LINE": "",
     "STORE_SELLER_CONTACT": ""

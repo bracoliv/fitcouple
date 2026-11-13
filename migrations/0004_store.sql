@@ -1,5 +1,7 @@
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
+  store TEXT NOT NULL,
+  kind TEXT NOT NULL,
   brand TEXT NOT NULL,
   name TEXT NOT NULL,
   why TEXT NOT NULL,
@@ -11,7 +13,7 @@ CREATE TABLE IF NOT EXISTS products (
   audience TEXT NOT NULL,
   price_cents INTEGER NOT NULL,
   list_price_cents INTEGER NOT NULL,
-  shopee_url TEXT NOT NULL,
+  link_url TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1
 );
 

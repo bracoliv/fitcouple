@@ -2,10 +2,12 @@ import { randomHex } from "./crypto.ts";
 import type { Db } from "./data.ts";
 import { GameError } from "./errors.ts";
 import { startSandboxPayment, type PaymentEnv } from "./payments.ts";
-import { parseCatalog, productFrom, type StoreConfig, type StoreProduct } from "./store.ts";
+import { parseCatalog, productFrom, PUMP_DISCLOSURE, PUMP_KINDS, SLIM_AD_LINE, type StoreConfig, type StoreProduct } from "./store.ts";
 
 interface ProductRow {
   id: string;
+  store: string;
+  kind: string;
   brand: string;
   name: string;
   why: string;
@@ -17,14 +19,17 @@ interface ProductRow {
   audience: string;
   price_cents: number;
   list_price_cents: number;
-  shopee_url: string;
+  link_url: string;
   active: number;
 }
 
 function mapProduct(row: ProductRow): StoreProduct {
   const halal = row.halal === "yes" || row.halal === "no" ? row.halal : "not-stated";
+  const store = row.store === "slim" ? "slim" : "pump";
   return {
     id: row.id,
+    store,
+    kind: row.kind,
     brand: row.brand === "sosm" ? "sosm" : "other",
     name: row.name,
     why: row.why,
@@ -33,56 +38,78 @@ function mapProduct(row: ProductRow): StoreProduct {
     testing: row.testing,
     halal,
     mal: row.mal,
-    audience: row.audience === "adult" ? "adult" : "all",
+    audience: store === "slim" ? "adult" : "all",
     priceCents: row.price_cents,
     listPriceCents: row.list_price_cents,
-    shopeeUrl: row.shopee_url,
+    linkUrl: row.link_url,
     active: row.active === 1,
   };
 }
 
-export async function listProducts(db: Db, catalogJson: string | undefined): Promise<StoreProduct[]> {
+function belongs(product: StoreProduct, store: "pump" | "slim"): boolean {
+  if (!product.active || product.store !== store) return false;
+  if (store === "pump") {
+    return product.brand !== "sosm" && PUMP_KINDS.includes(product.kind as typeof PUMP_KINDS[number]);
+  }
+  return product.brand === "sosm" && product.audience === "adult";
+}
+
+export async function listProducts(db: Db, pumpJson: string | undefined, slimJson: string | undefined): Promise<{ pump: StoreProduct[]; slim: StoreProduct[] }> {
   const rows = await db.prepare(
-    `SELECT id, brand, name, why, evidence, dose, testing, halal, mal, audience,
-            price_cents, list_price_cents, shopee_url, active
+    `SELECT id, store, kind, brand, name, why, evidence, dose, testing, halal, mal, audience,
+            price_cents, list_price_cents, link_url, active
      FROM products ORDER BY name ASC`,
   ).all<ProductRow>();
   const stored = (rows.results || []).map(mapProduct);
-  if (stored.length) return stored;
-  return parseCatalog(catalogJson);
+  const pumpStored = stored.filter((item) => belongs(item, "pump"));
+  const slimStored = stored.filter((item) => belongs(item, "slim"));
+  return {
+    pump: pumpStored.length ? pumpStored : parseCatalog(pumpJson, "pump").filter((item) => belongs(item, "pump")),
+    slim: slimStored.length ? slimStored : parseCatalog(slimJson, "slim").filter((item) => belongs(item, "slim")),
+  };
 }
 
 export async function saveProduct(db: Db, input: unknown): Promise<void> {
   const product = productFrom(input);
   await db.prepare(
     `INSERT INTO products (
-       id, brand, name, why, evidence, dose, testing, halal, mal, audience,
-       price_cents, list_price_cents, shopee_url, active
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       id, store, kind, brand, name, why, evidence, dose, testing, halal, mal, audience,
+       price_cents, list_price_cents, link_url, active
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       brand = excluded.brand, name = excluded.name, why = excluded.why,
-       evidence = excluded.evidence, dose = excluded.dose, testing = excluded.testing,
+       store = excluded.store, kind = excluded.kind, brand = excluded.brand, name = excluded.name,
+       why = excluded.why, evidence = excluded.evidence, dose = excluded.dose, testing = excluded.testing,
        halal = excluded.halal, mal = excluded.mal, audience = excluded.audience,
        price_cents = excluded.price_cents, list_price_cents = excluded.list_price_cents,
-       shopee_url = excluded.shopee_url, active = excluded.active`,
+       link_url = excluded.link_url, active = excluded.active`,
   ).bind(
-    product.id, product.brand, product.name, product.why, product.evidence, product.dose,
+    product.id, product.store, product.kind, product.brand, product.name, product.why, product.evidence, product.dose,
     product.testing, product.halal, product.mal, product.audience, product.priceCents,
-    product.listPriceCents, product.shopeeUrl, product.active ? 1 : 0,
+    product.listPriceCents, product.linkUrl, product.active ? 1 : 0,
   ).run();
 }
 
-export async function publicStore(db: Db, config: StoreConfig, catalogJson: string | undefined, ageConfirmed: boolean) {
-  const products = (await listProducts(db, catalogJson)).filter((item) => item.active);
-  const adultCount = products.filter((item) => item.audience === "adult").length;
+export async function publicStore(db: Db, config: StoreConfig, pumpJson: string | undefined, slimJson: string | undefined, ageConfirmed: boolean) {
+  const lists = await listProducts(db, pumpJson, slimJson);
+  const pump = lists.pump.filter((item) => belongs(item, "pump"));
+  const slim = lists.slim.filter((item) => belongs(item, "slim"));
   return {
     enabled: true,
     mode: config.mode,
     currency: config.currency,
     seller: config.seller,
-    recommended: products.filter((item) => item.audience !== "adult"),
-    adult: ageConfirmed ? products.filter((item) => item.audience === "adult") : [],
-    adultLocked: adultCount > 0 && !ageConfirmed,
+    pump: {
+      title: "Pump Up",
+      disclosure: PUMP_DISCLOSURE,
+      products: pump,
+    },
+    slim: {
+      title: "Slimming",
+      ownerLabel: "The owner's own SOSM+ products. Not part of Pump Up.",
+      adLine: SLIM_AD_LINE,
+      locked: slim.length > 0 && !ageConfirmed,
+      products: ageConfirmed ? slim : [],
+    },
     pages: {
       terms: "shop-terms.html",
       refund: "shop-refund.html",
@@ -99,22 +126,25 @@ export async function placeOrder(
   day: string,
   config: StoreConfig,
   input: { name: string; phone: string; address: string; items: { id: string; qty: number }[]; consent: boolean; ageConfirm: boolean },
-  catalogJson: string | undefined,
+  catalogs: { pump?: string; slim?: string },
   env: PaymentEnv,
   sandboxPage: string,
 ) {
-  if (config.mode !== "checkout") throw new GameError(400, "This shop sends you to Shopee. There is no in-app payment.");
+  if (config.mode !== "checkout") throw new GameError(400, "These stores use links. There is no in-app payment.");
   if (!config.gateway) throw new GameError(400, "Set STORE_GATEWAY to billplz, toyyibpay, or stripe.");
   if (!config.seller.name) throw new GameError(400, "Add the seller name before taking payment.");
   if (!input.consent) throw new GameError(400, "Tick the box to agree to the delivery privacy note.");
-  const catalog = (await listProducts(db, catalogJson)).filter((item) => item.active);
+  const lists = await listProducts(db, catalogs.pump, catalogs.slim);
+  const catalog = [...lists.pump, ...lists.slim].filter((item) => item.active);
   const lines = input.items.map((item) => {
     const product = catalog.find((row) => row.id === item.id);
-    if (!product) throw new GameError(400, "That product is not in the shop.");
+    if (!product || !belongs(product, product.store)) throw new GameError(400, "That product is not in the shop.");
     if (product.priceCents < product.listPriceCents) throw new GameError(400, "Price cannot be below the supplier list price.");
-    if (product.audience === "adult" && !input.ageConfirm) throw new GameError(400, "Confirm you are 18 or older for that product.");
-    return { id: product.id, name: product.name, qty: item.qty, priceCents: product.priceCents };
+    if (product.store === "slim" && !input.ageConfirm) throw new GameError(400, "Confirm you are 18 or older for the Slimming store.");
+    return { id: product.id, store: product.store, name: product.name, qty: item.qty, priceCents: product.priceCents };
   });
+  const stores = new Set(lines.map((line) => line.store));
+  if (stores.size > 1) throw new GameError(400, "Pump Up and Slimming are separate. Order one store at a time.");
   const total = lines.reduce((sum, line) => sum + line.priceCents * line.qty, 0);
   const id = randomHex(8);
   const token = randomHex(16);

@@ -186,15 +186,19 @@ Physical goods only. Fit does not use Apple or Google in-app purchase. The relea
 
 `STORE_ENABLED=true npm run build`
 
-Until both are true, `/v1/store/catalog` answers Not found, and `dist/play.js` has no cart and no product list. Shopee link-out stays the default. Leave `STORE_MODE` as `external`.
+Until both are true, `/v1/store/catalog` answers Not found, and `dist/play.js` has no cart and no product list. Leave `STORE_MODE` as `external`. That is link-out. Fit does not take payment inside the app.
 
-When the Shop tab is on, it is visible. It shows the seller name, address line, and phone (`STORE_SELLER_NAME`, `STORE_SELLER_LINE`, `STORE_SELLER_CONTACT`), plus Terms, Refunds, and Shop privacy. Edit `src/shop-pages/` before you take orders. Those pages are a starting point, not legal advice.
+When the Shop tab is on, it is visible and it holds two stores that never share a product. It also shows the seller name, address line, and phone (`STORE_SELLER_NAME`, `STORE_SELLER_LINE`, `STORE_SELLER_CONTACT`), plus Terms, Refunds, and Shop privacy. Edit `src/shop-pages/` before you take orders. Those pages are a starting point, not legal advice.
 
-Products are a recommended list, the same for every player. Add them on the owner page or as JSON in `STORE_CATALOG`. Each product needs a plain reason, the evidence, the dose, third-party testing (or "Not third-party tested"), halal (`yes`, `no`, or `not-stated`), and a MAL number or `not-stated`. The price in sen cannot be below `listPriceCents`. The page rejects health claims, promo language, bundles, and a field that would suggest a product after a workout.
+**Pump Up** is a short evidence list only: whey protein, creatine, vitamin D3, omega-3, and magnesium. Examples you can add, each with its own why, evidence, dose, testing, halal, and MAL: ON Gold Standard Whey Double Rich Chocolate, ON Gold Standard Whey Vanilla, Rule 1 Creatine, ON Micronized Creatine, Rule 1 R1 Isolate, Rule 1 Plant Protein, VitaHealth D3 1000 IU, Blackmores Omega-3 Triple Strength, and Swisse Magnesium. Put that list in `STORE_PUMP_CATALOG` as JSON, or add the rows on the owner page. `kind` must be `whey`, `creatine`, `vitamin-d3`, `omega-3`, or `magnesium`. Fat burners and slimming products are rejected. A Pump Up link must be Myprotein, Lazada (use the LazMall listing), or a Shopee Mall link. The page says some of those links are affiliate links.
 
-Products marked `adult` are 18+ only. They stay off the recommended list. The player has to tick that they are 18 or older, and the shop still does not use workouts or goals to choose them.
+**Slimming** is only your own SOSM+ products, such as MateBurn and Night Booster. Put them in `STORE_SLIM_CATALOG`, not in the Pump Up list. The store is labelled as yours. It stays behind an 18+ tick and it is never chosen from a workout, a goal, or a quest. Every Slimming card shows: "This should be taken with a balanced diet and regular exercise." The page rejects fat-burning, quick weight loss, blood pressure, and heart disease claims. Links are Shopee or WhatsApp.
 
-In-app checkout is optional and stays in sandbox. `STORE_SANDBOX` must stay `true`. This version refuses a live Stripe key and will not turn on live Billplz or ToyyibPay. Set `STORE_MODE` to `checkout` and `STORE_GATEWAY` to `billplz`, `toyyibpay`, or `stripe` only after you have sandbox keys. Put the keys in with `npx wrangler secret put`, not in the source:
+A product saved in one store cannot appear in the other. The two lists are not used to recommend each other.
+
+Each product still needs a plain reason, the evidence, the dose, third-party testing (or "Not third-party tested"), halal (`yes`, `no`, or `not-stated`), and a MAL number or `not-stated`. The price in sen cannot be below `listPriceCents`. There is no promo code, points-for-products, or bundle.
+
+In-app checkout is optional and stays in sandbox. `STORE_SANDBOX` must stay `true`. This version refuses a live Stripe key and will not turn on live Billplz or ToyyibPay. Set `STORE_MODE` to `checkout` and `STORE_GATEWAY` to `billplz`, `toyyibpay`, or `stripe` only after you have sandbox keys. One order can hold products from only one store. Put the keys in with `npx wrangler secret put`, not in the source:
 
 - `BILLPLZ_API_KEY` and `BILLPLZ_COLLECTION_ID` for Billplz sandbox
 - `TOYYIBPAY_SECRET` and `TOYYIBPAY_CATEGORY` for ToyyibPay sandbox

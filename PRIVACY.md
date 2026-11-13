@@ -159,7 +159,9 @@ There are no discount codes in the player app while the switch is off.
 
 The shop is off in the released player app until you rebuild with `STORE_ENABLED=true`. While it is off, players are not shown a Shop tab, and the shop address answers Not found. The game payload never includes products.
 
-If you turn the shop on, an order is stored apart from the game scores. Fitness data is not read to choose or market products. The buyer must tick a consent box. The record is:
+If you turn the shop on, it is two lists. Pump Up is the evidence shortlist. Slimming is only your SOSM+ products, shown after an 18+ tick, and never chosen from a workout, goal, or quest. Neither list is built from food or fitness data, and they do not recommend each other.
+
+An order is stored apart from the game scores. The buyer must tick a consent box. The record is:
 
 | Column | Meaning |
 | --- | --- |

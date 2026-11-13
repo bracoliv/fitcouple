@@ -86,6 +86,8 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_user ON vouchers (user_id);`;
 
 export const STORE_SQL = `CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
+  store TEXT NOT NULL,
+  kind TEXT NOT NULL,
   brand TEXT NOT NULL,
   name TEXT NOT NULL,
   why TEXT NOT NULL,
@@ -97,7 +99,7 @@ export const STORE_SQL = `CREATE TABLE IF NOT EXISTS products (
   audience TEXT NOT NULL,
   price_cents INTEGER NOT NULL,
   list_price_cents INTEGER NOT NULL,
-  shopee_url TEXT NOT NULL,
+  link_url TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1
 );
 

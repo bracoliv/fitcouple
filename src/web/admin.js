@@ -82,10 +82,10 @@ function visible(player) {
 function shopCard() {
   const shop = state.shop;
   if (!shop) return "";
-  const products = (shop.products || []).map((item) => `<li>${esc(item.name)} · ${item.audience === "adult" ? "18+ · " : ""}${item.priceCents} sen · list ${item.listPriceCents} sen · ${item.active ? "shown when the shop build is on" : "hidden"}</li>`).join("");
+  const products = (shop.products || []).map((item) => `<li>${item.store === "slim" ? "Slimming" : "Pump Up"} · ${esc(item.name)} · ${item.priceCents} sen · list ${item.listPriceCents} sen</li>`).join("");
   const orders = (shop.orders || []).map((item) => `<li>${esc(item.day)} · ${esc(item.status)} · ${esc(item.name)} · ${esc(item.phone)} · ${esc(item.address)} <button type="button" data-delete-order="${esc(item.id)}">Delete</button></li>`).join("");
   return `<section class="card"><h2>Shop</h2><p class="hint">${shop.enabled ? "The server flag is on. Players only see a Shop tab after you rebuild the site with STORE_ENABLED=true." : "Off. The released player app has no Shop tab and the shop address answers Not found. Rebuild with STORE_ENABLED=true only when you mean to show it."}</p><ul class="log">${products || `<li class="meta">No products yet.</li>`}</ul>
-    <form id="productForm"><label>Id<input name="id" required maxlength="32"></label><label>Brand<select name="brand"><option value="sosm">SOSM+</option><option value="other">Other brand</option></select></label><label>Name<input name="name" required maxlength="80"></label><label>Why it is listed<input name="why" required maxlength="200" placeholder="Plain reason. No health claim and no sales pitch."></label><label>Evidence<input name="evidence" required maxlength="200" placeholder="Label fact or source."></label><label>Dose<input name="dose" required maxlength="120"></label><label>Third-party testing<input name="testing" required maxlength="160" placeholder="Name the lab, or write Not third-party tested."></label><label>Halal<select name="halal"><option value="not-stated">Not stated</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>MAL<input name="mal" required maxlength="40" placeholder="MAL number, not-stated, or not-applicable"></label><label>Who can see it<select name="audience"><option value="all">Everyone</option><option value="adult">Adult 18+</option></select></label><label>Price in sen<input name="priceCents" inputmode="numeric" required></label><label>Supplier list price in sen<input name="listPriceCents" inputmode="numeric" required></label><label>Shopee link<input name="shopeeUrl" placeholder="https://shopee.com.my/..."></label><button type="submit">Save product</button></form>
+    <form id="productForm"><label>Id<input name="id" required maxlength="32"></label><label>Name<input name="name" required maxlength="80"></label><label>Why it is listed<input name="why" required maxlength="200" placeholder="Plain reason. No health claim and no sales pitch."></label><label>Evidence<input name="evidence" required maxlength="200" placeholder="Label fact or source."></label><label>Dose<input name="dose" required maxlength="120"></label><label>Third-party testing<input name="testing" required maxlength="160" placeholder="Name the lab, or write Not third-party tested."></label><label>Halal<select name="halal"><option value="not-stated">Not stated</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>MAL<input name="mal" required maxlength="40" placeholder="MAL number, not-stated, or not-applicable"></label><label>Store<select name="store"><option value="pump">Pump Up</option><option value="slim">Slimming, owner's SOSM+</option></select></label><label>Kind<select name="kind"><option value="whey">Whey</option><option value="creatine">Creatine</option><option value="vitamin-d3">Vitamin D3</option><option value="omega-3">Omega-3</option><option value="magnesium">Magnesium</option><option value="sosm">SOSM+</option></select></label><label>Price in sen<input name="priceCents" inputmode="numeric" required></label><label>Supplier list price in sen<input name="listPriceCents" inputmode="numeric" required></label><label>Store link<input name="linkUrl" required placeholder="Myprotein, LazMall, or Shopee Mall for Pump Up. Shopee or WhatsApp for Slimming."></label><button type="submit">Save product</button></form>
     ${orders ? `<h3>Orders</h3><p class="hint">Name, phone, and address are for delivery only. They are not used to recommend products. Delete a row if the buyer asks.</p><ul class="log">${orders}</ul>` : ""}</section>`;
 }
 
@@ -159,7 +159,9 @@ async function saveShopProduct(data) {
   try {
     state.shop = await saveOwnerProduct(state.key, {
       id: String(data.get("id") || ""),
-      brand: String(data.get("brand") || "other"),
+      store: String(data.get("store") || "pump"),
+      kind: String(data.get("kind") || ""),
+      brand: String(data.get("store") || "") === "slim" ? "sosm" : "other",
       name: String(data.get("name") || ""),
       why: String(data.get("why") || ""),
       evidence: String(data.get("evidence") || ""),
@@ -167,10 +169,9 @@ async function saveShopProduct(data) {
       testing: String(data.get("testing") || ""),
       halal: String(data.get("halal") || "not-stated"),
       mal: String(data.get("mal") || ""),
-      audience: String(data.get("audience") || "all"),
       priceCents: Number(data.get("priceCents") || 0),
       listPriceCents: Number(data.get("listPriceCents") || 0),
-      shopeeUrl: String(data.get("shopeeUrl") || ""),
+      linkUrl: String(data.get("linkUrl") || ""),
       active: true,
     });
     state.error = "";
