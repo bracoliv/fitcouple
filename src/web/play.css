@@ -79,11 +79,16 @@ h2 { font-size: 1.05rem; }
   background: #10141b; border-top: 1px solid var(--line);
   padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
 }
+.nav.nav-shop { grid-template-columns: repeat(6, 1fr); }
 .nav a { text-align: center; text-decoration: none; color: var(--muted); font-size: 0.75rem; display: flex; align-items: center; justify-content: center; }
+.nav.nav-shop a { font-size: 0.68rem; padding: 8px 2px; }
 label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
 input, select {
   width: 100%; margin-top: 4px; background: #0e1116; border: 1px solid var(--line);
   border-radius: 12px; padding: 12px; min-height: 44px;
+}
+input[type="checkbox"] {
+  width: 1.1rem; min-height: 1.1rem; margin: 0 8px 0 0; padding: 0; vertical-align: middle;
 }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .log { list-style: none; padding: 0; margin: 0; }

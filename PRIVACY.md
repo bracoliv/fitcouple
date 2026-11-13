@@ -157,7 +157,9 @@ If you turn vouchers on, the server also stores this table. It is not a meal log
 
 There are no discount codes in the player app while the switch is off.
 
-The Refuel Station shop is also off until `STORE_ENABLED` is `true`. While it is off, players are not shown products. If you turn it on, an order is stored apart from the game scores:
+The shop is off in the released player app until you rebuild with `STORE_ENABLED=true`. While it is off, players are not shown a Shop tab, and the shop address answers Not found. The game payload never includes products.
+
+If you turn the shop on, an order is stored apart from the game scores. Fitness data is not read to choose or market products. The buyer must tick a consent box. The record is:
 
 | Column | Meaning |
 | --- | --- |
@@ -166,5 +168,6 @@ The Refuel Station shop is also off until `STORE_ENABLED` is `true`. While it is
 | items, total_cents | What was ordered and the price |
 | status, gateway, provider_ref | Paid or not, and the sandbox payment reference |
 | created_day | The date |
+| consent | 1 when the buyer agreed the delivery details stay apart from health data |
 
-Delete an order from the owner page when someone asks. Product text is rejected if it makes a health claim.
+Delete an order from the owner page when someone asks. Product text is rejected if it makes a health claim or a sales pitch. 18+ products are not placed in the recommended list.

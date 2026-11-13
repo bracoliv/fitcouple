@@ -178,23 +178,31 @@ Deploy again with `npx wrangler deploy`. Staff open `redeem.html`, type the staf
 
 The server stores the player id, a hash of the code (not the code itself), the milestone, the value number, and whether it was used or when it expires. It does not store the dish. Logging a restaurant meal, if you turn this on, is only a quest id.
 
-### Refuel Station shop (off)
+### Shop (off in the released app)
 
-This is a shop for SOSM+ products and other brands you resell. It is **off** until you confirm the supply with SOSM+ and, if you want in-app payment, finish payment-gateway registration. Players do not see it now.
+Physical goods only. Fit does not use Apple or Google in-app purchase. The released player app has **no Shop tab** until you rebuild it with the flag on. Leaving the server flag off is not enough on its own: the shop pages and the shop code are left out of `dist/` so a player cannot open a hidden shop.
 
-`STORE_ENABLED` must be the exact word `true`. Leave `STORE_MODE` as `external` for a zero-cost start: each product is a link to your Shopee listing, and Fit does not take payment.
+`STORE_ENABLED` must be the exact word `true` in `wrangler.jsonc`, and you must build again with that same word:
 
-Products are added on the owner page, or as JSON in `STORE_CATALOG`. Use plain words: size and flavour. Do not write health claims such as burn fat, cure, or clinically proven. The page will reject those.
+`STORE_ENABLED=true npm run build`
 
-In-app checkout stays in sandbox. `STORE_SANDBOX` must stay `true`. This version refuses a live Stripe key and will not turn on live Billplz or ToyyibPay. Set `STORE_MODE` to `checkout` and `STORE_GATEWAY` to `billplz`, `toyyibpay`, or `stripe` only after you have sandbox keys. Put the keys in with `npx wrangler secret put`, not in the source:
+Until both are true, `/v1/store/catalog` answers Not found, and `dist/play.js` has no cart and no product list. Shopee link-out stays the default. Leave `STORE_MODE` as `external`.
+
+When the Shop tab is on, it is visible. It shows the seller name, address line, and phone (`STORE_SELLER_NAME`, `STORE_SELLER_LINE`, `STORE_SELLER_CONTACT`), plus Terms, Refunds, and Shop privacy. Edit `src/shop-pages/` before you take orders. Those pages are a starting point, not legal advice.
+
+Products are a recommended list, the same for every player. Add them on the owner page or as JSON in `STORE_CATALOG`. Each product needs a plain reason, the evidence, the dose, third-party testing (or "Not third-party tested"), halal (`yes`, `no`, or `not-stated`), and a MAL number or `not-stated`. The price in sen cannot be below `listPriceCents`. The page rejects health claims, promo language, bundles, and a field that would suggest a product after a workout.
+
+Products marked `adult` are 18+ only. They stay off the recommended list. The player has to tick that they are 18 or older, and the shop still does not use workouts or goals to choose them.
+
+In-app checkout is optional and stays in sandbox. `STORE_SANDBOX` must stay `true`. This version refuses a live Stripe key and will not turn on live Billplz or ToyyibPay. Set `STORE_MODE` to `checkout` and `STORE_GATEWAY` to `billplz`, `toyyibpay`, or `stripe` only after you have sandbox keys. Put the keys in with `npx wrangler secret put`, not in the source:
 
 - `BILLPLZ_API_KEY` and `BILLPLZ_COLLECTION_ID` for Billplz sandbox
 - `TOYYIBPAY_SECRET` and `TOYYIBPAY_CATEGORY` for ToyyibPay sandbox
 - `STRIPE_SECRET` must start with `sk_test_`
 
-With no keys, checkout opens a test page that marks the order paid and charges nothing.
+With no keys, checkout opens a test page that marks the order paid and charges nothing. There is no promo code, no points-for-products, and no bundle price.
 
-An order stores only the name, phone, address, and items needed to deliver it. That list is separate from food and workout scores. The checkout screen says so. On the owner page you can delete an order if the buyer asks. That is the PDPA-friendly path: collect delivery details for the order, keep them apart from health logs, and delete them on request.
+An order stores only the name, phone, address, items, total, and that the buyer ticked the delivery consent box. Checkout refuses the order without that tick. The order table is separate from food and workout scores. The shop does not read those scores to recommend or market anything. On the owner page you can delete an order if the buyer asks.
 
 It does not store food, meals, workout names, weights, notes, emails, Google tokens, or sheet links.
 

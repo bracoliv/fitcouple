@@ -35,10 +35,13 @@ test.after(async () => {
   await dispose();
 });
 
-async function call(path: string, options: { method?: string; token?: string; body?: unknown; raw?: string; origin?: string | null } = {}) {
+async function call(path: string, options: { method?: string; token?: string; body?: unknown; raw?: string; origin?: string | null; headers?: Record<string, string> } = {}) {
   const headers = new Headers();
   if (options.origin !== null) headers.set("Origin", options.origin || "http://127.0.0.1:8788");
   if (options.token) headers.set("Authorization", "Bearer " + options.token);
+  if (options.headers) {
+    for (const [key, value] of Object.entries(options.headers)) headers.set(key, value);
+  }
   if (options.body !== undefined || options.raw !== undefined) headers.set("Content-Type", "application/json");
   const res = await handle(new Request("http://game.test" + path, {
     method: options.method || "GET",
@@ -292,58 +295,105 @@ test("restaurant vouchers stay hidden until the flag is on", async () => {
   }
 });
 
-test("the refuel shop stays hidden and sandbox checkout does not charge", async () => {
+test("the shop stays out of the game and does not use health data", async () => {
   const day = utcDay();
   const quiet = await session("e");
   assert.equal((quiet.body as { store?: unknown }).store, undefined);
+  assert.equal((await call("/v1/store/catalog", { token: quiet.token })).status, 404);
   assert.equal((await call("/v1/store/checkout", {
     method: "POST",
     token: quiet.token,
-    body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+    body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
   })).status, 404);
 
+  const product = {
+    id: "whey",
+    brand: "sosm",
+    name: "Chocolate whey, 900 g",
+    why: "A plain powder the seller already stocks.",
+    evidence: "The tub label lists the serving size.",
+    dose: "One scoop, about 30 g.",
+    testing: "Not third-party tested.",
+    halal: "not-stated",
+    mal: "not-stated",
+    audience: "all",
+    priceCents: 9900,
+    listPriceCents: 9900,
+    shopeeUrl: "https://shopee.com.my/whey",
+    active: true,
+  };
   env.STORE_ENABLED = "true";
   env.STORE_MODE = "external";
   env.STORE_SANDBOX = "true";
   env.STORE_CURRENCY = "RM";
+  env.STORE_SELLER_NAME = "Ari Shop";
+  env.STORE_SELLER_LINE = "Kuala Lumpur";
+  env.STORE_SELLER_CONTACT = "0123456789";
   try {
-    const saved = await call("/v1/admin/products", {
-      method: "POST",
-      token: TEST_KEY,
-      body: { id: "whey", brand: "sosm", name: "Chocolate whey, 900 g", blurb: "One tub. Chocolate flavour.", priceCents: 9900, shopeeUrl: "https://shopee.com.my/whey", suggest: "after_workout", active: true },
-    });
+    const saved = await call("/v1/admin/products", { method: "POST", token: TEST_KEY, body: product });
     assert.equal(saved.status, 200, saved.text);
     const claim = await call("/v1/admin/products", {
       method: "POST",
       token: TEST_KEY,
-      body: { id: "bad", brand: "other", name: "Burns fat fast", blurb: "A tub.", priceCents: 1000, active: true },
+      body: { ...product, id: "bad", name: "Burns fat fast" },
     });
     assert.equal(claim.status, 400);
-    const shown = await call("/v1/me?day=" + day, { token: quiet.token });
-    const store = (shown.json as { store: { enabled: boolean; mode: string; products: { shopeeUrl: string }[]; suggestions: unknown[] } }).store;
-    assert.equal(store.enabled, true);
+    const cheap = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "cheap", priceCents: 1000, listPriceCents: 9900 },
+    });
+    assert.equal(cheap.status, 400);
+    const adult = await call("/v1/admin/products", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { ...product, id: "pre", name: "Pre workout, 300 g", audience: "adult" },
+    });
+    assert.equal(adult.status, 200, adult.text);
+    const shown = await call("/v1/store/catalog", { token: quiet.token });
+    const store = shown.json as { mode: string; recommended: { id: string; shopeeUrl: string }[]; adult: unknown[]; adultLocked: boolean };
     assert.equal(store.mode, "external");
-    assert.equal(store.products[0].shopeeUrl.includes("shopee.com.my"), true);
-    assert.equal(store.suggestions.length, 0);
+    assert.equal(store.recommended.length, 1);
+    assert.equal(store.recommended[0].id, "whey");
+    assert.equal(store.adult.length, 0);
+    assert.equal(store.adultLocked, true);
+    assert.equal(JSON.stringify(shown.json).includes("suggestions"), false);
     const moved = await call("/v1/events", {
       method: "POST",
       token: quiet.token,
       body: { day, events: [{ questId: "log_workout", count: 1, source: "manual" }] },
     });
-    assert.equal(((moved.json as { store: { suggestions: unknown[] } }).store.suggestions || []).length, 1);
+    assert.equal(JSON.stringify(moved.json).includes("whey"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(moved.json, "store"), false);
+    const again = await call("/v1/store/catalog", { token: quiet.token });
+    assert.equal(JSON.stringify((again.json as { recommended: unknown[] }).recommended), JSON.stringify(store.recommended));
+    const opened = await call("/v1/store/catalog", { token: quiet.token, headers: { "X-Age-Confirm": "18" } });
+    assert.equal((opened.json as { adult: { id: string }[] }).adult[0].id, "pre");
     const linked = await call("/v1/store/checkout", {
       method: "POST",
       token: quiet.token,
-      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], weight: 70 },
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true, weight: 70 },
     });
     assert.equal(linked.status, 400);
     assert.equal(linked.text.includes("70"), false);
     env.STORE_MODE = "checkout";
     env.STORE_GATEWAY = "stripe";
-    const order = await call("/v1/store/checkout", {
+    const refused = await call("/v1/store/checkout", {
       method: "POST",
       token: quiet.token,
       body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+    });
+    assert.equal(refused.status, 400);
+    const tooYoung = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "pre", qty: 1 }], consent: true },
+    });
+    assert.equal(tooYoung.status, 400);
+    const order = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
     });
     assert.equal(order.status, 200, order.text);
     const paid = order.json as { orderId: string; url: string; sandbox: boolean };
@@ -355,7 +405,7 @@ test("the refuel shop stays hidden and sandbox checkout does not charge", async 
     const live = await call("/v1/store/checkout", {
       method: "POST",
       token: quiet.token,
-      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }] },
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
     });
     assert.equal(live.status, 403);
   } finally {
@@ -364,6 +414,9 @@ test("the refuel shop stays hidden and sandbox checkout does not charge", async 
     delete env.STORE_GATEWAY;
     delete env.STORE_SANDBOX;
     delete env.STORE_CURRENCY;
+    delete env.STORE_SELLER_NAME;
+    delete env.STORE_SELLER_LINE;
+    delete env.STORE_SELLER_CONTACT;
     delete env.STRIPE_SECRET;
   }
 });

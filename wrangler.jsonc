@@ -25,7 +25,10 @@
     "STORE_GATEWAY": "",
     "STORE_SANDBOX": "true",
     "STORE_CURRENCY": "RM",
-    "STORE_CATALOG": ""
+    "STORE_CATALOG": "",
+    "STORE_SELLER_NAME": "",
+    "STORE_SELLER_LINE": "",
+    "STORE_SELLER_CONTACT": ""
   },
   // ADMIN_KEY is a secret. It is not listed here on purpose.
   // Local: .dev.vars. Live: `npx wrangler secret put ADMIN_KEY`.

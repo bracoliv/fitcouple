@@ -40,6 +40,9 @@ export interface AppEnv {
   STORE_SANDBOX?: string;
   STORE_CURRENCY?: string;
   STORE_CATALOG?: string;
+  STORE_SELLER_NAME?: string;
+  STORE_SELLER_LINE?: string;
+  STORE_SELLER_CONTACT?: string;
   BILLPLZ_API_KEY?: string;
   BILLPLZ_COLLECTION_ID?: string;
   TOYYIBPAY_SECRET?: string;
@@ -59,7 +62,7 @@ function responseHeaders(request: Request, env: AppEnv): Headers {
   if (origin && allowedOrigin(env, origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
-    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Ai-Key, X-Ai-Host");
+    headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Ai-Key, X-Ai-Host, X-Age-Confirm");
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   }
   return headers;
@@ -70,19 +73,7 @@ function json(request: Request, env: AppEnv, status: number, body: unknown): Res
 }
 
 async function presentPlayer(request: Request, env: AppEnv, status: number, body: unknown): Promise<Response> {
-  const shop = readStoreConfig(env);
-  if (!body || typeof body !== "object" || Array.isArray(body) || !shop.enabled) {
-    return json(request, env, status, body);
-  }
-  const record = { ...(body as Record<string, unknown>) };
-  const quests = Array.isArray(record.quests) ? record.quests as { id: string; done: boolean }[] : [];
-  const userId = typeof record.id === "string" ? record.id : "";
-  record.store = {
-    ...(await publicStore(env.DB, shop, env.STORE_CATALOG, quests)),
-    orders: userId ? await playerOrders(env.DB, userId) : [],
-    privacy: "Your name, phone, and address are kept only to deliver an order. They are not mixed with your food or workout log.",
-  };
-  return json(request, env, status, record);
+  return json(request, env, status, body);
 }
 
 async function readBody(request: Request): Promise<unknown> {
@@ -235,6 +226,16 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       }
       return json(request, env, 200, await deleteOrder(env.DB, body.orderId));
     }
+    if (request.method === "GET" && url.pathname === "/v1/store/catalog") {
+      const shop = readStoreConfig(env);
+      if (!shop.enabled) return json(request, env, 404, { error: "Not found." });
+      const user = await userFromToken(env.DB, bearer(request));
+      const ageConfirmed = request.headers.get("X-Age-Confirm") === "18";
+      return json(request, env, 200, {
+        ...(await publicStore(env.DB, shop, env.STORE_CATALOG, ageConfirmed)),
+        orders: await playerOrders(env.DB, user.id),
+      });
+    }
     if (request.method === "POST" && url.pathname === "/v1/store/checkout") {
       const shop = readStoreConfig(env);
       if (!shop.enabled) return json(request, env, 404, { error: "Not found." });
@@ -275,7 +276,11 @@ async function readProduct(request: Request): Promise<unknown> {
   const link = copy.shopeeUrl ?? copy.shopee_url;
   delete copy.shopeeUrl;
   delete copy.shopee_url;
-  assertNoPrivateFields(copy, 0, 200);
+  for (const value of Object.values(copy)) {
+    if (typeof value === "string" && (value.includes("@") || /https?:\/\//i.test(value))) {
+      throw new GameError(400, "Links and email addresses are not accepted.");
+    }
+  }
   if (link != null) copy.shopeeUrl = link;
   return copy;
 }

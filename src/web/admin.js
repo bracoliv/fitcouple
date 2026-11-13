@@ -3,6 +3,35 @@ import { localDay } from "./summary.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787" };
 const api = createApi(config.workerUrl);
+
+async function ownerShop(path, key, body) {
+  const headers = { Authorization: "Bearer " + key };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(String(config.workerUrl || "").replace(/\/$/, "") + path, {
+    method: body === undefined ? "GET" : "POST",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || "The shop could not be updated.");
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+}
+
+function loadOwnerShop(key) {
+  return ownerShop("/v1/admin/products", key);
+}
+
+function saveOwnerProduct(key, product) {
+  return ownerShop("/v1/admin/products", key, product);
+}
+
+function deleteOwnerOrder(key, orderId) {
+  return ownerShop("/v1/admin/orders/delete", key, { orderId });
+}
 const KEY = "fitAdminKey";
 const filters = ["all", "improving", "steady", "slipping", "inactive"];
 const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, error: "", filter: "all", query: "", loading: false };
@@ -53,11 +82,11 @@ function visible(player) {
 function shopCard() {
   const shop = state.shop;
   if (!shop) return "";
-  const products = (shop.products || []).map((item) => `<li>${esc(item.name)} · ${item.priceCents} sen · ${item.active ? "shown when the shop is on" : "hidden"}</li>`).join("");
+  const products = (shop.products || []).map((item) => `<li>${esc(item.name)} · ${item.audience === "adult" ? "18+ · " : ""}${item.priceCents} sen · list ${item.listPriceCents} sen · ${item.active ? "shown when the shop build is on" : "hidden"}</li>`).join("");
   const orders = (shop.orders || []).map((item) => `<li>${esc(item.day)} · ${esc(item.status)} · ${esc(item.name)} · ${esc(item.phone)} · ${esc(item.address)} <button type="button" data-delete-order="${esc(item.id)}">Delete</button></li>`).join("");
-  return `<section class="card"><h2>Refuel Station</h2><p class="hint">${shop.enabled ? "On." : "Off. Players cannot see the shop. Confirm with SOSM+ and register a payment gateway before you turn STORE_ENABLED on."}</p><ul class="log">${products || `<li class="meta">No products yet.</li>`}</ul>
-    <form id="productForm"><label>Id<input name="id" required maxlength="32"></label><label>Brand<select name="brand"><option value="sosm">SOSM+</option><option value="other">Other brand</option></select></label><label>Name<input name="name" required maxlength="80"></label><label>Description<input name="blurb" required maxlength="180" placeholder="Size and flavour only. No health claims."></label><label>Price in sen<input name="priceCents" inputmode="numeric" required></label><label>Shopee link<input name="shopeeUrl" placeholder="https://shopee.com.my/..."></label><label><input name="suggest" type="checkbox" value="after_workout"> Suggest after a workout</label><button type="submit">Save product</button></form>
-    ${orders ? `<h3>Orders</h3><p class="hint">Name, phone, and address are for delivery only. Delete a row if the buyer asks.</p><ul class="log">${orders}</ul>` : ""}</section>`;
+  return `<section class="card"><h2>Shop</h2><p class="hint">${shop.enabled ? "The server flag is on. Players only see a Shop tab after you rebuild the site with STORE_ENABLED=true." : "Off. The released player app has no Shop tab and the shop address answers Not found. Rebuild with STORE_ENABLED=true only when you mean to show it."}</p><ul class="log">${products || `<li class="meta">No products yet.</li>`}</ul>
+    <form id="productForm"><label>Id<input name="id" required maxlength="32"></label><label>Brand<select name="brand"><option value="sosm">SOSM+</option><option value="other">Other brand</option></select></label><label>Name<input name="name" required maxlength="80"></label><label>Why it is listed<input name="why" required maxlength="200" placeholder="Plain reason. No health claim and no sales pitch."></label><label>Evidence<input name="evidence" required maxlength="200" placeholder="Label fact or source."></label><label>Dose<input name="dose" required maxlength="120"></label><label>Third-party testing<input name="testing" required maxlength="160" placeholder="Name the lab, or write Not third-party tested."></label><label>Halal<select name="halal"><option value="not-stated">Not stated</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>MAL<input name="mal" required maxlength="40" placeholder="MAL number, not-stated, or not-applicable"></label><label>Who can see it<select name="audience"><option value="all">Everyone</option><option value="adult">Adult 18+</option></select></label><label>Price in sen<input name="priceCents" inputmode="numeric" required></label><label>Supplier list price in sen<input name="listPriceCents" inputmode="numeric" required></label><label>Shopee link<input name="shopeeUrl" placeholder="https://shopee.com.my/..."></label><button type="submit">Save product</button></form>
+    ${orders ? `<h3>Orders</h3><p class="hint">Name, phone, and address are for delivery only. They are not used to recommend products. Delete a row if the buyer asks.</p><ul class="log">${orders}</ul>` : ""}</section>`;
 }
 
 function render() {
@@ -128,14 +157,20 @@ function render() {
 
 async function saveShopProduct(data) {
   try {
-    state.shop = await api.saveProduct(state.key, {
+    state.shop = await saveOwnerProduct(state.key, {
       id: String(data.get("id") || ""),
       brand: String(data.get("brand") || "other"),
       name: String(data.get("name") || ""),
-      blurb: String(data.get("blurb") || ""),
+      why: String(data.get("why") || ""),
+      evidence: String(data.get("evidence") || ""),
+      dose: String(data.get("dose") || ""),
+      testing: String(data.get("testing") || ""),
+      halal: String(data.get("halal") || "not-stated"),
+      mal: String(data.get("mal") || ""),
+      audience: String(data.get("audience") || "all"),
       priceCents: Number(data.get("priceCents") || 0),
+      listPriceCents: Number(data.get("listPriceCents") || 0),
       shopeeUrl: String(data.get("shopeeUrl") || ""),
-      suggest: data.get("suggest") ? "after_workout" : "",
       active: true,
     });
     state.error = "";
@@ -147,8 +182,8 @@ async function saveShopProduct(data) {
 
 async function removeOrder(orderId) {
   try {
-    await api.deleteOrder(state.key, orderId);
-    state.shop = await api.shopAdmin(state.key);
+    await deleteOwnerOrder(state.key, orderId);
+    state.shop = await loadOwnerShop(state.key);
     state.error = "";
   } catch (err) {
     state.error = err.message || "Could not delete the order.";
@@ -162,7 +197,7 @@ async function load() {
   render();
   try {
     state.report = await api.admin(state.key, localDay());
-    state.shop = await api.shopAdmin(state.key);
+    state.shop = await loadOwnerShop(state.key);
   } catch (err) {
     state.report = null;
     state.error = err.message || "Could not load the owner page.";

@@ -5,10 +5,10 @@ import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } 
 import { voucherQr } from "./qr.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
 import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
+import { bindShop, navClass, screenList, shopHtml } from "./shop-ui.js";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787", googleClientId: "" };
 const api = createApi(config.workerUrl);
-const screens = ["today", "path", "focus", "team", "more"];
 
 const state = {
   loading: true,
@@ -27,7 +27,6 @@ const state = {
   measures: [],
   photoUrls: { day1: "", day66: "" },
   coachReply: "",
-  cart: [],
 };
 
 let busy = false;
@@ -128,7 +127,7 @@ async function run(fn) {
 function screenNow() {
   const name = location.hash.slice(1);
   if (name === "sheet") return "more";
-  return screens.includes(name) ? name : "today";
+  return screenList().includes(name) ? name : "today";
 }
 
 function formatTime(total) {
@@ -168,7 +167,7 @@ function todayHtml() {
   return `<section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
     <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level) => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
     <p class="meta">Day ${profile.program.day} of ${profile.program.length}. Typing earns half XP. The focus timer earns full XP for that quest. A streak adds more than extra volume.</p>
-    ${cleared}${todaySuggestions()}<ul class="quests">${quests}</ul>${attrGrid(profile.attributes)}`;
+    ${cleared}<ul class="quests">${quests}</ul>${attrGrid(profile.attributes)}`;
 }
 
 function attrGrid(attrs) {
@@ -252,7 +251,7 @@ function moreHtml() {
     : "";
   const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
   const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
-  return `${voucherSection()}${storeSection()}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+  return `${voucherSection()}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
       <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
@@ -273,13 +272,14 @@ function shell(screen) {
     path: state.profile ? pathHtml() : "",
     focus: focusHtml(),
     team: state.profile ? teamHtml() : "",
+    shop: shopHtml(state, esc),
     more: moreHtml(),
   };
   const problem = state.loading
     ? `<p class="banner">Loading your game…</p>`
     : (!state.profile && screen !== "more" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : ""));
   return `<div class="app"><header class="top"><div class="brand"><a href="index.html">Fit</a></div><span class="level">LV ${level}</span>${flame()}</header>${problem}${parts[screen] || ""}<p class="foot">Not medical advice. Food and workouts stay in your sheet. <a href="admin.html">Owner</a></p></div>
-    <nav class="nav">${screens.map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
+    <nav class="nav ${navClass()}">${screenList().map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
 }
 
 function rememberVoucherCodes(codes) {
@@ -288,26 +288,6 @@ function rememberVoucherCodes(codes) {
   try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
   for (const item of codes) if (item && item.code) saved[item.id] = item.code;
   localStorage.setItem("fitVoucherCodes", JSON.stringify(saved));
-}
-
-function money(cents, currency) {
-  return `${currency || "RM"} ${(cents / 100).toFixed(2)}`;
-}
-
-function storeSection() {
-  const store = state.profile && state.profile.store;
-  if (!store || store.enabled !== true) return "";
-  const products = (store.products || []).map((item) => `<article class="card"><p><strong>${esc(item.name)}</strong> <span class="meta">${item.brand === "sosm" ? "SOSM+" : "Other brand"}</span></p><p class="sub">${esc(item.blurb)}</p><p>${esc(money(item.priceCents, store.currency))}</p>${store.mode === "external" && item.shopeeUrl ? `<a href="${esc(item.shopeeUrl)}" target="_blank" rel="noopener">Buy on Shopee</a>` : `<button type="button" data-add-cart="${esc(item.id)}">Add to cart</button>`}</article>`).join("");
-  const cart = (state.cart || []).map((line) => `<li>${esc(line.qty)} × ${esc(line.name)}</li>`).join("");
-  const checkout = store.mode === "checkout" ? `<form id="checkout"><p class="hint">${esc(store.privacy || "")}</p><label>Name<input name="name" required maxlength="80"></label><label>Phone<input name="phone" required maxlength="20"></label><label>Address<input name="address" required maxlength="200"></label><button type="submit" class="primary">Pay in sandbox</button><p class="hint">Sandbox only. No live card is charged.</p></form>` : `<p class="hint">Fit does not take payment. Each product opens the owner's Shopee listing.</p>`;
-  return `<section><h2>Refuel Station</h2>${products || `<p class="hint">No products yet.</p>`}${cart ? `<ul class="log">${cart}</ul>` : ""}${checkout}</section>`;
-}
-
-function todaySuggestions() {
-  const store = state.profile && state.profile.store;
-  if (!store || store.enabled !== true || !(store.suggestions || []).length) return "";
-  const items = store.suggestions.map((item) => `<li>${esc(item.name)} · ${esc(money(item.priceCents, store.currency))}</li>`).join("");
-  return `<section class="card"><h2>After training</h2><p class="hint">A suggestion from the shop, not from your workout notes.</p><ul class="log">${items}</ul></section>`;
 }
 
 function voucherSection() {
@@ -409,32 +389,7 @@ function render() {
       state.profile = await api.program(state.token, button.getAttribute("data-program"), localDay());
     }));
   });
-  document.querySelectorAll("[data-add-cart]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.getAttribute("data-add-cart");
-      const product = (state.profile.store.products || []).find((item) => item.id === id);
-      if (!product) return;
-      const line = state.cart.find((item) => item.id === id);
-      if (line) line.qty = Math.min(10, line.qty + 1);
-      else state.cart.push({ id: product.id, name: product.name, qty: 1 });
-      render();
-    });
-  });
-  const checkout = document.getElementById("checkout");
-  if (checkout) checkout.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(checkout);
-    run(async () => {
-      const result = await api.checkout(state.token, {
-        name: String(data.get("name") || ""),
-        phone: String(data.get("phone") || ""),
-        address: String(data.get("address") || ""),
-        items: state.cart.map((line) => ({ id: line.id, qty: line.qty })),
-      });
-      state.cart = [];
-      if (result.url) window.location.href = result.url;
-    });
-  });
+  bindShop({ state, config, run, render });
   document.querySelectorAll("[data-recipe]").forEach((button) => {
     button.addEventListener("click", () => run(() => logRecipe(button.getAttribute("data-recipe"))));
   });

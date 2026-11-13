@@ -8,29 +8,44 @@ interface ProductRow {
   id: string;
   brand: string;
   name: string;
-  blurb: string;
+  why: string;
+  evidence: string;
+  dose: string;
+  testing: string;
+  halal: string;
+  mal: string;
+  audience: string;
   price_cents: number;
+  list_price_cents: number;
   shopee_url: string;
-  suggest: string;
   active: number;
 }
 
 function mapProduct(row: ProductRow): StoreProduct {
+  const halal = row.halal === "yes" || row.halal === "no" ? row.halal : "not-stated";
   return {
     id: row.id,
     brand: row.brand === "sosm" ? "sosm" : "other",
     name: row.name,
-    blurb: row.blurb,
+    why: row.why,
+    evidence: row.evidence,
+    dose: row.dose,
+    testing: row.testing,
+    halal,
+    mal: row.mal,
+    audience: row.audience === "adult" ? "adult" : "all",
     priceCents: row.price_cents,
+    listPriceCents: row.list_price_cents,
     shopeeUrl: row.shopee_url,
-    suggest: row.suggest === "after_workout" ? "after_workout" : "",
     active: row.active === 1,
   };
 }
 
 export async function listProducts(db: Db, catalogJson: string | undefined): Promise<StoreProduct[]> {
   const rows = await db.prepare(
-    "SELECT id, brand, name, blurb, price_cents, shopee_url, suggest, active FROM products ORDER BY name ASC",
+    `SELECT id, brand, name, why, evidence, dose, testing, halal, mal, audience,
+            price_cents, list_price_cents, shopee_url, active
+     FROM products ORDER BY name ASC`,
   ).all<ProductRow>();
   const stored = (rows.results || []).map(mapProduct);
   if (stored.length) return stored;
@@ -40,29 +55,41 @@ export async function listProducts(db: Db, catalogJson: string | undefined): Pro
 export async function saveProduct(db: Db, input: unknown): Promise<void> {
   const product = productFrom(input);
   await db.prepare(
-    `INSERT INTO products (id, brand, name, blurb, price_cents, shopee_url, suggest, active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO products (
+       id, brand, name, why, evidence, dose, testing, halal, mal, audience,
+       price_cents, list_price_cents, shopee_url, active
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       brand = excluded.brand, name = excluded.name, blurb = excluded.blurb,
-       price_cents = excluded.price_cents, shopee_url = excluded.shopee_url,
-       suggest = excluded.suggest, active = excluded.active`,
+       brand = excluded.brand, name = excluded.name, why = excluded.why,
+       evidence = excluded.evidence, dose = excluded.dose, testing = excluded.testing,
+       halal = excluded.halal, mal = excluded.mal, audience = excluded.audience,
+       price_cents = excluded.price_cents, list_price_cents = excluded.list_price_cents,
+       shopee_url = excluded.shopee_url, active = excluded.active`,
   ).bind(
-    product.id, product.brand, product.name, product.blurb, product.priceCents,
-    product.shopeeUrl, product.suggest, product.active ? 1 : 0,
+    product.id, product.brand, product.name, product.why, product.evidence, product.dose,
+    product.testing, product.halal, product.mal, product.audience, product.priceCents,
+    product.listPriceCents, product.shopeeUrl, product.active ? 1 : 0,
   ).run();
 }
 
-export async function publicStore(db: Db, config: StoreConfig, catalogJson: string | undefined, quests: { id: string; done: boolean }[]) {
+export async function publicStore(db: Db, config: StoreConfig, catalogJson: string | undefined, ageConfirmed: boolean) {
   const products = (await listProducts(db, catalogJson)).filter((item) => item.active);
-  const afterWorkout = quests.some((quest) => (quest.id === "log_workout" || quest.id === "program_session") && quest.done);
+  const adultCount = products.filter((item) => item.audience === "adult").length;
   return {
     enabled: true,
     mode: config.mode,
-    gateway: config.mode === "checkout" ? config.gateway : "",
-    sandbox: true,
     currency: config.currency,
-    products,
-    suggestions: afterWorkout ? products.filter((item) => item.suggest === "after_workout") : [],
+    seller: config.seller,
+    recommended: products.filter((item) => item.audience !== "adult"),
+    adult: ageConfirmed ? products.filter((item) => item.audience === "adult") : [],
+    adultLocked: adultCount > 0 && !ageConfirmed,
+    pages: {
+      terms: "shop-terms.html",
+      refund: "shop-refund.html",
+      privacy: "shop-privacy.html",
+    },
+    notice: "Physical goods at or above the supplier list price. No promo codes, points, or bundles. Not an in-app purchase.",
+    privacy: "Your name, phone, and address are kept only to deliver an order. They are not mixed with your food or workout log, and they are not used to pick products.",
   };
 }
 
@@ -71,25 +98,29 @@ export async function placeOrder(
   userId: string,
   day: string,
   config: StoreConfig,
-  input: { name: string; phone: string; address: string; items: { id: string; qty: number }[] },
+  input: { name: string; phone: string; address: string; items: { id: string; qty: number }[]; consent: boolean; ageConfirm: boolean },
   catalogJson: string | undefined,
   env: PaymentEnv,
   sandboxPage: string,
 ) {
   if (config.mode !== "checkout") throw new GameError(400, "This shop sends you to Shopee. There is no in-app payment.");
   if (!config.gateway) throw new GameError(400, "Set STORE_GATEWAY to billplz, toyyibpay, or stripe.");
+  if (!config.seller.name) throw new GameError(400, "Add the seller name before taking payment.");
+  if (!input.consent) throw new GameError(400, "Tick the box to agree to the delivery privacy note.");
   const catalog = (await listProducts(db, catalogJson)).filter((item) => item.active);
   const lines = input.items.map((item) => {
     const product = catalog.find((row) => row.id === item.id);
     if (!product) throw new GameError(400, "That product is not in the shop.");
+    if (product.priceCents < product.listPriceCents) throw new GameError(400, "Price cannot be below the supplier list price.");
+    if (product.audience === "adult" && !input.ageConfirm) throw new GameError(400, "Confirm you are 18 or older for that product.");
     return { id: product.id, name: product.name, qty: item.qty, priceCents: product.priceCents };
   });
   const total = lines.reduce((sum, line) => sum + line.priceCents * line.qty, 0);
   const id = randomHex(8);
   const token = randomHex(16);
   await db.prepare(
-    `INSERT INTO orders (id, user_id, name, phone, address, items, total_cents, status, gateway, provider_ref, created_day)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    `INSERT INTO orders (id, user_id, name, phone, address, items, total_cents, status, gateway, provider_ref, created_day, consent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 1)`,
   ).bind(id, userId, input.name, input.phone, input.address, JSON.stringify(lines), total, config.gateway, `sandbox:${token}`, day).run();
   const payment = await startSandboxPayment(config.gateway, {
     orderId: id,
