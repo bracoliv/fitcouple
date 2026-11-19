@@ -108,18 +108,37 @@ async function bump(db: Db, userId: string, day: string, feature: AiFeature): Pr
   ).bind(userId, day, feature).run();
 }
 
-export async function assertWithinLimit(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
-  const control = await db.prepare(
+async function controlRow(db: Db, userId: string) {
+  return db.prepare(
     "SELECT paused, food_photo_cap, text_log_cap, recommend_cap, chat_cap FROM ai_controls WHERE user_id = ?",
   ).bind(userId).first<{ paused: number; food_photo_cap: number | null; text_log_cap: number | null; recommend_cap: number | null; chat_cap: number | null }>();
+}
+
+export async function reserveQuota(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
+  const control = await controlRow(db, userId);
   if (control?.paused) throw new GameError(403, "The assistant is paused for this player.");
-  if (await isPremium(db, userId)) return;
   const personal = control ? control[`${feature}_cap` as keyof typeof control] : null;
-  const capLimit = typeof personal === "number" ? personal : limits[feature];
-  const used = await usageMap(db, userId, day);
-  if (used[feature] >= capLimit) {
-    throw new GameError(429, "You've used today's free answers for that. They reset tomorrow.");
+  const unlimited = await isPremium(db, userId) && typeof personal !== "number";
+  if (unlimited) {
+    await bump(db, userId, day, feature);
+    return;
   }
+  const capLimit = typeof personal === "number" ? personal : limits[feature];
+  if (capLimit <= 0) throw new GameError(429, DAILY_LIMIT_MESSAGE);
+  const row = await db.prepare(
+    `INSERT INTO ai_usage (user_id, day, feature, count) VALUES (?, ?, ?, 1)
+     ON CONFLICT(user_id, day, feature) DO UPDATE SET count = count + 1
+     WHERE ai_usage.count < ?
+     RETURNING count`,
+  ).bind(userId, day, feature, capLimit).first<{ count: number }>();
+  if (!row) throw new GameError(429, DAILY_LIMIT_MESSAGE);
+}
+
+export async function releaseQuota(db: Db, userId: string, day: string, feature: AiFeature): Promise<void> {
+  await db.prepare(
+    `UPDATE ai_usage SET count = CASE WHEN count > 0 THEN count - 1 ELSE 0 END
+     WHERE user_id = ? AND day = ? AND feature = ?`,
+  ).bind(userId, day, feature).run();
 }
 
 interface GeminiEnv {
@@ -136,6 +155,8 @@ interface GeminiEnv {
   AI_OPENAI_BASE_URL?: string;
   AI_PRICE_TABLE?: string;
   AI_USD_TO_RM?: string;
+  AI_DAILY_BUDGET_USD?: string;
+  AI_DAILY_BUDGET_WARN?: string;
 }
 
 export interface ProviderConfig {
@@ -193,7 +214,7 @@ export function readProviders(env: GeminiEnv): ProviderConfig[] {
 
 type ModelPart = { text?: string; image?: string; mime?: string };
 type Usage = { input: number; output: number };
-type CallResult = { ok: true; text: string; usage: Usage } | { ok: false; retryable: boolean };
+type CallResult = { ok: true; text: string; usage: Usage } | { ok: false; retryable: boolean; status: number };
 
 export const DEFAULT_PRICES: Record<string, { input: number; output: number }> = {
   "gemini-3.5-flash-lite": { input: 0.30, output: 2.50 },
@@ -256,8 +277,51 @@ export function usageFromChat(data: { usage?: { prompt_tokens?: number; completi
   return { input, output };
 }
 
-function retryableStatus(status: number): boolean {
+export const DAILY_LIMIT_MESSAGE = "You've used today's free answers for that. They reset tomorrow. Premium removes this daily limit.";
+export const BUSY_MESSAGE = "The assistant is busy right now. Try again later.";
+
+export function shouldFallbackStatus(status: number): boolean {
   return status === 429 || status >= 500;
+}
+
+export function budgetUsd(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 100000) return 5;
+  return n;
+}
+
+export function budgetWarnFraction(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 1) return 0.8;
+  return n;
+}
+
+export async function todaySpendMicro(db: Db, day: string): Promise<number> {
+  const row = await db.prepare(
+    "SELECT COALESCE(SUM(cost_micro), 0) AS cost FROM ai_provider_counts WHERE day = ?",
+  ).bind(day).first<{ cost: number }>();
+  return row?.cost || 0;
+}
+
+export async function assertDailyBudget(db: Db, day: string, env: { AI_DAILY_BUDGET_USD?: string }): Promise<void> {
+  const spent = await todaySpendMicro(db, day);
+  if (spent >= Math.round(budgetUsd(env.AI_DAILY_BUDGET_USD) * 1_000_000)) {
+    throw new GameError(503, BUSY_MESSAGE);
+  }
+}
+
+export async function budgetStatus(db: Db, day: string, env: { AI_DAILY_BUDGET_USD?: string; AI_DAILY_BUDGET_WARN?: string }) {
+  const capUsd = budgetUsd(env.AI_DAILY_BUDGET_USD);
+  const warn = budgetWarnFraction(env.AI_DAILY_BUDGET_WARN);
+  const spentUsd = Math.round((await todaySpendMicro(db, day)) / 1_000_000 * 10000) / 10000;
+  return {
+    day,
+    spentUsd,
+    budgetUsd: capUsd,
+    warnAtUsd: Math.round(capUsd * warn * 10000) / 10000,
+    warn: capUsd > 0 && spentUsd >= capUsd * warn,
+    window: "UTC date, same day as the per-user counters. Resets at 00:00 UTC.",
+  };
 }
 
 async function callGoogle(provider: ProviderConfig, parts: ModelPart[], jsonMode: boolean): Promise<CallResult> {
@@ -281,11 +345,11 @@ async function callGoogle(provider: ProviderConfig, parts: ModelPart[], jsonMode
   });
   if (!res.ok) {
     await res.body?.cancel().catch(() => {});
-    return { ok: false, retryable: retryableStatus(res.status) };
+    return { ok: false, retryable: shouldFallbackStatus(res.status), status: res.status };
   }
   const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } };
   const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() || "";
-  if (!text) return { ok: false, retryable: true };
+  if (!text) return { ok: false, retryable: true, status: 502 };
   return { ok: true, text: text.slice(0, 4000), usage: usageFromGoogle(data) };
 }
 
@@ -307,13 +371,13 @@ async function callChat(provider: ProviderConfig, parts: ModelPart[]): Promise<C
   });
   if (!res.ok) {
     await res.body?.cancel().catch(() => {});
-    return { ok: false, retryable: retryableStatus(res.status) };
+    return { ok: false, retryable: shouldFallbackStatus(res.status), status: res.status };
   }
   const data = await res.json() as { choices?: { message?: { content?: string | { text?: string }[] } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number } };
   const raw = data.choices?.[0]?.message?.content;
   const text = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.map((part) => part.text || "").join("") : "";
   const trimmed = text.trim();
-  if (!trimmed) return { ok: false, retryable: true };
+  if (!trimmed) return { ok: false, retryable: true, status: 502 };
   return { ok: true, text: trimmed.slice(0, 4000), usage: usageFromChat(data) };
 }
 
@@ -321,7 +385,7 @@ async function callProvider(provider: ProviderConfig, parts: ModelPart[], jsonMo
   try {
     return provider.id === "google" ? await callGoogle(provider, parts, jsonMode) : await callChat(provider, parts);
   } catch {
-    return { ok: false, retryable: true };
+    return { ok: false, retryable: true, status: 0 };
   }
 }
 
@@ -363,6 +427,7 @@ export async function askProviders(
   if (!providers.length) throw new GameError(503, "The assistant is not set up yet.");
   const prices = priceTable(env.AI_PRICE_TABLE);
   for (const provider of providers) {
+    await assertDailyBudget(db, day, env);
     const result = await callProvider(provider, parts, jsonMode);
     if (result.ok) {
       const cost = costMicroUsd(provider.model, result.usage.input, result.usage.output, prices);
@@ -370,7 +435,16 @@ export async function askProviders(
       await addUserSpend(db, day, userId, feature, provider.id, result.usage.input, result.usage.output, cost);
       return result.text;
     }
-    if (!result.retryable) throw new GameError(502, "The assistant could not answer just now.");
+    if (!result.retryable) {
+      console.error(JSON.stringify({
+        service: "fitcouple-game",
+        alert: "ai-provider-rejected",
+        provider: provider.id,
+        status: result.status,
+        feature,
+      }));
+      throw new GameError(502, "The assistant could not answer just now.");
+    }
     await addProviderDay(db, day, provider.id, 0, 0, 0, 0, 1);
   }
   throw new GameError(502, "The assistant could not answer just now.");
@@ -449,17 +523,24 @@ async function addRefusal(db: Db, userId: string, day: string): Promise<void> {
   ).bind(day, userId).run();
 }
 
-export async function noteOffTopic(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
-  await assertWithinLimit(db, userId, day, feature, limits);
-  await bump(db, userId, day, feature);
+export async function noteOffTopic(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>, env: { AI_DAILY_BUDGET_USD?: string }): Promise<void> {
+  await assertDailyBudget(db, day, env);
+  await reserveQuota(db, userId, day, feature, limits);
   await addRefusal(db, userId, day);
 }
 
-export async function addFeedback(db: Db, day: string): Promise<void> {
+export async function addFeedback(db: Db, day: string, userId: string): Promise<boolean> {
+  const inserted = await db.prepare(
+    `INSERT INTO ai_feedback_users (day, user_id) VALUES (?, ?)
+     ON CONFLICT(day, user_id) DO NOTHING
+     RETURNING user_id`,
+  ).bind(day, userId).first<{ user_id: string }>();
+  if (!inserted) return false;
   await db.prepare(
     `INSERT INTO ai_feedback (day, count) VALUES (?, 1)
      ON CONFLICT(day) DO UPDATE SET count = count + 1`,
   ).bind(day).run();
+  return true;
 }
 
 export async function setUserControl(
@@ -497,37 +578,42 @@ export async function runFeature(
   parts: { text?: string; image?: string; mime?: string }[],
   shape: "items" | "meals" | "session" | "chat",
 ) {
-  await assertWithinLimit(db, userId, day, feature, limits);
-  const raw = await askProviders(db, day, userId, feature, env, parts, shape !== "chat");
-  await bump(db, userId, day, feature);
-  if (shape === "chat") {
-    const reply = capWords(raw, 300);
-    if (reply.startsWith(OFF_TOPIC_REPLY)) await addRefusal(db, userId, day);
-    return { notice: NOTICE, refused: reply.startsWith(OFF_TOPIC_REPLY), reply };
-  }
-  const data = parseJson(raw);
-  if (shape === "items") {
-    if (data.none === true) return { notice: NOTICE, none: true, items: [] };
-    const items = asItems(data.items);
-    if (!items.length) return { notice: NOTICE, none: true, items: [] };
-    return { notice: NOTICE, none: false, items };
-  }
-  if (shape === "meals") {
-    const meals = Array.isArray(data.meals) ? data.meals : [];
+  await assertDailyBudget(db, day, env);
+  await reserveQuota(db, userId, day, feature, limits);
+  try {
+    const raw = await askProviders(db, day, userId, feature, env, parts, shape !== "chat");
+    if (shape === "chat") {
+      const reply = capWords(raw, 300);
+      if (reply.startsWith(OFF_TOPIC_REPLY)) await addRefusal(db, userId, day);
+      return { notice: NOTICE, refused: reply.startsWith(OFF_TOPIC_REPLY), reply };
+    }
+    const data = parseJson(raw);
+    if (shape === "items") {
+      if (data.none === true) return { notice: NOTICE, none: true, items: [] };
+      const items = asItems(data.items);
+      if (!items.length) return { notice: NOTICE, none: true, items: [] };
+      return { notice: NOTICE, none: false, items };
+    }
+    if (shape === "meals") {
+      const meals = Array.isArray(data.meals) ? data.meals : [];
+      return {
+        notice: NOTICE,
+        meals: meals.slice(0, 3).map((row) => {
+          const item = asItems([row])[0];
+          const why = row && typeof row === "object" ? capWords(String((row as Record<string, unknown>).why || ""), 80) : "";
+          return item ? { ...item, why } : null;
+        }).filter(Boolean),
+      };
+    }
     return {
       notice: NOTICE,
-      meals: meals.slice(0, 3).map((row) => {
-        const item = asItems([row])[0];
-        const why = row && typeof row === "object" ? capWords(String((row as Record<string, unknown>).why || ""), 80) : "";
-        return item ? { ...item, why } : null;
-      }).filter(Boolean),
+      session: capWords(String(data.session || ""), 400),
+      notes: capWords(String(data.notes || ""), 400),
     };
+  } catch (err) {
+    await releaseQuota(db, userId, day, feature);
+    throw err;
   }
-  return {
-    notice: NOTICE,
-    session: capWords(String(data.session || ""), 400),
-    notes: capWords(String(data.notes || ""), 400),
-  };
 }
 
 export { FOOD_RULE };

@@ -19,7 +19,7 @@ import {
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
-import { STORE_SQL, VOUCHER_SQL, AI_SQL } from "../src/worker/schema.ts";
+import { STORE_SQL, VOUCHER_SQL, AI_SQL, SECURITY_SQL } from "../src/worker/schema.ts";
 import { costMicroUsd, modelName, usageFromGoogle, DEFAULT_PRICES } from "../src/worker/ai.ts";
 import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
@@ -317,6 +317,11 @@ test("the gemini model stays on 3.5 and the usage table has no content columns",
   assert.equal(costMicroUsd("qwen3-vl-plus", 0, 1_000_000, DEFAULT_PRICES), 1600000);
   assert.equal(costMicroUsd("gpt-6-luna", 2_000_000, 1_000_000, DEFAULT_PRICES), 700000);
   assert.equal(usageFromGoogle({ usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 4, thoughtsTokenCount: 6 } }).output, 10);
+});
+
+test("security tables match the migration", () => {
+  const file = readFileSync(new URL("../migrations/0006_security.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), SECURITY_SQL.trim());
 });
 
 test("flag text stays free of health details", () => {

@@ -27,8 +27,8 @@ import {
 } from "./brain.ts";
 import { makeTeamCode, normalizeTeamCode, randomHex, sha256Hex } from "./crypto.ts";
 import { GameError } from "./errors.ts";
-import { cleanDisplayName, isAnonId } from "./privacy.ts";
-import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL, AI_SQL } from "./schema.ts";
+import { cleanDisplayName } from "./privacy.ts";
+import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL, AI_SQL, SECURITY_SQL } from "./schema.ts";
 import { hashVoucherCode, milestoneReached, shiftDay as addDays, VOUCHERS_OFF, type VoucherConfig } from "./vouchers.ts";
 import { isProgramId, PROGRAM_CHOICES, sessionFor } from "./programs.ts";
 import { askCoach } from "./coach.ts";
@@ -128,6 +128,8 @@ async function applySchema(db: Db): Promise<void> {
   for (const sql of storeSql) await db.prepare(sql).run();
   const aiSql = AI_SQL.split(";").map((part) => part.trim()).filter(Boolean);
   for (const sql of aiSql) await db.prepare(sql).run();
+  const securitySql = SECURITY_SQL.split(";").map((part) => part.trim()).filter(Boolean);
+  for (const sql of securitySql) await db.prepare(sql).run();
 }
 
 function mapUser(row: UserRow): StoredUser {
@@ -414,19 +416,20 @@ export async function stateFor(db: Db, userId: string, day: string, vouchers: Vo
   };
 }
 
-export async function createSession(db: Db, anonId: string, day: string, vouchers: VoucherConfig = VOUCHERS_OFF) {
-  if (!isAnonId(anonId)) throw new GameError(400, "Player id must be a 64-character hash.");
-  const existing = await db.prepare("SELECT id FROM users WHERE id = ?").bind(anonId).first();
-  if (existing) {
-    throw new GameError(409, "This device already has a game profile, but the saved key is missing.");
-  }
+export async function openGoogleSession(db: Db, userId: string, day: string, vouchers: VoucherConfig = VOUCHERS_OFF) {
+  if (!/^[a-f0-9]{64}$/.test(userId)) throw new GameError(500, "Account id was not valid.");
   const token = randomHex(32);
   const tokenHash = await sha256Hex(token);
-  await db.prepare(
-    `INSERT INTO users (id, token_hash, xp, level, streak, strength, discipline, health, mind, difficulty, program_start)
-     VALUES (?, ?, 0, 1, 0, 1, 1, 1, 1, 'normal', ?)`,
-  ).bind(anonId, tokenHash, day).run();
-  const state = await stateFor(db, anonId, day, vouchers);
+  const existing = await db.prepare("SELECT id FROM users WHERE id = ?").bind(userId).first();
+  if (existing) {
+    await db.prepare("UPDATE users SET token_hash = ? WHERE id = ?").bind(tokenHash, userId).run();
+  } else {
+    await db.prepare(
+      `INSERT INTO users (id, token_hash, xp, level, streak, strength, discipline, health, mind, difficulty, program_start)
+       VALUES (?, ?, 0, 1, 0, 1, 1, 1, 1, 'normal', ?)`,
+    ).bind(userId, tokenHash, day).run();
+  }
+  const state = await stateFor(db, userId, day, vouchers);
   return { token, ...state };
 }
 

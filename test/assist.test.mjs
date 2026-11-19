@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseMealText } from "../src/web/foods.js";
 import { FAQ, matchFaq } from "../src/web/knowledge.js";
+import { PHOTO_EDGE, PHOTO_QUALITY } from "../src/web/assist.js";
 
 test("local foods and the faq answer before any model call", () => {
   assert.ok(FAQ.length >= 40);
@@ -15,4 +16,6 @@ test("local foods and the faq answer before any model call", () => {
   assert.equal(matchFaq("how much protein from food").en.includes("eggs"), true);
   assert.equal(matchFaq("should I buy a fat burner").en.includes("does not recommend"), true);
   assert.equal(matchFaq("hi"), null);
+  assert.equal(PHOTO_EDGE, 1024);
+  assert.equal(PHOTO_QUALITY, 0.8);
 });

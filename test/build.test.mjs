@@ -19,7 +19,9 @@ test("publish build minifies and obfuscates the front end", () => {
   assert.equal(readFileSync("dist/shop-build.txt", "utf8"), "off");
   assert.equal(existsSync("dist/shop-terms.html"), false);
   assert.equal(existsSync("dist/pay-sandbox.html"), false);
-  assert.ok(play.length > 1000);
+  assert.equal(existsSync("dist/_headers"), true);
+  assert.equal(readFileSync("dist/_headers", "utf8").includes("frame-ancestors 'none'"), true);
+  assert.equal(readFileSync("dist/_headers", "utf8").includes("https://accounts.google.com"), true);
   assert.ok(fit.length > 1000);
   for (const file of ["dist/play.js", "dist/admin.js", "dist/redeem.js", "dist/fit.js"]) {
     const checked = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
@@ -38,8 +40,9 @@ test("a shop build keeps the Shop tab in the player bundle", () => {
   assert.equal(readFileSync("dist/shop-terms.html", "utf8").includes("play.css"), true);
   const off = spawnSync(process.execPath, ["scripts/build.mjs"], {
     encoding: "utf8",
-    env: { ...process.env, STORE_ENABLED: "false" },
+    env: { ...process.env, STORE_ENABLED: "false", GOOGLE_API_KEY: "shared-test-key", GEMINI_API_KEY: "shared-test-key" },
   });
   assert.equal(off.status, 0, off.stderr || off.stdout);
+  assert.equal(off.stderr.includes("its own key"), true);
   assert.equal(readFileSync("dist/shop-build.txt", "utf8"), "off");
 });

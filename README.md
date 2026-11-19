@@ -73,11 +73,17 @@ Expected cost if you stay on the free plans: **$0**.
 3. Run `npm run dev`.
 4. Open http://127.0.0.1:8788/play.html
 5. The owner page is http://127.0.0.1:8788/admin.html
-6. The local owner key is created in a file called `.dev.vars`. The sample value is `local-dev-admin-key-change-me`. That key is only for your computer.
+6. The local owner key is created in a file called `.dev.vars`. The sample value `local-dev-admin-key-change-me` is refused. Replace it with a different random key of at least 32 characters before the owner page will open.
 
 `npm test` checks the scoring rules. `test/MANUAL.md` is a click-through list.
 
-The assistant calls providers in order: Google `gemini-3.5-flash-lite`, then Alibaba Cloud Model Studio in Singapore `qwen3-vl-plus`, then OpenAI `gpt-6-luna`. A rate limit, a server error, a timeout, or a network failure moves to the next one. A content or validation error does not. A missing key is skipped. The model names, base URLs, and order are in `wrangler.jsonc` (`AI_PROVIDER_ORDER`, `AI_GOOGLE_MODEL`, `AI_GOOGLE_BASE_URL`, `AI_QWEN_MODEL`, `AI_QWEN_BASE_URL`, `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`). Do not point the Google model at an older Gemini model.
+The assistant calls providers in order: Google `gemini-3.5-flash-lite`, then Alibaba Cloud Model Studio in Singapore `qwen3-vl-plus`, then OpenAI `gpt-6-luna`. Fallback happens only when a provider fails: HTTP 429, a 5xx response, a timeout, or a network error. Hitting a player's daily cap does not fall through. The player gets a daily-limit message, with a note that premium removes the cap. A content refusal does not fall through. HTTP 400, 401, 403, and 413 do not fall through; the worker logs an alert and stops. Gemini is meant to run on a paid key. Do not add a "free tier exhausted" branch. A missing key is skipped. The model names, base URLs, and order are in `wrangler.jsonc` (`AI_PROVIDER_ORDER`, `AI_GOOGLE_MODEL`, `AI_GOOGLE_BASE_URL`, `AI_QWEN_MODEL`, `AI_QWEN_BASE_URL`, `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`). Do not point the Google model at an older Gemini model.
+
+Every player has one daily cap per feature. That cap counts calls to all providers together. The counter is incremented before the provider call and removed again if every provider fails. Two requests at the same time cannot both pass a cap of one.
+
+`AI_DAILY_BUDGET_USD` defaults to `5`. Before every provider call the worker adds up today's stored cost. The day is the UTC date, the same window as the per-user counters, and it resets at 00:00 UTC. When the total reaches the budget, every assistant call gets "The assistant is busy right now. Try again later." The owner page shows today's spend against that budget. `AI_DAILY_BUDGET_WARN` defaults to `0.8` (80%). The page marks a warning at that fraction.
+
+`RATE_SESSION_LIMIT` defaults to 10 and `RATE_AI_LIMIT` defaults to 30, per `RATE_WINDOW_SECONDS` (60). The counter is a hash of `CF-Connecting-IP`, not the address itself. It covers `POST /v1/session` and `POST /v1/ai/*`.
 
 Put the keys on the server, not in the page. Leave a key unset to skip that provider:
 
@@ -113,10 +119,9 @@ The app asks Google for one permission: `drive.file`. In plain words, Fit can on
 
 Optional, only for “Choose a sheet”:
 
-1. Create an API key.
-2. Restrict it to the websites listed above, and to the Picker and Drive APIs.
-3. Put that key in `config.js` as `googleApiKey`.
-4. Put the **project number** (the digits on the Cloud welcome screen, not the project name) in `googleAppId`.
+1. Create an API key that is **not** the Gemini key. `GOOGLE_API_KEY` is baked into the public page. Restrict it to the Picker API and to the websites listed above. The build warns if this key matches `GEMINI_API_KEY`, `QWEN_API_KEY`, or `OPENAI_API_KEY`.
+2. Put that key in `config.js` as `googleApiKey`.
+3. Put the **project number** (the digits on the Cloud welcome screen, not the project name) in `googleAppId`.
 
 The client id and the browser API key are visible to anyone who loads the site. That is normal. The restriction list is what stops other websites from using them.
 
@@ -128,11 +133,12 @@ The client id and the browser API key are visible to anyone who loads the site. 
 4. Copy the database id it prints into `wrangler.jsonc`, replacing `database_id`.
 5. In `wrangler.jsonc`, set `ALLOWED_ORIGINS` to your real website, comma-separated, for example `https://fit.pages.dev,https://bracoliv.github.io`. The local addresses can stay.
 6. Run `npx wrangler d1 migrations apply fitcouple-game --remote`.
-7. Make a long random owner key (a password manager is fine). Run `npx wrangler secret put ADMIN_KEY`. Wrangler asks you to type the key. Do not put the key in the command, and do not commit it. Do not reuse the local `.dev.vars` key.
-8. Run `npx wrangler deploy`.
-9. Copy the `workers.dev` address it prints into `config.js` as `workerUrl`.
+7. Make a random owner key of at least 32 characters (a password manager is fine). Run `npx wrangler secret put ADMIN_KEY`. Wrangler asks you to type the key. Do not put the key in the command, and do not commit it. Do not reuse `local-dev-admin-key-change-me`. The worker refuses that sample value, and it refuses a key shorter than 32 characters. Wrong guesses are throttled per IP.
+8. Set the same Google web client id the site uses: in `wrangler.jsonc`, set `GOOGLE_CLIENT_ID`. Then `npx wrangler secret put GOOGLE_SUB_SALT` with another long random value. The salt is what makes the stored player id irreversible. Set `SITE_URL` to the public site origin, for example `https://fit.pages.dev`. Checkout return links use that value, not the visitor's Origin header.
+9. Run `npx wrangler deploy`.
+10. Copy the `workers.dev` address it prints into `config.js` as `workerUrl`.
 
-There is no other secret. The owner key is the gate for `admin.html`.
+The owner key is the gate for `admin.html`. Players sign in with Google. The worker checks the ID token and keeps one profile per Google account. Profiles created before this change stay in the database. They are not linked to a Google account, because the old id was a random hash. A phone that still has its old session token keeps working. A new sign-in starts a Google-backed profile. Sheet data on the phone is unchanged.
 
 ### 4. Publish the website
 
@@ -154,7 +160,7 @@ Open `https://your-site/admin.html` and type the owner key. You should see each 
 
 ### What the server stores
 
-Short version: an anonymous player id, a hash of their session token, an optional display name, XP, level, four attribute numbers, a streak, the last active date, difficulty, the day they started the 66-day plan, a team code, a rank, which quest ids they finished (not what they ate), how that quest was verified (`manual`, `timer`, `photo`, or `wearable`), a yes/no that a photo exists, a daily snapshot of those scores, and a suspicious flag if the pattern looks like farming.
+Short version: a salted hash of the Google account id, a hash of their session token, an optional display name, XP, level, four attribute numbers, a streak, the last active date, difficulty, the day they started the 66-day plan, a team code, a rank, which quest ids they finished (not what they ate), how that quest was verified (`manual`, `timer`, `photo`, or `wearable`), a yes/no that a photo exists, a daily snapshot of those scores, and a suspicious flag if the pattern looks like farming. Email and the raw Google id are not stored.
 
 Typing a count earns about half XP. The focus timer earns full XP for that one quest. A photo is never uploaded; the phone may send only “yes, a photo is in my Drive”. There is a daily XP cap, each quest pays once, and a streak bonus pays for showing up again. A partner can confirm the team once a day for a small bonus. The owner page marks a player if workouts pile up, updates arrive too fast, or a duration is not believable. Calorie numbers are not accepted. A claimed wearable source does not earn full XP yet. Phone health sync can use the same step, water, and sleep quests later. Details are in [PRIVACY.md](PRIVACY.md).
 

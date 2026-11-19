@@ -14,13 +14,13 @@ It also rejects email addresses, web links, text longer than 80 characters, and 
 
 Logs record the path and the status code only. Query strings are redacted in Cloudflare's own logs.
 
-Google sign-in stays in the browser. The Worker never receives the Google access token, the email address, or the sheet id.
+Google sign-in for the sheet stays in the browser. The worker does not receive the Google access token or the sheet id. Game sign-in sends an ID token, which is checked and then discarded. Email is not stored.
 
 ## Player id
 
-The browser makes a random id and hashes it. That hash is the player id. Brian has said player ids are fine to see. They are not emails and they are not Google account ids.
+Game sign-in sends a Google ID token once. The worker checks the signature, audience, issuer, and expiry, then stores a salted hash of the Google account id (`sub`). It does not store the token, the email, or the raw Google id. One Google account maps to one profile. Older anonymous profiles stay in the database and are not linked, because the server never had a Google id for them. A phone that still has its session token can keep using that old profile.
 
-The browser also keeps a session token. The server stores only the SHA-256 hash of that token. Losing the browser data starts a new id. The old scores remain, still with no health content.
+The browser keeps the session token. The server stores only the SHA-256 hash of that token.
 
 ## Tables
 
@@ -28,7 +28,7 @@ The browser also keeps a session token. The server stores only the SHA-256 hash 
 
 | Column | Example | Meaning |
 | --- | --- | --- |
-| id | 64 hex characters | Anonymous player id |
+| id | 64 hex characters | Salted hash of the Google account id. Not an email |
 | token_hash | 64 hex characters | Hash of the session token. The token itself stays on the phone |
 | display_name | Aisyah, or empty | Optional name the player types. Max 24 letters or numbers. Shown to their team and on the owner page |
 | xp | 120 | Score |
@@ -143,7 +143,7 @@ The team board shows a generic face unless you opt in. That opt-in only changes 
 
 The weekly coach uses a key you type on the phone. That key is sent only for that one request and is not written down. The coach prompt is level, streak, plan name, and quest ids. The reply is not saved.
 
-The in-app assistant is separate. After you agree once, a food photo, a typed meal, a meal or workout idea, or a question can be sent through Fit's server. The first provider is Google Gemini (`gemini-3.5-flash-lite`). If that call is rate limited or the service fails, the server tries Alibaba Cloud Model Studio in Singapore (`qwen3-vl-plus`), then OpenAI (`gpt-6-luna`). A provider with no key is skipped. A content or validation error is not sent to the next provider. FitCouple does not store that photo, meal text, or reply, and the worker does not write them to logs. It does store aggregates: your player id, the date, the feature, the provider, the call count, input tokens, output tokens (Gemini thinking tokens are counted as output), and an estimated cost in US dollars. It also stores how many off-topic refusals each player id had today, and a daily count of "this was a health question" taps. Those taps do not include the question. The same totals are kept per provider. Google, Alibaba Cloud, and OpenAI each process a request under their own terms. On Google's free tier, Google may use that content to improve Google's products. Common questions and common Malaysian foods are answered on the phone first and are not sent. Your avatar photo is not part of this. That stays on the phone, or goes only to an AI app you open yourself, or to OpenAI if you tick consent and use your own key.
+The in-app assistant is separate. After you agree once, a food photo, a typed meal, a meal or workout idea, or a question can be sent through Fit's server. The first provider is Google Gemini (`gemini-3.5-flash-lite`). Fallback to Alibaba Cloud Model Studio in Singapore (`qwen3-vl-plus`), then OpenAI (`gpt-6-luna`), happens only when that provider is rate limited, overloaded, returns a server error, times out, or the network fails. A user who has hit a daily cap is refused. That does not try another provider. A content refusal does not try another provider. A client error such as 400, 401, 403, or 413 does not try another provider; it is logged as an alert. A provider with no key is skipped. Gemini is expected to use a paid key. There is no free-tier path. FitCouple does not store that photo, meal text, or reply, and the worker does not write them to logs. It does store aggregates: your player id, the date, the feature, the provider, the call count, input tokens, output tokens (Gemini thinking tokens are counted as output), and an estimated cost in US dollars. It also stores how many off-topic refusals each player id had today, and a daily count of "this was a health question" taps. Those taps do not include the question. The same totals are kept per provider. Google, Alibaba Cloud, and OpenAI each process a request under their own terms. On Google's free tier, Google may use that content to improve Google's products. Common questions and common Malaysian foods are answered on the phone first and are not sent. Your avatar photo is not part of this. That stays on the phone, or goes only to an AI app you open yourself, or to OpenAI if you tick consent and use your own key.
 
 Water, sleep, and steps can be typed today. A future phone health app can send the same quest ids with source `wearable`. That source does not earn full XP until that sync exists, so it cannot be faked for extra points.
 

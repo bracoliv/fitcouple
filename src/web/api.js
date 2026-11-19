@@ -34,8 +34,8 @@ export function createApi(workerUrl) {
   }
 
   return {
-    session(anonId, day) {
-      return request("/v1/session", { method: "POST", body: { anonId, day } });
+    session(idToken, day) {
+      return request("/v1/session", { method: "POST", body: { idToken, day } });
     },
     me(token, day) {
       return request("/v1/me?day=" + encodeURIComponent(day), { token });

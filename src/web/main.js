@@ -1,6 +1,6 @@
 import { createApi } from "./api.js";
 import { RECIPES, guidedLogEvent, videoFor } from "./catalog.js";
-import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, pickSheet, readLog, requestGoogleToken } from "./google.js";
+import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, mountGameSignIn, pickSheet, readLog, requestGoogleToken } from "./google.js";
 import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } from "./progress.js";
 import { voucherQr } from "./qr.js";
 import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
@@ -35,6 +35,7 @@ const state = {
   aiDraft: null,
   aiNote: "",
   aiChat: [],
+  needsGameSignIn: false,
 };
 
 let busy = false;
@@ -52,39 +53,22 @@ function store(key, value) {
   else localStorage.removeItem(key);
 }
 
-async function sha256Hex(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function anonId() {
-  const saved = localStorage.getItem("fitAnonId");
-  if (saved && /^[a-f0-9]{64}$/.test(saved)) return saved;
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const raw = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const id = await sha256Hex(raw);
-  localStorage.setItem("fitAnonId", id);
-  return id;
-}
-
 async function ensureSession() {
   const day = localDay();
   state.token = localStorage.getItem("fitSessionToken") || "";
-  if (state.token) return;
+  if (!state.token) {
+    state.needsGameSignIn = true;
+    return;
+  }
   try {
-    const created = await api.session(await anonId(), day);
-    state.token = created.token;
-    localStorage.setItem("fitSessionToken", created.token);
-    state.profile = created;
+    state.profile = await api.me(state.token, day);
+    state.needsGameSignIn = false;
   } catch (err) {
-    if (err.status !== 409) throw err;
-    localStorage.removeItem("fitAnonId");
+    if (err.status !== 401) throw err;
     localStorage.removeItem("fitSessionToken");
-    const created = await api.session(await anonId(), day);
-    state.token = created.token;
-    localStorage.setItem("fitSessionToken", created.token);
-    state.profile = created;
+    state.token = "";
+    state.profile = null;
+    state.needsGameSignIn = true;
   }
 }
 
@@ -285,10 +269,15 @@ function shell(screen) {
     shop: shopHtml(state, esc),
     more: moreHtml(),
   };
+  const signIn = state.needsGameSignIn && !state.profile
+    ? `<section class="card"><h2>Sign in to the game</h2><p class="sub">Use Google. Fit keeps one profile for each account and stores a salted hash of the Google id, not your email.</p><div id="gameSignIn"></div></section>`
+    : "";
   const problem = state.loading
     ? `<p class="banner">Loading your game…</p>`
-    : (!state.profile && screen !== "more" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : ""));
-  return `<div class="app"><header class="top"><div class="brand"><a href="index.html">Fit</a></div><span class="level">LV ${level}</span>${flame()}</header>${problem}${parts[screen] || ""}<p class="foot">Not medical advice. Food and workouts stay in your sheet. <a href="admin.html">Owner</a></p></div>
+    : (state.needsGameSignIn && !state.profile
+      ? (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : "")
+      : (!state.profile && screen !== "more" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : "")));
+  return `<div class="app"><header class="top"><div class="brand"><a href="index.html">Fit</a></div><span class="level">LV ${level}</span>${flame()}</header>${problem}${signIn}${parts[screen] || ""}<p class="foot">Not medical advice. Food and workouts stay in your sheet. <a href="admin.html">Owner</a></p></div>
     <nav class="nav ${navClass()}">${screenList().map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
 }
 
@@ -327,6 +316,19 @@ function render() {
     if (el) el.addEventListener("click", fn);
   };
   on("retry", () => boot());
+  const gameSignIn = document.getElementById("gameSignIn");
+  if (gameSignIn) {
+    mountGameSignIn(gameSignIn, config, (idToken) => run(async () => {
+      const created = await api.session(idToken, localDay());
+      state.token = created.token;
+      localStorage.setItem("fitSessionToken", created.token);
+      localStorage.removeItem("fitAnonId");
+      state.profile = created;
+      state.needsGameSignIn = false;
+      state.error = "";
+      return "";
+    }));
+  }
   document.querySelectorAll("[data-diff]").forEach((button) => {
     button.addEventListener("click", () => run(() => setDifficulty(button.getAttribute("data-diff"))));
   });
@@ -647,8 +649,8 @@ async function boot() {
     }
     await ensureSession();
     await restoreSheet();
-    if (state.sheetMode) await pushCounts();
-    if (!state.profile) state.profile = await api.me(state.token, localDay());
+    if (state.sheetMode && state.token) await pushCounts();
+    if (state.token && !state.profile) state.profile = await api.me(state.token, localDay());
     if (state.token) state.aiQuota = await api.aiQuota(state.token).catch(() => null);
   } catch (err) {
     state.error = err.message || "The game server is not running.";

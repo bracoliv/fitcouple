@@ -33,6 +33,32 @@ function loadScript(src) {
   });
 }
 
+export function mountGameSignIn(element, config, onToken) {
+  if (!clientIdReady(config.googleClientId)) {
+    element.textContent = "Add your Google client id to config.js. The README has the steps.";
+    return;
+  }
+  loadScript("https://accounts.google.com/gsi/client").then(() => {
+    const id = window.google && window.google.accounts && window.google.accounts.id;
+    if (!id) {
+      element.textContent = "Google's sign-in library did not load.";
+      return;
+    }
+    id.initialize({
+      client_id: config.googleClientId,
+      callback: (resp) => {
+        if (resp && resp.credential) onToken(resp.credential);
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    element.replaceChildren();
+    id.renderButton(element, { theme: "outline", size: "large", text: "signin_with", width: 280 });
+  }).catch(() => {
+    element.textContent = "Google sign-in did not load.";
+  });
+}
+
 export function requestGoogleToken(config) {
   if (!clientIdReady(config.googleClientId)) {
     return Promise.reject(new Error("Add your Google client id to config.js. The README has the steps."));

@@ -3,8 +3,11 @@ import test from "node:test";
 import { getPlatformProxy } from "wrangler";
 import { shiftDay } from "../src/worker/brain.ts";
 import { handle, type AppEnv } from "../src/worker/http.ts";
+import { googleFixture } from "./google-fixture.mjs";
 
-const TEST_KEY = "test-admin-key-0123456789";
+const TEST_KEY = "test-admin-key-0123456789abcdef01";
+const CLIENT_ID = "test-client.apps.googleusercontent.com";
+const google = googleFixture();
 
 function utcDay(shift = 0): string {
   const now = new Date();
@@ -27,8 +30,25 @@ test.before(async () => {
     DB: proxy.env.DB as AppEnv["DB"],
     ALLOWED_ORIGINS: "http://127.0.0.1:8788,http://localhost:8788",
     ADMIN_KEY: TEST_KEY,
+    GOOGLE_CLIENT_ID: CLIENT_ID,
+    GOOGLE_SUB_SALT: "test-salt-value-0123456789",
+    SITE_URL: "http://127.0.0.1:8788",
+    RATE_SESSION_LIMIT: "1000",
+    RATE_AI_LIMIT: "1000",
+    AI_DAILY_BUDGET_USD: "5",
   };
   dispose = proxy.dispose;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("/oauth2/v3/certs")) {
+      return new Response(JSON.stringify({ keys: [google.jwk] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return realFetch(input as RequestInfo, init);
+  };
 });
 
 test.after(async () => {
@@ -55,24 +75,38 @@ async function call(path: string, options: { method?: string; token?: string; bo
   } catch {
     json = { raw: text };
   }
-  return { status: res.status, json, text };
+  return { status: res.status, json, text, headers: res.headers };
 }
 
-async function session(prefix: string) {
-  const anonId = prefix.padEnd(64, "a");
+async function session(prefix: string, options: { ip?: string } = {}) {
   const day = utcDay();
-  const created = await call("/v1/session", { method: "POST", body: { anonId, day } });
+  const created = await call("/v1/session", {
+    method: "POST",
+    headers: options.ip ? { "CF-Connecting-IP": options.ip } : undefined,
+    body: { idToken: google.idToken(prefix), day },
+  });
   assert.equal(created.status, 200, created.text);
-  return { token: String(created.json?.token), id: anonId, day, body: created.json };
+  return { token: String(created.json?.token), id: String(created.json?.id), day, body: created.json, sub: prefix };
 }
 
 test("health, origin gate, and session", async () => {
-  assert.equal((await call("/health")).status, 200);
+  const health = await call("/health");
+  assert.equal(health.status, 200);
+  assert.equal(health.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(health.headers.get("Referrer-Policy"), "no-referrer");
+  assert.equal(health.headers.get("Content-Security-Policy")?.includes("frame-ancestors 'none'"), true);
   assert.equal((await call("/health", { origin: null })).status, 200);
   assert.equal((await call("/health", { origin: "https://evil.example" })).status, 403);
   const player = await session("1");
   assert.equal((player.body as { level: number }).level, 1);
-  assert.equal((await call("/v1/session", { method: "POST", body: { anonId: player.id, day: player.day } })).status, 409);
+  const again = await call("/v1/session", { method: "POST", body: { idToken: google.idToken("1"), day: player.day } });
+  assert.equal(again.status, 200, again.text);
+  assert.equal((again.json as { id: string }).id, player.id);
+  assert.notEqual((again.json as { token: string }).token, player.token);
+  const old = await call("/v1/me?day=" + player.day, { token: player.token });
+  assert.equal(old.status, 401);
+  const anon = await call("/v1/session", { method: "POST", body: { anonId: "a".repeat(64), day: player.day } });
+  assert.equal(anon.status, 400);
 });
 
 test("private fields are refused and not stored", async () => {
@@ -425,6 +459,15 @@ test("the shop stays out of the game and does not use health data", async () => 
     assert.equal(order.status, 200, order.text);
     const paid = order.json as { orderId: string; url: string; sandbox: boolean };
     assert.equal(paid.sandbox, true);
+    assert.equal(new URL(paid.url).origin, "http://127.0.0.1:8788");
+    const shifted = await call("/v1/store/checkout", {
+      method: "POST",
+      token: quiet.token,
+      origin: "http://localhost:8788",
+      body: { name: "Ari", phone: "0123456789", address: "12 Jalan Fit", items: [{ id: "whey", qty: 1 }], consent: true },
+    });
+    assert.equal(shifted.status, 200, shifted.text);
+    assert.equal(new URL((shifted.json as { url: string }).url).origin, "http://127.0.0.1:8788");
     const params = new URL(paid.url).searchParams;
     const done = await call("/v1/store/sandbox-complete", { method: "POST", body: { orderId: paid.orderId, proof: params.get("proof") } });
     assert.equal(done.status, 200, done.text);
@@ -552,6 +595,7 @@ test("a busy Gemini call falls through to Qwen and a bad request does not", asyn
     assert.equal(providers.results?.find((row) => row.provider === "qwen")?.calls, 1);
     assert.equal(providers.results?.find((row) => row.provider === "qwen")?.cost_micro, Math.round(100 * 0.2 + 40 * 1.6));
     calls.length = 0;
+    await call("/v1/admin/ai/limits", { method: "POST", token: TEST_KEY, body: { feature: "text_log", dailyCap: 20 } });
     googleStatus = 400;
     const stopped = await call("/v1/ai/food-text", {
       method: "POST",
@@ -604,6 +648,16 @@ test("an obvious off-topic chat is refused without calling a model", async () =>
     assert.equal(note.status, 200, note.text);
     const feedback = await env.DB.prepare("SELECT count FROM ai_feedback").first<{ count: number }>();
     assert.equal(feedback?.count, 1);
+    const again = await call("/v1/ai/feedback", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: {},
+    });
+    assert.equal(again.status, 200, again.text);
+    assert.equal((again.json as { counted?: boolean }).counted, false);
+    const still = await env.DB.prepare("SELECT count FROM ai_feedback").first<{ count: number }>();
+    assert.equal(still?.count, 1);
     await call("/v1/admin/ai/control", {
       method: "POST",
       token: TEST_KEY,
@@ -629,3 +683,255 @@ test("owner route stays closed when the key is missing", async () => {
   env.ADMIN_KEY = saved;
   assert.equal(res.status, 503);
 });
+
+test("caps, budget, photo size, and admin lock", async () => {
+  const day = utcDay();
+  const player = await session("capuser");
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.QWEN_API_KEY = "test-qwen-key";
+  const original = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com") || url.includes("dashscope") || url.includes("api.openai.com")) {
+      seen.push(url);
+      return new Response("no", { status: 429 });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    await call("/v1/admin/ai/control", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { userId: player.id, paused: false, food_photo: null, text_log: null, recommend: null, chat: 0 },
+    });
+    const capped = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "what should I eat before a match" },
+    });
+    assert.equal(capped.status, 429, capped.text);
+    assert.equal(capped.text.includes("Premium"), true);
+    assert.equal(seen.length, 0);
+
+    env.AI_DAILY_BUDGET_USD = "0";
+    await call("/v1/admin/ai/control", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { userId: player.id, paused: false, food_photo: null, text_log: null, recommend: null, chat: null },
+    });
+    const busy = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "how much water today" },
+    });
+    assert.equal(busy.status, 503, busy.text);
+    assert.equal(busy.text.includes("busy"), true);
+    assert.equal(seen.length, 0);
+    const used = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_id = ? AND feature = 'chat'").bind(player.id).first<{ count: number }>();
+    assert.equal(used?.count || 0, 0);
+  } finally {
+    env.AI_DAILY_BUDGET_USD = "5";
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.QWEN_API_KEY;
+  }
+
+  const photo = await session("photouser");
+  env.GEMINI_API_KEY = "test-gemini-key";
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com")) {
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"items":[{"name":"rice","portion":"1 cup","kcal":200,"protein":4,"carbs":45,"fat":0}]}' }] } }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const wide = await call("/v1/ai/food-photo", {
+      method: "POST",
+      token: photo.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { image: "A".repeat(9000), mime: "image/jpeg" },
+    });
+    assert.equal(wide.status, 200, wide.text);
+    assert.equal((wide.json as { items: { name: string }[] }).items[0].name, "rice");
+    const huge = await call("/v1/ai/food-photo", {
+      method: "POST",
+      token: photo.token,
+      headers: { "X-Ai-Consent": "yes" },
+      raw: JSON.stringify({ image: "A".repeat(1_700_000) }),
+    });
+    assert.equal(huge.status, 413);
+    const text = await call("/v1/ai/food-text", {
+      method: "POST",
+      token: photo.token,
+      headers: { "X-Ai-Consent": "yes" },
+      raw: JSON.stringify({ text: "a".repeat(8000) }),
+    });
+    assert.equal(text.status, 413);
+  } finally {
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+  }
+
+  const admin = await call("/v1/admin/ai", { token: TEST_KEY });
+  assert.equal(admin.status, 200, admin.text);
+  const budget = (admin.json as { budget: { budgetUsd: number; window: string } }).budget;
+  assert.equal(budget.budgetUsd, 5);
+  assert.equal(budget.window.includes("UTC"), true);
+
+  const savedKey = env.ADMIN_KEY;
+  env.ADMIN_KEY = "local-dev-admin-key-change-me";
+  assert.equal((await call("/v1/admin/ai", { token: env.ADMIN_KEY })).status, 503);
+  env.ADMIN_KEY = "short-owner-key";
+  assert.equal((await call("/v1/admin/ai", { token: env.ADMIN_KEY })).status, 503);
+  env.ADMIN_KEY = savedKey;
+
+  const { sha256Hex } = await import("../src/worker/crypto.ts");
+  const ip = "203.0.113.44";
+  const now = Math.floor(Date.now() / 1000);
+  const start = now - (now % 60);
+  const sessionBucket = await sha256Hex(`fitcouple-rate-v1:session:${ip}`);
+  await env.DB.prepare(
+    "INSERT INTO rate_windows (bucket, window_start, count) VALUES (?, ?, 1000)",
+  ).bind(sessionBucket, start).run();
+  const limited = await call("/v1/session", {
+    method: "POST",
+    headers: { "CF-Connecting-IP": ip },
+    body: { idToken: google.idToken("rateuser"), day },
+  });
+  assert.equal(limited.status, 429);
+
+  const adminIp = "203.0.113.45";
+  const failBucket = await sha256Hex(`fitcouple-rate-v1:admin-fail:${adminIp}`);
+  const adminStart = now - (now % 900);
+  await env.DB.prepare(
+    "INSERT INTO rate_windows (bucket, window_start, count) VALUES (?, ?, 8)",
+  ).bind(failBucket, adminStart).run();
+  const locked = await call("/v1/admin/ai", { token: TEST_KEY, headers: { "CF-Connecting-IP": adminIp } });
+  assert.equal(locked.status, 429);
+});
+
+test("a provider network error falls through and a client error does not", async () => {
+  const player = await session("netuser");
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.QWEN_API_KEY = "test-qwen-key";
+  const original = globalThis.fetch;
+  const alerts: string[] = [];
+  const log = console.error;
+  console.error = (...args: unknown[]) => { alerts.push(args.map(String).join(" ")); };
+  let mode = "throw";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com")) {
+      if (mode === "throw") throw new Error("network down");
+      return new Response("no", { status: 401 });
+    }
+    if (url.includes("dashscope")) {
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "Drink some water." } }],
+        usage: { prompt_tokens: 4, completion_tokens: 4 },
+      }), { status: 200 });
+    }
+    return original(input as RequestInfo);
+  };
+  try {
+    const moved = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "how much water today" },
+    });
+    assert.equal(moved.status, 200, moved.text);
+    mode = "401";
+    const stopped = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "how much should I sleep" },
+    });
+    assert.equal(stopped.status, 502, stopped.text);
+    assert.equal(alerts.some((line) => line.includes("ai-provider-rejected") && line.includes("401")), true);
+    assert.equal(alerts.some((line) => line.includes("how much should I sleep")), false);
+    const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_id = ? AND feature = 'chat'").bind(player.id).first<{ count: number }>();
+    assert.equal(usage?.count, 1);
+  } finally {
+    console.error = log;
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.QWEN_API_KEY;
+  }
+});
+
+test("two chats at once cannot both pass a cap of one", async () => {
+  const player = await session("concuser");
+  await call("/v1/admin/ai/control", {
+    method: "POST",
+    token: TEST_KEY,
+    body: { userId: player.id, paused: false, food_photo: null, text_log: null, recommend: null, chat: 1 },
+  });
+  env.GEMINI_API_KEY = "test-gemini-key";
+  env.QWEN_API_KEY = "test-qwen-key";
+  const original = globalThis.fetch;
+  let calls = 0;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com") || url.includes("dashscope") || url.includes("api.openai.com")) {
+      calls += 1;
+      await gate;
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: "Walk for ten minutes." }] } }],
+        usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 3 },
+      }), { status: 200 });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const pending = Promise.all([
+      call("/v1/ai/chat", { method: "POST", token: player.token, headers: { "X-Ai-Consent": "yes" }, body: { message: "what should I eat before a match" } }),
+      call("/v1/ai/chat", { method: "POST", token: player.token, headers: { "X-Ai-Consent": "yes" }, body: { message: "how much water today" } }),
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    release();
+    const done = await pending;
+    const statuses = done.map((item) => item.status).sort();
+    assert.deepEqual(statuses, [200, 429]);
+    assert.equal(calls, 1);
+    assert.equal(done.some((item) => item.text.includes("Premium")), true);
+  } finally {
+    release();
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
+    delete env.QWEN_API_KEY;
+  }
+});
+
+test("an old session token still opens that profile and email is not stored", async () => {
+  const { sha256Hex } = await import("../src/worker/crypto.ts");
+  const token = "ab".repeat(32);
+  const id = "cd".repeat(32);
+  await env.DB.prepare(
+    `INSERT INTO users (id, token_hash, xp, level, streak, strength, discipline, health, mind, difficulty, program_start)
+     VALUES (?, ?, 12, 1, 0, 1, 1, 1, 1, 'normal', ?)`,
+  ).bind(id, await sha256Hex(token), utcDay()).run();
+  const me = await call("/v1/me?day=" + utcDay(), { token });
+  assert.equal(me.status, 200, me.text);
+  assert.equal((me.json as { id: string; xp: number }).id, id);
+  assert.equal((me.json as { xp: number }).xp, 12);
+  const created = await call("/v1/session", {
+    method: "POST",
+    body: { idToken: google.idToken("884422110099", { email: "person@example.com" }), day: utcDay() },
+  });
+  assert.equal(created.status, 200, created.text);
+  const dump = JSON.stringify(await env.DB.prepare("SELECT id, display_name, token_hash FROM users").all());
+  assert.equal(dump.includes("person@example.com"), false);
+  assert.equal(dump.includes("884422110099"), false);
+});
+

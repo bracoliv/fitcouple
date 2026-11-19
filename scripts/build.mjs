@@ -47,7 +47,7 @@ await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
 for (const name of await readdir(root)) {
-  if (!/\.(html|css|png|json|webmanifest)$/.test(name) && name !== ".nojekyll") continue;
+  if (!/\.(html|css|png|json|webmanifest)$/.test(name) && name !== ".nojekyll" && name !== "_headers") continue;
   await cp(path.join(root, name), path.join(dist, name));
 }
 
@@ -150,6 +150,11 @@ if (process.env.GOOGLE_APP_ID) {
 }
 if (process.env.WORKER_URL) {
   config = config.replace("http://127.0.0.1:8787", process.env.WORKER_URL);
+}
+const pickerKey = process.env.GOOGLE_API_KEY || "";
+const reused = ["GEMINI_API_KEY", "QWEN_API_KEY", "OPENAI_API_KEY"].filter((name) => pickerKey && process.env[name] && process.env[name] === pickerKey);
+if (reused.length || /gemini|generativelanguage/i.test(pickerKey)) {
+  console.warn("WARNING: GOOGLE_API_KEY looks like an AI provider key (" + (reused.join(", ") || "name") + "). The file picker needs its own key, restricted to the Picker API and your domains. Never put the Gemini key in the browser.");
 }
 await writeFile(path.join(dist, "config.js"), config);
 

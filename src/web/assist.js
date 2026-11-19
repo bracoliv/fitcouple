@@ -76,15 +76,18 @@ export function chatHtml(state, esc) {
     <button type="button" id="chatAsk">Ask</button></section>`;
 }
 
+export const PHOTO_EDGE = 1024;
+export const PHOTO_QUALITY = 0.8;
+
 async function shrinkPhoto(file) {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 768 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, PHOTO_EDGE / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
   canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
   const buffer = await blob.arrayBuffer();
   let binary = "";
   const bytes = new Uint8Array(buffer);

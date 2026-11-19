@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHAT_SCOPE, capWords, isClearlyOffTopic } from "../src/worker/ai.ts";
+import { CHAT_SCOPE, budgetUsd, capWords, isClearlyOffTopic, shouldFallbackStatus } from "../src/worker/ai.ts";
 
 const ALLOW = [
   "what to eat before an exam",
@@ -56,4 +56,8 @@ test("borderline health questions pass and only clear off-topic requests are blo
   assert.equal(CHAT_SCOPE.includes("Do not refuse those questions"), true);
   assert.equal(CHAT_SCOPE.includes("supplements or slimming products"), true);
   assert.equal(capWords("one two three four", 2), "one two");
+  for (const status of [400, 401, 403, 413, 404]) assert.equal(shouldFallbackStatus(status), false, String(status));
+  for (const status of [429, 500, 502, 503]) assert.equal(shouldFallbackStatus(status), true, String(status));
+  assert.equal(budgetUsd(undefined), 5);
+  assert.equal(budgetUsd("0"), 0);
 });

@@ -4,10 +4,10 @@ import {
   adminCustomers,
   confirmTeam,
   redeemVoucher,
-  createSession,
   createTeam,
   ensureSchema,
   joinTeam,
+  openGoogleSession,
   recordEvents,
   setDisplayName,
   setProgramChoice,
@@ -18,11 +18,13 @@ import {
   type Db,
 } from "./data.ts";
 import { GameError } from "./errors.ts";
+import { accountIdFromSub, verifyGoogleIdToken } from "./google-auth.ts";
 import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
+import { adminFailures, enforceRate, positiveInt } from "./rate.ts";
 import { readVoucherConfig } from "./vouchers.ts";
 import { cleanOrder, readStoreConfig } from "./store.ts";
 import { adminOrders, completeSandboxOrder, deleteOrder, listProducts, placeOrder, playerOrders, publicStore, saveProduct } from "./shop.ts";
-import { addFeedback, CHAT_SCOPE, costReport, effectiveLimits, FOOD_RULE, isClearlyOffTopic, noteOffTopic, OFF_TOPIC_REPLY, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, setUserControl, usdToRmRate } from "./ai.ts";
+import { addFeedback, budgetStatus, CHAT_SCOPE, costReport, effectiveLimits, FOOD_RULE, isClearlyOffTopic, noteOffTopic, OFF_TOPIC_REPLY, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, setUserControl, usdToRmRate } from "./ai.ts";
 
 export interface AppEnv {
   DB: Db;
@@ -67,7 +69,17 @@ export interface AppEnv {
   AI_LIMIT_TEXT_LOG?: string;
   AI_LIMIT_RECOMMEND?: string;
   AI_LIMIT_CHAT?: string;
+  AI_DAILY_BUDGET_USD?: string;
+  AI_DAILY_BUDGET_WARN?: string;
+  RATE_SESSION_LIMIT?: string;
+  RATE_AI_LIMIT?: string;
+  RATE_WINDOW_SECONDS?: string;
+  ADMIN_FAIL_LIMIT?: string;
+  ADMIN_FAIL_WINDOW_SECONDS?: string;
   PREMIUM_PAYMENTS_ENABLED?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_SUB_SALT?: string;
+  SITE_URL?: string;
 }
 
 function allowedOrigin(env: AppEnv, origin: string): boolean {
@@ -78,6 +90,10 @@ function responseHeaders(request: Request, env: AppEnv): Headers {
   const headers = new Headers();
   headers.set("Content-Type", "application/json; charset=utf-8");
   headers.set("Cache-Control", "no-store");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+  headers.set("X-Frame-Options", "DENY");
   const origin = request.headers.get("Origin");
   if (origin && allowedOrigin(env, origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
@@ -132,12 +148,25 @@ async function assertStaff(request: Request, env: AppEnv): Promise<void> {
 
 async function assertAdmin(request: Request, env: AppEnv): Promise<void> {
   const key = env.ADMIN_KEY || "";
-  if (key.length < 16) throw new GameError(503, "The owner key is not set on the server yet.");
+  if (key === "local-dev-admin-key-change-me") {
+    throw new GameError(503, "Replace the sample owner key before using the owner page.");
+  }
+  if (key.length < 32) throw new GameError(503, "The owner key must be at least 32 random characters.");
+  const failures = await adminFailures(
+    env.DB,
+    request,
+    positiveInt(env.ADMIN_FAIL_LIMIT, 8, 100),
+    positiveInt(env.ADMIN_FAIL_WINDOW_SECONDS, 900),
+  );
+  if (failures.blocked) throw new GameError(429, "Too many owner sign-in tries. Wait and try again.");
   const header = request.headers.get("Authorization") || "";
   const match = /^Bearer\s+(\S+)$/.exec(header);
   const provided = match ? match[1] : "";
   const ok = await secretsMatch(provided, key);
-  if (!ok) throw new GameError(401, "That owner key is not right.");
+  if (!ok) {
+    await failures.note();
+    throw new GameError(401, "That owner key is not right.");
+  }
 }
 
 export async function handle(request: Request, env: AppEnv): Promise<Response> {
@@ -157,9 +186,12 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       return json(request, env, 200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/v1/session") {
-      const body = assertKeys(await readJson(request), ["anonId", "day"]);
+      await enforceRate(env.DB, request, "session", positiveInt(env.RATE_SESSION_LIMIT, 10, 1000), positiveInt(env.RATE_WINDOW_SECONDS, 60, 3600));
+      const body = await readSession(request);
       const day = body.day == null ? now.toISOString().slice(0, 10) : dayFrom(body.day, now);
-      const created = await createSession(env.DB, String(body.anonId || ""), day, offer);
+      const claims = await verifyGoogleIdToken(body.idToken, env.GOOGLE_CLIENT_ID || "");
+      const userId = await accountIdFromSub(claims.sub, env.GOOGLE_SUB_SALT || "");
+      const created = await openGoogleSession(env.DB, userId, day, offer);
       return presentPlayer(request, env, 200, created);
     }
     if (request.method === "GET" && url.pathname === "/v1/admin/customers") {
@@ -264,8 +296,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       if (!shop.enabled) return json(request, env, 404, { error: "Not found." });
       const user = await userFromToken(env.DB, bearer(request));
       const body = cleanOrder(await readLoose(request, 200));
-      const origin = request.headers.get("Origin") || "http://127.0.0.1:8788";
-      const page = `${origin}/pay-sandbox.html`;
+      const page = `${siteOrigin(env)}/pay-sandbox.html`;
       return json(request, env, 200, await placeOrder(env.DB, user.id, now.toISOString().slice(0, 10), shop, body, { pump: env.STORE_PUMP_CATALOG, slim: env.STORE_SLIM_CATALOG }, env, page));
     }
     if (request.method === "POST" && url.pathname === "/v1/store/sandbox-complete") {
@@ -282,6 +313,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       return json(request, env, 200, await quotaFor(env.DB, user.id, day, limits));
     }
     if (request.method === "POST" && url.pathname.startsWith("/v1/ai/")) {
+      await enforceRate(env.DB, request, "ai", positiveInt(env.RATE_AI_LIMIT, 30, 1000), positiveInt(env.RATE_WINDOW_SECONDS, 60, 3600));
       return json(request, env, 200, await handleAi(request, env, url.pathname, now));
     }
     if (url.pathname === "/v1/admin/ai" && request.method === "GET") {
@@ -309,6 +341,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
         feedback: feedback?.count || 0,
         refusals: refusals.results || [],
         controls: controls.results || [],
+        budget: await budgetStatus(env.DB, day, env),
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/limits") {
@@ -427,13 +460,12 @@ async function handleAi(request: Request, env: AppEnv, pathname: string, now: Da
     ], "session");
   }
   if (pathname === "/v1/ai/feedback") {
-    await addFeedback(env.DB, day);
-    return { ok: true };
+    return { ok: true, counted: await addFeedback(env.DB, day, user.id) };
   }
   if (pathname === "/v1/ai/chat") {
     const message = clipped(body.message, 500);
     if (isClearlyOffTopic(message)) {
-      await noteOffTopic(env.DB, user.id, day, "chat", limits);
+      await noteOffTopic(env.DB, user.id, day, "chat", limits, env);
       return { notice: "Not medical advice.", refused: true, reply: OFF_TOPIC_REPLY };
     }
     return runFeature(base.db, base.env, base.userId, base.day, "chat", base.limits, [
@@ -441,6 +473,34 @@ async function handleAi(request: Request, env: AppEnv, pathname: string, now: Da
     ], "chat");
   }
   throw new GameError(404, "Not found.");
+}
+
+function siteOrigin(env: AppEnv): string {
+  const raw = String(env.SITE_URL || "").trim();
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new GameError(503, "Set SITE_URL to the public site address.");
+  }
+  const local = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+  if (url.protocol !== "https:" && !local) throw new GameError(503, "SITE_URL must be https.");
+  if (url.username || url.password || url.search || url.hash) throw new GameError(503, "SITE_URL must be a plain origin.");
+  return url.origin;
+}
+
+async function readSession(request: Request): Promise<{ idToken: string; day?: string }> {
+  const text = await request.text();
+  if (text.length > 8000) throw new GameError(413, "Request is too large.");
+  if (!text) throw new GameError(400, "Send JSON.");
+  let body: unknown;
+  try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
+  const record = assertKeys(body, ["idToken", "day"]);
+  const idToken = record.idToken;
+  if (typeof idToken !== "string" || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken) || idToken.length > 5000) {
+    throw new GameError(401, "Google sign-in was not valid. Try again.");
+  }
+  return { idToken, day: typeof record.day === "string" ? record.day : undefined };
 }
 
 async function readAiObject(request: Request): Promise<Record<string, unknown>> {
@@ -453,11 +513,16 @@ async function readAiObject(request: Request): Promise<Record<string, unknown>> 
 }
 
 async function readFoodImage(request: Request): Promise<{ image: string; mime: string }> {
-  const body = await readAiObject(request);
-  const keys = Object.keys(body);
+  const text = await request.text();
+  if (text.length > 1_600_000) throw new GameError(413, "Send a smaller photo.");
+  let body: unknown;
+  try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new GameError(400, "Send a JSON object.");
+  const record = body as Record<string, unknown>;
+  const keys = Object.keys(record);
   if (keys.some((key) => key !== "image" && key !== "mime")) throw new GameError(400, "Unexpected field.");
-  const mime = body.mime === "image/png" || body.mime === "image/webp" ? body.mime : "image/jpeg";
-  const image = typeof body.image === "string" ? body.image : "";
+  const mime = record.mime === "image/png" || record.mime === "image/webp" ? record.mime : "image/jpeg";
+  const image = typeof record.image === "string" ? record.image : "";
   if (!/^[A-Za-z0-9+/=]+$/.test(image) || image.length < 100 || image.length > 1_500_000) {
     throw new GameError(400, "Send a smaller photo.");
   }
