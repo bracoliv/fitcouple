@@ -913,8 +913,9 @@ test("two chats at once cannot both pass a cap of one", async () => {
   }
 });
 
-test("an old session token still opens that profile and email is not stored", async () => {
+test("an old session token still opens that profile and Google identity is stored", async () => {
   const { sha256Hex } = await import("../src/worker/crypto.ts");
+  const { legacyAccountId, plainAccountId } = await import("../src/worker/google-auth.ts");
   const token = "ab".repeat(32);
   const id = "cd".repeat(32);
   await env.DB.prepare(
@@ -925,13 +926,109 @@ test("an old session token still opens that profile and email is not stored", as
   assert.equal(me.status, 200, me.text);
   assert.equal((me.json as { id: string; xp: number }).id, id);
   assert.equal((me.json as { xp: number }).xp, 12);
+  const sub = "884422110099";
+  const legacy = await legacyAccountId(sub, env.GOOGLE_SUB_SALT);
+  assert.ok(legacy);
+  await env.DB.prepare(
+    `INSERT INTO users (id, token_hash, xp, level, streak, strength, discipline, health, mind, difficulty, program_start)
+     VALUES (?, ?, 40, 1, 0, 1, 1, 1, 1, 'normal', ?)`,
+  ).bind(legacy, await sha256Hex("ef".repeat(32)), utcDay()).run();
   const created = await call("/v1/session", {
     method: "POST",
-    body: { idToken: google.idToken("884422110099", { email: "person@example.com" }), day: utcDay() },
+    body: { idToken: google.idToken(sub, { email: "Person@Example.com", name: "Old Name" }), day: utcDay() },
   });
   assert.equal(created.status, 200, created.text);
-  const dump = JSON.stringify(await env.DB.prepare("SELECT id, display_name, token_hash FROM users").all());
-  assert.equal(dump.includes("person@example.com"), false);
-  assert.equal(dump.includes("884422110099"), false);
+  assert.equal((created.json as { id: string; xp: number }).id, legacy);
+  assert.equal((created.json as { xp: number }).xp, 40);
+  const row = await env.DB.prepare("SELECT email, google_sub, google_name FROM users WHERE id = ?").bind(legacy).first<{ email: string; google_sub: string; google_name: string }>();
+  assert.equal(row?.email, "person@example.com");
+  assert.equal(row?.google_sub, sub);
+  assert.equal(row?.google_name, "Old Name");
+  const renamed = await call("/v1/session", {
+    method: "POST",
+    body: { idToken: google.idToken(sub, { email: "Person@Example.com", name: "New Name" }), day: utcDay() },
+  });
+  assert.equal((renamed.json as { id: string }).id, legacy);
+  const again = await env.DB.prepare("SELECT google_name FROM users WHERE id = ?").bind(legacy).first<{ google_name: string }>();
+  assert.equal(again?.google_name, "New Name");
+  const fresh = await session("plainuser");
+  assert.equal(fresh.id, await plainAccountId("plainuser"));
+});
+
+test("gift codes redeem once, expire, revoke, extend, and return to free", async () => {
+  const player = await session("giftuser");
+  const made = await call("/v1/admin/gifts/codes", {
+    method: "POST",
+    token: TEST_KEY,
+    body: { count: 2, label: "order 12", redeemDays: 30, giftDays: 66 },
+  });
+  assert.equal(made.status, 200, made.text);
+  const codes = (made.json as { codes: string[] }).codes;
+  assert.equal(codes.length, 2);
+  assert.match(codes[0], /^FC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/);
+  const first = await call("/v1/gift/redeem", { method: "POST", token: player.token, body: { code: codes[0].toLowerCase() } });
+  assert.equal(first.status, 200, first.text);
+  const account = (first.json as { account: { plan: string; daysLeft: number; email: string } }).account;
+  assert.equal(account.plan, "gift");
+  assert.equal(account.daysLeft, 66);
+  assert.equal(account.email, "giftuser@players.test");
+  const again = await call("/v1/gift/redeem", { method: "POST", token: player.token, body: { code: codes[0] } });
+  assert.equal(again.status, 409);
+  await call("/v1/admin/gifts/revoke", { method: "POST", token: TEST_KEY, body: { code: codes[1] } });
+  const revoked = await call("/v1/gift/redeem", { method: "POST", token: player.token, body: { code: codes[1] } });
+  assert.equal(revoked.status, 400);
+  const extended = await call("/v1/admin/gifts/user", {
+    method: "POST",
+    token: TEST_KEY,
+    body: { userId: player.id, action: "extend", days: 10, expiresDay: null },
+  });
+  assert.equal(extended.status, 200, extended.text);
+  const { addDays } = await import("../src/worker/gifts.ts");
+  assert.equal((extended.json as { expiresDay: string }).expiresDay, addDays(addDays(utcDay(), 66), 10));
+  await env.DB.prepare("UPDATE gifts SET expires_day = ? WHERE user_id = ?").bind(addDays(utcDay(), -1), player.id).run();
+  const free = await call("/v1/me?day=" + utcDay(), { token: player.token });
+  assert.equal((free.json as { account: { plan: string } }).account.plan, "free");
+  const expiredCode = await call("/v1/admin/gifts/codes", {
+    method: "POST",
+    token: TEST_KEY,
+    body: { count: 1, label: "", redeemDays: 30, giftDays: 10 },
+  });
+  const late = (expiredCode.json as { codes: string[] }).codes[0];
+  await env.DB.prepare("UPDATE gift_codes SET redeem_by = ? WHERE code = ?").bind(addDays(utcDay(), -1), late).run();
+  const refused = await call("/v1/gift/redeem", { method: "POST", token: player.token, body: { code: late } });
+  assert.equal(refused.status, 400);
+  env.AUTO_REVOKE_INACTIVE_DAYS = "3";
+  await call("/v1/admin/gifts/user", {
+    method: "POST",
+    token: TEST_KEY,
+    body: { userId: player.id, action: "grant", days: 66, expiresDay: null },
+  });
+  await env.DB.prepare("UPDATE users SET last_active_day = ? WHERE id = ?").bind(addDays(utcDay(), -10), player.id).run();
+  const ended = await call("/v1/me?day=" + utcDay(), { token: player.token });
+  assert.equal((ended.json as { account: { plan: string } }).account.plan, "free");
+  env.AUTO_REVOKE_INACTIVE_DAYS = "0";
+  const limited = await session("giftlimit");
+  env.GIFT_REDEEM_LIMIT = "2";
+  try {
+    const bad1 = await call("/v1/gift/redeem", { method: "POST", token: limited.token, headers: { "CF-Connecting-IP": "203.0.113.77" }, body: { code: "FC-AAAA-AAAA" } });
+    const bad2 = await call("/v1/gift/redeem", { method: "POST", token: limited.token, headers: { "CF-Connecting-IP": "203.0.113.77" }, body: { code: "FC-AAAA-AAAB" } });
+    const bad3 = await call("/v1/gift/redeem", { method: "POST", token: limited.token, headers: { "CF-Connecting-IP": "203.0.113.77" }, body: { code: "FC-AAAA-AAAC" } });
+    assert.equal(bad1.status, 400, bad1.text);
+    assert.equal(bad2.status, 400, bad2.text);
+    assert.equal(bad3.status, 429, bad3.text);
+  } finally {
+    env.GIFT_REDEEM_LIMIT = "8";
+    env.AUTO_REVOKE_INACTIVE_DAYS = "0";
+  }
+  const lookup = await call("/v1/session", {
+    method: "POST",
+    body: { idToken: google.idToken("supportlookup", { email: "support-lookup@example.com", name: "Support Person" }), day: utcDay() },
+  });
+  assert.equal(lookup.status, 200, lookup.text);
+  const found = await call("/v1/admin/support?q=" + encodeURIComponent("support-lookup@example.com"), { token: TEST_KEY });
+  assert.equal(found.status, 200, found.text);
+  const people = (found.json as { people: { email: string; name: string }[] }).people;
+  assert.equal(people.some((person) => person.email === "support-lookup@example.com" && person.name === "Support Person"), true);
+  assert.equal(JSON.stringify(found.json).includes("chicken rice"), false);
 });
 

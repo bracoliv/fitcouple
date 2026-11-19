@@ -16,9 +16,8 @@ async function bucket(label: string, ip: string): Promise<string> {
   return sha256Hex(`fitcouple-rate-v1:${label}:${ip}`);
 }
 
-export async function enforceRate(db: Db, request: Request, label: string, limit: number, windowSec: number): Promise<void> {
-  const ip = request.headers.get("CF-Connecting-IP") || "local";
-  const key = await bucket(label, ip);
+export async function enforceKeyedRate(db: Db, label: string, id: string, limit: number, windowSec: number): Promise<void> {
+  const key = await bucket(label, id);
   const start = windowStart(windowSec);
   const row = await db.prepare(
     `INSERT INTO rate_windows (bucket, window_start, count) VALUES (?, ?, 1)
@@ -28,6 +27,11 @@ export async function enforceRate(db: Db, request: Request, label: string, limit
   if ((row?.count || 1) > limit) {
     throw new GameError(429, "Too many tries. Wait a minute and try again.");
   }
+}
+
+export async function enforceRate(db: Db, request: Request, label: string, limit: number, windowSec: number): Promise<void> {
+  const ip = request.headers.get("CF-Connecting-IP") || "local";
+  await enforceKeyedRate(db, label, ip, limit, windowSec);
 }
 
 export async function adminFailures(db: Db, request: Request, limit: number, windowSec: number): Promise<{ blocked: boolean; note: () => Promise<void> }> {

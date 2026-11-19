@@ -10,15 +10,17 @@ The Worker rejects a request that contains any of these fields, at any depth:
 
 `food`, `meal`, `meals`, `workout`, `workouts`, `weight`, `weights`, `note`, `notes`, `kcal`, `calorie`, `calories`, `protein`, `carb`, `carbs`, `fat`, `email`, `sheet`, `spreadsheet`, `url`, `link`, `medication`, `meds`, `medicine`, `body`, `photo`, `image`, `password`, `secret`, `token`
 
-It also rejects email addresses, web links, text longer than 80 characters, and request bodies larger than 2,000 characters. Rejected text is not saved and not written to the logs.
+It also rejects email addresses, web links, text longer than 80 characters, and request bodies larger than 2,000 characters on game posts. The Google sign-in is separate: a verified ID token is how the account email and name are saved. Rejected game text is not saved and not written to the logs.
 
 Logs record the path and the status code only. Query strings are redacted in Cloudflare's own logs.
 
-Google sign-in for the sheet stays in the browser. The worker does not receive the Google access token or the sheet id. Game sign-in sends an ID token, which is checked and then discarded. Email is not stored.
+Google sign-in for the sheet stays in the browser. The worker does not receive the Google access token or the sheet id. Game sign-in sends an ID token. The worker checks it and stores the email, the Google display name, and the Google account id in plain text so support can find the account. The token itself is not stored.
 
 ## Player id
 
-Game sign-in sends a Google ID token once. The worker checks the signature, audience, issuer, and expiry, then stores a salted hash of the Google account id (`sub`). It does not store the token, the email, or the raw Google id. One Google account maps to one profile. Older anonymous profiles stay in the database and are not linked, because the server never had a Google id for them. A phone that still has its session token can keep using that old profile.
+Game sign-in sends a Google ID token once. The worker checks the signature, audience, issuer, and expiry. It stores the Google account id (`sub`), the email in lower case, and the Google display name. Brian decided these are not private: support needs them when a customer reports a problem. The purpose is account support and limiting abuse. Meals, workouts, weights, photos, and chat text are still not stored.
+
+One Google account maps to one profile. Profiles created with the old salted hash stay on that id if `GOOGLE_SUB_SALT` is still set the next time that person signs in. After that sign-in the plain Google id is saved on the row and the salt is no longer required. If the salt was already removed, the next sign-in starts a new profile. A phone that still has an old session token keeps using that profile.
 
 The browser keeps the session token. The server stores only the SHA-256 hash of that token.
 
@@ -28,7 +30,11 @@ The browser keeps the session token. The server stores only the SHA-256 hash of 
 
 | Column | Example | Meaning |
 | --- | --- | --- |
-| id | 64 hex characters | Salted hash of the Google account id. Not an email |
+| id | 64 hex characters | Profile id. New Google profiles use a hash of the Google account id with no salt |
+| google_sub | 102938 | Google account id, stored in plain text |
+| email | person@example.com | Google email, lower case |
+| google_name | Aisyah | Name from the Google account |
+| support_note | Order 441 | A note the owner types. Not a health note |
 | token_hash | 64 hex characters | Hash of the session token. The token itself stays on the phone |
 | display_name | Aisyah, or empty | Optional name the player types. Max 24 letters or numbers. Shown to their team and on the owner page |
 | xp | 120 | Score |

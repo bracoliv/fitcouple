@@ -99,6 +99,9 @@ export function createApi(workerUrl) {
     aiFeedback(token) {
       return request("/v1/ai/feedback", { method: "POST", token, body: {}, headers: { "X-Ai-Consent": "yes" } });
     },
+    redeemGift(token, code) {
+      return request("/v1/gift/redeem", { method: "POST", token, body: { code } });
+    },
     admin(key, day) {
       return request("/v1/admin/customers?day=" + encodeURIComponent(day), { token: key });
     },

@@ -34,7 +34,7 @@ function deleteOwnerOrder(key, orderId) {
 }
 const KEY = "fitAdminKey";
 const filters = ["all", "improving", "steady", "slipping", "inactive"];
-const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, ai: null, error: "", filter: "all", query: "", loading: false };
+const state = { key: sessionStorage.getItem(KEY) || "", report: null, shop: null, ai: null, support: null, supportQuery: "", error: "", filter: "all", query: "", loading: false };
 
 function esc(value) {
   return String(value == null ? "" : value)
@@ -105,6 +105,37 @@ function aiCard() {
     <ul class="log">${people || `<li class="meta">No premium players.</li>`}</ul></section>`;
 }
 
+function personLine(person) {
+  const usage = (person.usage || []).map((row) => `${row.feature} ${row.count}`).join(", ") || "none";
+  const caps = person.caps || {};
+  return `<li><strong>${esc(person.email || "No email")}</strong> · ${esc(person.name || "No name")}<br>
+    <span class="id">${esc(person.id)}</span><br>
+    Lv ${person.level} · ${person.xp} XP · streak ${person.streak} · last ${esc(person.lastActiveDay || "—")} · ${esc(person.plan)}${person.giftExpires ? ` until ${esc(person.giftExpires)}` : ""}<br>
+    Today ${esc(usage)} · in ${person.tokens?.input || 0} · out ${person.tokens?.output || 0} · $${Number(person.cost?.usd || 0).toFixed(4)}
+    ${person.paused ? " · assistant paused" : ""}
+    ${caps.chat != null ? ` · chat cap ${caps.chat}` : ""}
+    ${person.note ? `<br>Note: ${esc(person.note)}` : ""}</li>`;
+}
+
+function supportCard() {
+  const support = state.support;
+  if (!support) return "";
+  const codes = (support.codes || []).map((row) => `<li>${esc(row.code)} · ${esc(row.status)} · ${row.giftDays} days · redeem by ${esc(row.redeemBy)}${row.label ? ` · ${esc(row.label)}` : ""}${row.redeemedBy ? ` · ${esc(row.redeemedBy)}` : ""}</li>`).join("");
+  const audit = (support.audit || []).map((row) => `<li>${esc(row.at)} · ${esc(row.actor)} · ${esc(row.action)} · ${esc(row.detail)}</li>`).join("");
+  return `<section class="card"><h2>Accounts</h2>
+    <p class="hint">Email and name are stored so you can find a customer. Meals, workouts, weights, photos, and chat text are not. Gift codes are single use. Redeeming while a gift is still running adds the new days onto the current expiry. Purchase history is not in the app, so ending a gift for that reason is your decision. ${support.autoRevokeDays ? `A gift ends automatically after ${support.autoRevokeDays} inactive days.` : "Automatic early end is off (AUTO_REVOKE_INACTIVE_DAYS is 0)."} Redeeming is ${support.giftsEnabled ? "on" : "off"}.</p>
+    <form id="supportFind"><label>Email, name, or id<input name="q" value="${esc(state.supportQuery)}"></label><button type="submit">Search</button></form>
+    <ul class="log">${(support.people || []).map(personLine).join("") || `<li class="meta">No matches.</li>`}</ul>
+    <h3>Inactive</h3><ul class="log">${(support.inactive || []).map(personLine).join("") || `<li class="meta">None in the last search window.</li>`}</ul>
+    <h3>Gifts ending soon</h3><ul class="log">${(support.ending || []).map(personLine).join("") || `<li class="meta">None.</li>`}</ul>
+    <form id="noteForm"><label>Player id<input name="userId" required></label><label>Note<input name="supportNote" maxlength="200" placeholder="Order ref or why you are watching this account"></label><button type="submit">Save note</button></form>
+    <form id="giftUserForm"><label>Player id<input name="userId" required></label><label>Action<select name="action"><option value="grant">Grant days</option><option value="extend">Extend</option><option value="shorten">Shorten</option><option value="set">Set end date</option><option value="revoke">Revoke now</option></select></label><label>Days<input name="days" inputmode="numeric" value="66"></label><label>End date<input name="expiresDay" placeholder="YYYY-MM-DD"></label><button type="submit">Update gift</button></form>
+    <form id="codeForm"><label>How many<input name="count" inputmode="numeric" value="1"></label><label>Label<input name="label" maxlength="80" placeholder="Customer or order ref"></label><label>Days to redeem<input name="redeemDays" inputmode="numeric" value="30"></label><label>Gift length<input name="giftDays" inputmode="numeric" value="66"></label><button type="submit">Make codes</button></form>
+    <ul class="log">${codes || `<li class="meta">No codes.</li>`}</ul>
+    <form id="revokeCodeForm"><label>Unused code<input name="code" required></label><button type="submit">Revoke code</button></form>
+    <h3>Owner actions</h3><ul class="log">${audit || `<li class="meta">None yet.</li>`}</ul></section>`;
+}
+
 function shopCard() {
   const shop = state.shop;
   if (!shop) return "";
@@ -137,12 +168,13 @@ function render() {
   const counts = report ? report.counts : { improving: 0, steady: 0, slipping: 0, inactive: 0 };
   const list = report ? report.customers.filter(visible) : [];
   app.innerHTML = `<p><a href="play.html">Back to Play</a></p><h1>Are they still improving?</h1>
-    <p class="hint">Each card is a player id, an optional name they chose, and scores. ${state.loading ? "Loading…" : ""}</p>
+    <p class="hint">Each card is a player id, an optional name they chose, and scores. The Accounts section also shows the Google email and name. ${state.loading ? "Loading…" : ""}</p>
     ${state.error ? `<p class="bad">${esc(state.error)}</p>` : ""}
     <div class="filters">${filters.map((name) => `<button type="button" data-filter="${name}" class="${state.filter === name ? "on" : ""}">${name}${name === "all" || !report ? "" : " " + counts[name]}</button>`).join("")}
     <button type="button" id="reload">Refresh</button><button type="button" id="signOut">Sign out</button></div>
     <input id="find" placeholder="Find a name or id" value="${esc(state.query)}">
     ${shopCard()}
+    ${supportCard()}
     ${aiCard()}
     ${report && report.vouchers ? `<section class="card"><h2>Restaurant vouchers</h2><p class="hint">${report.vouchers.enabled ? "On. Separate from SOSM+." : "Off. Players cannot see this. Set VOUCHERS_ENABLED to true only after you decide to use it."}</p><p>Issued ${report.vouchers.issued} · Redeemed ${report.vouchers.redeemed} · Expired ${report.vouchers.expired}</p>${report.vouchers.configError ? `<p class="bad">${esc(report.vouchers.configError)}</p>` : ""}</section>` : ""}
     ${report ? list.map(playerCard).join("") || `<p class="card">No players in this filter.</p>` : `<p class="card">No report yet.</p>`}
@@ -186,6 +218,49 @@ function render() {
     render();
   });
   const find = document.getElementById("find");
+  const supportFind = document.getElementById("supportFind");
+  if (supportFind) supportFind.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.supportQuery = String(new FormData(supportFind).get("q") || "");
+    refreshSupport();
+  });
+  const noteForm = document.getElementById("noteForm");
+  if (noteForm) noteForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(noteForm);
+    runSupport(() => ownerShop("/v1/admin/support/note", state.key, { userId: String(data.get("userId") || ""), supportNote: String(data.get("supportNote") || "") }));
+  });
+  const giftUserForm = document.getElementById("giftUserForm");
+  if (giftUserForm) giftUserForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(giftUserForm);
+    const expiresDay = String(data.get("expiresDay") || "").trim();
+    runSupport(() => ownerShop("/v1/admin/gifts/user", state.key, {
+      userId: String(data.get("userId") || ""),
+      action: expiresDay ? "set" : String(data.get("action") || "grant"),
+      days: Number(data.get("days") || 66),
+      expiresDay: expiresDay || null,
+    }));
+  });
+  const codeForm = document.getElementById("codeForm");
+  if (codeForm) codeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(codeForm);
+    runSupport(async () => {
+      const made = await ownerShop("/v1/admin/gifts/codes", state.key, {
+        count: Number(data.get("count") || 1),
+        label: String(data.get("label") || ""),
+        redeemDays: Number(data.get("redeemDays") || 30),
+        giftDays: Number(data.get("giftDays") || 66),
+      });
+      state.error = made.codes ? `Codes: ${made.codes.join(", ")}` : "";
+    });
+  });
+  const revokeCodeForm = document.getElementById("revokeCodeForm");
+  if (revokeCodeForm) revokeCodeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    runSupport(() => ownerShop("/v1/admin/gifts/revoke", state.key, { code: String(new FormData(revokeCodeForm).get("code") || "") }));
+  });
   find.addEventListener("input", () => {
     state.query = find.value;
     const start = find.selectionStart;
@@ -281,6 +356,27 @@ async function savePremium(userId, grant) {
   render();
 }
 
+async function refreshSupport() {
+  try {
+    const q = encodeURIComponent(state.supportQuery || "");
+    state.support = await ownerShop(`/v1/admin/support?q=${q}&inactiveDays=14&endingDays=7`, state.key);
+    state.error = state.error && state.error.startsWith("Codes:") ? state.error : "";
+  } catch (err) {
+    state.error = err.message || "Could not load accounts.";
+  }
+  render();
+}
+
+async function runSupport(task) {
+  try {
+    await task();
+    await refreshSupport();
+  } catch (err) {
+    state.error = err.message || "Could not update that account.";
+    render();
+  }
+}
+
 async function load() {
   state.loading = true;
   state.error = "";
@@ -289,6 +385,7 @@ async function load() {
     state.report = await api.admin(state.key, localDay());
     state.shop = await loadOwnerShop(state.key);
     state.ai = await ownerShop("/v1/admin/ai", state.key);
+    state.support = await ownerShop("/v1/admin/support?inactiveDays=14&endingDays=7&q=" + encodeURIComponent(state.supportQuery || ""), state.key);
   } catch (err) {
     state.report = null;
     state.error = err.message || "Could not load the owner page.";

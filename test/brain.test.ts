@@ -19,7 +19,7 @@ import {
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
-import { STORE_SQL, VOUCHER_SQL, AI_SQL, SECURITY_SQL } from "../src/worker/schema.ts";
+import { AI_SQL, SECURITY_SQL, STORE_SQL, SUPPORT_SQL, VOUCHER_SQL } from "../src/worker/schema.ts";
 import { costMicroUsd, modelName, usageFromGoogle, DEFAULT_PRICES } from "../src/worker/ai.ts";
 import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
@@ -322,6 +322,11 @@ test("the gemini model stays on 3.5 and the usage table has no content columns",
 test("security tables match the migration", () => {
   const file = readFileSync(new URL("../migrations/0006_security.sql", import.meta.url), "utf8");
   assert.equal(file.trim(), SECURITY_SQL.trim());
+});
+
+test("support tables match the migration", () => {
+  const file = readFileSync(new URL("../migrations/0007_support.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), SUPPORT_SQL.trim());
 });
 
 test("flag text stays free of health details", () => {

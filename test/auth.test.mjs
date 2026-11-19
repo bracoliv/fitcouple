@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accountIdFromSub, clearGoogleKeyCache, verifyGoogleIdToken } from "../src/worker/google-auth.ts";
+import { clearGoogleKeyCache, legacyAccountId, plainAccountId, verifyGoogleIdToken } from "../src/worker/google-auth.ts";
 import { googleFixture } from "./google-fixture.mjs";
 
 const CLIENT = "test-client.apps.googleusercontent.com";
@@ -15,14 +15,16 @@ function fetcher() {
 
 test("a Google ID token is checked and only the subject is kept", async () => {
   clearGoogleKeyCache();
-  const claims = await verifyGoogleIdToken(fx.idToken("8844221100", { email: "person@example.com" }), CLIENT, async () => fetcher());
+  const claims = await verifyGoogleIdToken(fx.idToken("8844221100", { email: "Person@Example.com", name: "Aisyah" }), CLIENT, async () => fetcher());
   assert.equal(claims.sub, "8844221100");
-  assert.equal("email" in claims, false);
-  const id = await accountIdFromSub(claims.sub, "test-salt-value-0123456789");
+  assert.equal(claims.email, "person@example.com");
+  assert.equal(claims.name, "Aisyah");
+  const id = await plainAccountId(claims.sub);
   assert.equal(id.length, 64);
-  assert.equal(id.includes("8844221100"), false);
-  assert.equal(await accountIdFromSub(claims.sub, "test-salt-value-0123456789"), id);
-  assert.notEqual(await accountIdFromSub(claims.sub, "other-salt-value-0123456789"), id);
+  assert.equal(await plainAccountId(claims.sub), id);
+  assert.notEqual(await legacyAccountId(claims.sub, "test-salt-value-0123456789"), id);
+  assert.equal(await legacyAccountId(claims.sub, "short"), null);
+  await assert.rejects(() => verifyGoogleIdToken(fx.idToken("8844221100", { email_verified: false }), CLIENT, async () => fetcher()));
   await assert.rejects(() => verifyGoogleIdToken(fx.idToken("8844221100", { aud: "other.apps.googleusercontent.com" }), CLIENT, async () => fetcher()));
   await assert.rejects(() => verifyGoogleIdToken(fx.idToken("8844221100", { iss: "https://evil.example" }), CLIENT, async () => fetcher()));
   await assert.rejects(() => verifyGoogleIdToken(fx.idToken("8844221100", { exp: Math.floor(Date.now() / 1000) - 600 }), CLIENT, async () => fetcher()));

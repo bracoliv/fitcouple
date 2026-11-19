@@ -156,7 +156,11 @@ function todayHtml() {
     return `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${progress} · ${quest.xp} XP · ${esc(quest.attribute)}${extra}${bonus}</span></div>${questActions(quest)}</li>`;
   }).join("");
   const cleared = profile.dayClear ? `<p class="banner">Day cleared. +${profile.dayClearXp} XP.</p>` : "";
-  return `<section class="card hero">${portraitHtml(state.avatar, profile.level, "Your avatar")}<div><strong>${esc(profile.displayName || "Player")}</strong><p class="meta">Level ${profile.level} · ${tierFor(profile.level)} frame · streak ${profile.streak}</p></div></section>
+  const gift = profile.account && profile.account.plan === "gift"
+    ? `<p class="banner">${profile.account.endingSoon ? `Your gift ends in ${profile.account.daysLeft} day${profile.account.daysLeft === 1 ? "" : "s"}.` : `${profile.account.daysLeft} gift days left.`}</p>`
+    : "";
+  return `<section class="card hero">${portraitHtml(state.avatar, profile.level, "Your avatar")}<div><strong>${esc(profile.displayName || profile.account?.name || "Player")}</strong><p class="meta">Level ${profile.level} · ${tierFor(profile.level)} frame · streak ${profile.streak}</p></div></section>
+    ${gift}
     ${assistHtml(state, localDay(), esc)}
     <section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
     <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level) => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
@@ -245,7 +249,7 @@ function moreHtml() {
     : "";
   const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
   const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
-  return `${voucherSection()}${editorHtml(state.avatar)}${chatHtml(state, esc)}${premiumHtml(state.aiQuota)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
+  return `${voucherSection()}${giftSection()}${editorHtml(state.avatar)}${chatHtml(state, esc)}${premiumHtml(state.aiQuota)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
       <form id="measureForm"><label>Weight kg<input name="weight" inputmode="decimal"></label><label>Waist cm<input name="waist" inputmode="decimal"></label><button type="submit">Save on this phone</button></form>
@@ -270,7 +274,7 @@ function shell(screen) {
     more: moreHtml(),
   };
   const signIn = state.needsGameSignIn && !state.profile
-    ? `<section class="card"><h2>Sign in to the game</h2><p class="sub">Use Google. Fit keeps one profile for each account and stores a salted hash of the Google id, not your email.</p><div id="gameSignIn"></div></section>`
+    ? `<section class="card"><h2>Sign in to the game</h2><p class="sub">Use Google. Fit stores your Google email and name, game scores, and assistant usage counts so support can find your account and limit abuse. Meals, workouts, weights, photos, and chat text are not stored.</p><div id="gameSignIn"></div></section>`
     : "";
   const problem = state.loading
     ? `<p class="banner">Loading your game…</p>`
@@ -287,6 +291,18 @@ function rememberVoucherCodes(codes) {
   try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
   for (const item of codes) if (item && item.code) saved[item.id] = item.code;
   localStorage.setItem("fitVoucherCodes", JSON.stringify(saved));
+}
+
+function giftSection() {
+  const account = state.profile && state.profile.account;
+  if (!account || account.giftsEnabled === false) return "";
+  const status = account.plan === "gift"
+    ? `<p>Gift days left: ${esc(account.daysLeft)}. ${account.endingSoon ? "This ends soon." : `It runs until ${esc(account.giftExpires)}.`}</p>`
+    : account.plan === "premium"
+      ? `<p>Premium is on for this account.</p>`
+      : `<p class="hint">A gift code opens unlimited assistant use for the number of days on the code. A code used while a gift is still running adds those days onto the current end date.</p>`;
+  return `<section class="card"><h2>Gift code</h2><p class="meta">${esc(account.email || "")}${account.name ? ` · ${esc(account.name)}` : ""}</p>${status}
+    <form id="giftRedeem"><label>Code<input name="code" maxlength="16" placeholder="FC-XXXX-XXXX"></label><button type="submit">Redeem</button></form></section>`;
 }
 
 function voucherSection() {
@@ -316,6 +332,15 @@ function render() {
     if (el) el.addEventListener("click", fn);
   };
   on("retry", () => boot());
+  const giftRedeem = document.getElementById("giftRedeem");
+  if (giftRedeem) giftRedeem.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const code = String(new FormData(giftRedeem).get("code") || "");
+    run(async () => {
+      state.profile = await api.redeemGift(state.token, code);
+      return "Gift applied.";
+    });
+  });
   const gameSignIn = document.getElementById("gameSignIn");
   if (gameSignIn) {
     mountGameSignIn(gameSignIn, config, (idToken) => run(async () => {

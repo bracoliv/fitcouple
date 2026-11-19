@@ -12,14 +12,20 @@ export function googleFixture() {
   jwk.use = "sig";
   function idToken(sub, options = {}) {
     const header = b64url(JSON.stringify({ alg: "RS256", kid: options.kid || "test-key", typ: "JWT" }));
-    const payload = b64url(JSON.stringify({
+    const email = options.email === null ? undefined : (options.email || `${sub}@players.test`);
+    const payload = {
       sub,
       aud: options.aud || "test-client.apps.googleusercontent.com",
       iss: options.iss || "https://accounts.google.com",
       exp: options.exp ?? Math.floor(Date.now() / 1000) + 3600,
-      email: options.email,
-    }));
-    const data = `${header}.${payload}`;
+      name: options.name || "Player",
+    };
+    if (email) {
+      payload.email = email;
+      payload.email_verified = options.email_verified !== false;
+    }
+    const encoded = b64url(JSON.stringify(payload));
+    const data = `${header}.${encoded}`;
     const sig = sign("RSA-SHA256", Buffer.from(data), privateKey);
     return `${data}.${sig.toString("base64url")}`;
   }

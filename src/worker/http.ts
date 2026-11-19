@@ -18,7 +18,8 @@ import {
   type Db,
 } from "./data.ts";
 import { GameError } from "./errors.ts";
-import { accountIdFromSub, verifyGoogleIdToken } from "./google-auth.ts";
+import { legacyAccountId, plainAccountId, verifyGoogleIdToken } from "./google-auth.ts";
+import { accountView, adjustGift, generateGiftCodes, giftsEnabled, inactiveRevokeDays, redeemGiftCode, revokeGiftCode, saveSupportNote, supportReport } from "./gifts.ts";
 import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
 import { adminFailures, enforceRate, positiveInt } from "./rate.ts";
 import { readVoucherConfig } from "./vouchers.ts";
@@ -80,6 +81,10 @@ export interface AppEnv {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_SUB_SALT?: string;
   SITE_URL?: string;
+  GIFT_CODES_ENABLED?: string;
+  AUTO_REVOKE_INACTIVE_DAYS?: string;
+  GIFT_REDEEM_LIMIT?: string;
+  GIFT_REDEEM_WINDOW_SECONDS?: string;
 }
 
 function allowedOrigin(env: AppEnv, origin: string): boolean {
@@ -109,6 +114,12 @@ function json(request: Request, env: AppEnv, status: number, body: unknown): Res
 }
 
 async function presentPlayer(request: Request, env: AppEnv, status: number, body: unknown): Promise<Response> {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const record = body as Record<string, unknown>;
+    if (typeof record.id === "string") {
+      record.account = await accountView(env.DB, record.id, new Date().toISOString().slice(0, 10), env);
+    }
+  }
   return json(request, env, status, body);
 }
 
@@ -190,8 +201,13 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const body = await readSession(request);
       const day = body.day == null ? now.toISOString().slice(0, 10) : dayFrom(body.day, now);
       const claims = await verifyGoogleIdToken(body.idToken, env.GOOGLE_CLIENT_ID || "");
-      const userId = await accountIdFromSub(claims.sub, env.GOOGLE_SUB_SALT || "");
-      const created = await openGoogleSession(env.DB, userId, day, offer);
+      const created = await openGoogleSession(env.DB, {
+        sub: claims.sub,
+        email: claims.email,
+        name: claims.name,
+        plainId: await plainAccountId(claims.sub),
+        legacyId: await legacyAccountId(claims.sub, env.GOOGLE_SUB_SALT),
+      }, day, offer);
       return presentPlayer(request, env, 200, created);
     }
     if (request.method === "GET" && url.pathname === "/v1/admin/customers") {
@@ -310,7 +326,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const user = await userFromToken(env.DB, bearer(request));
       const day = now.toISOString().slice(0, 10);
       const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
-      return json(request, env, 200, await quotaFor(env.DB, user.id, day, limits));
+      return json(request, env, 200, await quotaFor(env.DB, user.id, day, limits, inactiveRevokeDays(env.AUTO_REVOKE_INACTIVE_DAYS)));
     }
     if (request.method === "POST" && url.pathname.startsWith("/v1/ai/")) {
       await enforceRate(env.DB, request, "ai", positiveInt(env.RATE_AI_LIMIT, 30, 1000), positiveInt(env.RATE_WINDOW_SECONDS, 60, 3600));
@@ -368,6 +384,68 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       });
       return json(request, env, 200, { ok: true });
     }
+    if (request.method === "GET" && url.pathname === "/v1/admin/support") {
+      await assertAdmin(request, env);
+      const day = now.toISOString().slice(0, 10);
+      const inactiveDays = Number(url.searchParams.get("inactiveDays") || 14);
+      const endingDays = Number(url.searchParams.get("endingDays") || 7);
+      return json(request, env, 200, await supportReport(
+        env.DB,
+        day,
+        url.searchParams.get("q") || "",
+        Number.isInteger(inactiveDays) ? inactiveDays : 14,
+        Number.isInteger(endingDays) ? endingDays : 7,
+        env,
+      ));
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/support/note") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readAdmin(request, ["userId", "supportNote"], 200), ["userId", "supportNote"]);
+      await saveSupportNote(env.DB, String(body.userId || ""), String(body.supportNote || ""));
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/gifts/codes") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readAdmin(request, ["count", "label", "redeemDays", "giftDays"], 80), ["count", "label", "redeemDays", "giftDays"]);
+      const label = typeof body.label === "string" && body.label.trim() ? body.label.trim().slice(0, 80) : null;
+      const codes = await generateGiftCodes(
+        env.DB,
+        now.toISOString().slice(0, 10),
+        Number(body.count ?? 1),
+        label,
+        Number(body.redeemDays ?? 30),
+        Number(body.giftDays ?? 66),
+      );
+      return json(request, env, 200, { codes });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/gifts/revoke") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readJson(request), ["code"]);
+      await revokeGiftCode(env.DB, body.code);
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/gifts/user") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readJson(request), ["userId", "action", "days", "expiresDay"]);
+      const expires = await adjustGift(
+        env.DB,
+        String(body.userId || ""),
+        now.toISOString().slice(0, 10),
+        String(body.action || ""),
+        body.days == null || body.days === "" ? null : Number(body.days),
+        typeof body.expiresDay === "string" ? body.expiresDay : null,
+        inactiveRevokeDays(env.AUTO_REVOKE_INACTIVE_DAYS),
+      );
+      return json(request, env, 200, { expiresDay: expires });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/gift/redeem") {
+      if (!giftsEnabled(env.GIFT_CODES_ENABLED)) return json(request, env, 404, { error: "Not found." });
+      const user = await userFromToken(env.DB, bearer(request));
+      const body = assertKeys(await readJson(request), ["code"]);
+      const day = now.toISOString().slice(0, 10);
+      await redeemGiftCode(env.DB, request, user.id, String(body.code || ""), day, env);
+      return presentPlayer(request, env, 200, await stateFor(env.DB, user.id, day, offer));
+    }
     if (request.method === "POST" && url.pathname === "/v1/premium/checkout") {
       if (String(env.PREMIUM_PAYMENTS_ENABLED || "") !== "true") return json(request, env, 404, { error: "Not found." });
       throw new GameError(403, "Premium payment is not live. No charge was made.");
@@ -415,6 +493,19 @@ async function readLoose(request: Request, maxString: number): Promise<unknown> 
   try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
   assertNoPrivateFields(body, 0, maxString);
   return body;
+}
+
+async function readAdmin(request: Request, allowed: string[], maxString: number): Promise<unknown> {
+  const text = await request.text();
+  if (text.length > 4000) throw new GameError(413, "Request is too large.");
+  if (!text) throw new GameError(400, "Send JSON.");
+  let body: unknown;
+  try { body = JSON.parse(text) as unknown; } catch { throw new GameError(400, "Send JSON."); }
+  const record = assertKeys(body, allowed);
+  for (const value of Object.values(record)) {
+    if (typeof value === "string" && value.length > maxString) throw new GameError(400, "Text is too long.");
+  }
+  return record;
 }
 
 async function readJson(request: Request): Promise<unknown> {

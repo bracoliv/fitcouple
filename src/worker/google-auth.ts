@@ -9,6 +9,8 @@ interface GoogleJwk extends JsonWebKey {
 
 interface Claims {
   sub: string;
+  email: string;
+  name: string;
 }
 
 let cached: { keys: GoogleJwk[]; until: number } | null = null;
@@ -88,10 +90,21 @@ export async function verifyGoogleIdToken(token: string, clientId: string, fetch
   }
   const sub = typeof payload.sub === "string" ? payload.sub : "";
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(sub)) throw new GameError(401, "Google sign-in was not valid. Try again.");
-  return { sub };
+  if (payload.email_verified !== true) throw new GameError(401, "Google did not confirm this email. Try again.");
+  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) {
+    throw new GameError(401, "Google did not confirm this email. Try again.");
+  }
+  const name = typeof payload.name === "string" ? payload.name.trim().replace(/\s+/g, " ").slice(0, 80) : "";
+  return { sub, email, name };
 }
 
-export async function accountIdFromSub(sub: string, salt: string): Promise<string> {
-  if (salt.trim().length < 16) throw new GameError(503, "Set GOOGLE_SUB_SALT to a long random value.");
-  return sha256Hex(`fitcouple-google-sub:${salt.trim()}:${sub}`);
+export async function plainAccountId(sub: string): Promise<string> {
+  return sha256Hex(`fitcouple-google-sub:${sub}`);
+}
+
+export async function legacyAccountId(sub: string, salt: string | undefined): Promise<string | null> {
+  const pepper = String(salt || "").trim();
+  if (pepper.length < 16) return null;
+  return sha256Hex(`fitcouple-google-sub:${pepper}:${sub}`);
 }

@@ -1,5 +1,6 @@
 import type { Db } from "./data.ts";
 import { GameError } from "./errors.ts";
+import { hasOpenAccess, inactiveRevokeDays } from "./gifts.ts";
 
 export const FEATURES = ["food_photo", "text_log", "recommend", "chat"] as const;
 export type AiFeature = typeof FEATURES[number];
@@ -89,8 +90,8 @@ export async function usageMap(db: Db, userId: string, day: string): Promise<Rec
   return out;
 }
 
-export async function quotaFor(db: Db, userId: string, day: string, limits: Record<AiFeature, number>) {
-  const premium = await isPremium(db, userId);
+export async function quotaFor(db: Db, userId: string, day: string, limits: Record<AiFeature, number>, inactiveDays = 0) {
+  const premium = await hasOpenAccess(db, userId, day, inactiveDays);
   const used = await usageMap(db, userId, day);
   const features = FEATURES.map((feature) => ({
     feature,
@@ -114,11 +115,11 @@ async function controlRow(db: Db, userId: string) {
   ).bind(userId).first<{ paused: number; food_photo_cap: number | null; text_log_cap: number | null; recommend_cap: number | null; chat_cap: number | null }>();
 }
 
-export async function reserveQuota(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
+export async function reserveQuota(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>, inactiveDays = 0): Promise<void> {
   const control = await controlRow(db, userId);
   if (control?.paused) throw new GameError(403, "The assistant is paused for this player.");
   const personal = control ? control[`${feature}_cap` as keyof typeof control] : null;
-  const unlimited = await isPremium(db, userId) && typeof personal !== "number";
+  const unlimited = await hasOpenAccess(db, userId, day, inactiveDays) && typeof personal !== "number";
   if (unlimited) {
     await bump(db, userId, day, feature);
     return;
@@ -157,6 +158,7 @@ interface GeminiEnv {
   AI_USD_TO_RM?: string;
   AI_DAILY_BUDGET_USD?: string;
   AI_DAILY_BUDGET_WARN?: string;
+  AUTO_REVOKE_INACTIVE_DAYS?: string;
 }
 
 export interface ProviderConfig {
@@ -523,9 +525,9 @@ async function addRefusal(db: Db, userId: string, day: string): Promise<void> {
   ).bind(day, userId).run();
 }
 
-export async function noteOffTopic(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>, env: { AI_DAILY_BUDGET_USD?: string }): Promise<void> {
+export async function noteOffTopic(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>, env: { AI_DAILY_BUDGET_USD?: string; AUTO_REVOKE_INACTIVE_DAYS?: string }): Promise<void> {
   await assertDailyBudget(db, day, env);
-  await reserveQuota(db, userId, day, feature, limits);
+  await reserveQuota(db, userId, day, feature, limits, inactiveRevokeDays(env.AUTO_REVOKE_INACTIVE_DAYS));
   await addRefusal(db, userId, day);
 }
 
@@ -579,7 +581,7 @@ export async function runFeature(
   shape: "items" | "meals" | "session" | "chat",
 ) {
   await assertDailyBudget(db, day, env);
-  await reserveQuota(db, userId, day, feature, limits);
+  await reserveQuota(db, userId, day, feature, limits, inactiveRevokeDays(env.AUTO_REVOKE_INACTIVE_DAYS));
   try {
     const raw = await askProviders(db, day, userId, feature, env, parts, shape !== "chat");
     if (shape === "chat") {

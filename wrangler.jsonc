@@ -53,10 +53,14 @@
     "ADMIN_FAIL_WINDOW_SECONDS": "900",
     "SITE_URL": "http://127.0.0.1:8788",
     "GOOGLE_CLIENT_ID": "",
+    "GIFT_CODES_ENABLED": "true",
+    "AUTO_REVOKE_INACTIVE_DAYS": "0",
+    "GIFT_REDEEM_LIMIT": "8",
+    "GIFT_REDEEM_WINDOW_SECONDS": "3600",
     "PREMIUM_PAYMENTS_ENABLED": "false"
   },
   // ADMIN_KEY, GEMINI_API_KEY, QWEN_API_KEY, OPENAI_API_KEY, and GOOGLE_SUB_SALT are secrets.
-  // GOOGLE_CLIENT_ID is the same public web client id as config.js. Set it before sign-in works.
+  // GOOGLE_SUB_SALT is optional. Leave it set until players who signed in under the old salted id have signed in once, then you can delete it.
   // SITE_URL is the public site origin. Checkout returns there. Do not take it from the Origin header.
   // Local: .dev.vars. Live: `npx wrangler secret put GEMINI_API_KEY` (and the other secrets if you use them).
   "secrets": {
