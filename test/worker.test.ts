@@ -514,7 +514,7 @@ test("the assistant counts use and does not store the message", async () => {
 });
 
 test("a busy Gemini call falls through to Qwen and a bad request does not", async () => {
-  const player = await session("c");
+  const player = await session("a");
   env.GEMINI_API_KEY = "test-gemini-key";
   env.QWEN_API_KEY = "test-qwen-key";
   env.OPENAI_API_KEY = "test-openai-key";
@@ -566,6 +566,59 @@ test("a busy Gemini call falls through to Qwen and a bad request does not", asyn
     delete env.GEMINI_API_KEY;
     delete env.QWEN_API_KEY;
     delete env.OPENAI_API_KEY;
+  }
+});
+
+test("an obvious off-topic chat is refused without calling a model", async () => {
+  const player = await session("b");
+  env.GEMINI_API_KEY = "test-gemini-key";
+  const original = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("generativelanguage.googleapis.com") || url.includes("dashscope") || url.includes("api.openai.com")) {
+      called = true;
+      return new Response("no", { status: 200 });
+    }
+    return original(input as RequestInfo, init);
+  };
+  try {
+    const refused = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "write my essay about rome" },
+    });
+    assert.equal(refused.status, 200, refused.text);
+    assert.equal((refused.json as { refused?: boolean }).refused, true);
+    assert.equal(called, false);
+    assert.equal(refused.text.includes("rome"), false);
+    const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_id = ? AND feature = 'chat'").bind(player.id).first<{ count: number }>();
+    assert.equal(usage?.count, 1);
+    const note = await call("/v1/ai/feedback", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: {},
+    });
+    assert.equal(note.status, 200, note.text);
+    const feedback = await env.DB.prepare("SELECT count FROM ai_feedback").first<{ count: number }>();
+    assert.equal(feedback?.count, 1);
+    await call("/v1/admin/ai/control", {
+      method: "POST",
+      token: TEST_KEY,
+      body: { userId: player.id, paused: true, food_photo: null, text_log: null, recommend: null, chat: 0 },
+    });
+    const paused = await call("/v1/ai/chat", {
+      method: "POST",
+      token: player.token,
+      headers: { "X-Ai-Consent": "yes" },
+      body: { message: "what should I eat before a match" },
+    });
+    assert.equal(paused.status, 403);
+  } finally {
+    globalThis.fetch = original;
+    delete env.GEMINI_API_KEY;
   }
 });
 

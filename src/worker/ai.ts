@@ -109,9 +109,15 @@ async function bump(db: Db, userId: string, day: string, feature: AiFeature): Pr
 }
 
 export async function assertWithinLimit(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
+  const control = await db.prepare(
+    "SELECT paused, food_photo_cap, text_log_cap, recommend_cap, chat_cap FROM ai_controls WHERE user_id = ?",
+  ).bind(userId).first<{ paused: number; food_photo_cap: number | null; text_log_cap: number | null; recommend_cap: number | null; chat_cap: number | null }>();
+  if (control?.paused) throw new GameError(403, "The assistant is paused for this player.");
   if (await isPremium(db, userId)) return;
+  const personal = control ? control[`${feature}_cap` as keyof typeof control] : null;
+  const capLimit = typeof personal === "number" ? personal : limits[feature];
   const used = await usageMap(db, userId, day);
-  if (used[feature] >= limits[feature]) {
+  if (used[feature] >= capLimit) {
     throw new GameError(429, "You've used today's free answers for that. They reset tomorrow.");
   }
 }
@@ -401,7 +407,85 @@ function parseJson(text: string): Record<string, unknown> {
   }
 }
 
-const FOOD_RULE = "Return JSON only. Estimate foods for a personal log. Use whole numbers. If unsure, say so in the portion. Do not give medical advice. Do not recommend supplements or slimming products.";
+const FOOD_RULE = "Return JSON only. Estimate foods, drinks, packaged food, nutrition labels, or menu items for a personal log. Use whole numbers. Fields are name, portion, kcal, protein, carbs, and fat. If none of those are present, return {\"none\":true} and do not describe the image. Do not recommend supplements or slimming products.";
+
+export const OFF_TOPIC_REPLY = "That's outside what I can help with. Ask me about food, movement, sleep, or how to use Fit.";
+
+export const CHAT_SCOPE = `You help with a broad healthy-living conversation. Cover nutrition, food, cooking, recipes, groceries, and eating out; exercise, sports, and gym equipment; sleep, hydration, stress, and mood as they relate to habits, motivation, and habit building; body composition and weight goals; general wellness and lifestyle; and how to use the FitCouple app and its game.
+Answer borderline or mixed questions helpfully and steer toward the health angle. Examples you must answer: what to eat before an exam, exercising during Ramadan, healthy food at a mamak stall.
+If someone reports chest pain, an eating disorder, or asks about medication, give brief general information and suggest they see a doctor. Do not refuse those questions.
+Do not recommend or make claims about supplements or slimming products. You may talk about ordinary food instead.
+Refuse only when a request is clearly unrelated, such as homework, coding, essays, stock tips, general news, image generation, or role-play that is not about health. Then reply with exactly this sentence and nothing else: ${OFF_TOPIC_REPLY}
+Keep the reply under 300 words.`;
+
+const OFF_TOPIC = [
+  /\bwrite (my |me )?(an |a |the |this )?(essay|homework|assignment|code|script|program)\b/i,
+  /\b(stock price|stock tip|share price)\b/i,
+  /\b(generate|draw|create) (me )?(an |a )?(image|picture|photo)\b/i,
+  /\brole-?play\b/i,
+  /写(我的|我)?(作文|作业|论文|代码)/,
+  /股价|股票/,
+  /生成(一张|一个)?(图片|图像)/,
+  /画一张/,
+  /tulis(kan)? (esei|karangan|kod)\b/i,
+  /harga saham/i,
+  /jana(kan)? gambar/i,
+];
+
+export function isClearlyOffTopic(text: string): boolean {
+  return OFF_TOPIC.some((pattern) => pattern.test(text));
+}
+
+export function capWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(" ");
+  return words.slice(0, maxWords).join(" ");
+}
+
+async function addRefusal(db: Db, userId: string, day: string): Promise<void> {
+  await db.prepare(
+    `INSERT INTO ai_refusals (day, user_id, count) VALUES (?, ?, 1)
+     ON CONFLICT(day, user_id) DO UPDATE SET count = count + 1`,
+  ).bind(day, userId).run();
+}
+
+export async function noteOffTopic(db: Db, userId: string, day: string, feature: AiFeature, limits: Record<AiFeature, number>): Promise<void> {
+  await assertWithinLimit(db, userId, day, feature, limits);
+  await bump(db, userId, day, feature);
+  await addRefusal(db, userId, day);
+}
+
+export async function addFeedback(db: Db, day: string): Promise<void> {
+  await db.prepare(
+    `INSERT INTO ai_feedback (day, count) VALUES (?, 1)
+     ON CONFLICT(day) DO UPDATE SET count = count + 1`,
+  ).bind(day).run();
+}
+
+export async function setUserControl(
+  db: Db,
+  userId: string,
+  paused: boolean,
+  caps: Partial<Record<AiFeature, number | null>>,
+): Promise<void> {
+  if (!/^[a-f0-9]{16,64}$/i.test(userId)) throw new GameError(400, "That player id is not valid.");
+  const value = (feature: AiFeature) => {
+    const n = caps[feature];
+    if (n == null) return null;
+    if (!Number.isInteger(n) || n < 0 || n > 1000) throw new GameError(400, "Limit must be a whole number from 0 to 1000.");
+    return n;
+  };
+  await db.prepare(
+    `INSERT INTO ai_controls (user_id, paused, food_photo_cap, text_log_cap, recommend_cap, chat_cap)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       paused = excluded.paused,
+       food_photo_cap = excluded.food_photo_cap,
+       text_log_cap = excluded.text_log_cap,
+       recommend_cap = excluded.recommend_cap,
+       chat_cap = excluded.chat_cap`,
+  ).bind(userId, paused ? 1 : 0, value("food_photo"), value("text_log"), value("recommend"), value("chat")).run();
+}
 
 export async function runFeature(
   db: Db,
@@ -416,21 +500,34 @@ export async function runFeature(
   await assertWithinLimit(db, userId, day, feature, limits);
   const raw = await askProviders(db, day, userId, feature, env, parts, shape !== "chat");
   await bump(db, userId, day, feature);
-  if (shape === "chat") return { notice: NOTICE, reply: raw.slice(0, 900) };
+  if (shape === "chat") {
+    const reply = capWords(raw, 300);
+    if (reply.startsWith(OFF_TOPIC_REPLY)) await addRefusal(db, userId, day);
+    return { notice: NOTICE, refused: reply.startsWith(OFF_TOPIC_REPLY), reply };
+  }
   const data = parseJson(raw);
-  if (shape === "items") return { notice: NOTICE, items: asItems(data.items) };
+  if (shape === "items") {
+    if (data.none === true) return { notice: NOTICE, none: true, items: [] };
+    const items = asItems(data.items);
+    if (!items.length) return { notice: NOTICE, none: true, items: [] };
+    return { notice: NOTICE, none: false, items };
+  }
   if (shape === "meals") {
     const meals = Array.isArray(data.meals) ? data.meals : [];
     return {
       notice: NOTICE,
       meals: meals.slice(0, 3).map((row) => {
         const item = asItems([row])[0];
-        const why = row && typeof row === "object" ? String((row as Record<string, unknown>).why || "").slice(0, 160) : "";
+        const why = row && typeof row === "object" ? capWords(String((row as Record<string, unknown>).why || ""), 80) : "";
         return item ? { ...item, why } : null;
       }).filter(Boolean),
     };
   }
-  return { notice: NOTICE, session: String(data.session || "").slice(0, 400), notes: String(data.notes || "").slice(0, 400) };
+  return {
+    notice: NOTICE,
+    session: capWords(String(data.session || ""), 400),
+    notes: capWords(String(data.notes || ""), 400),
+  };
 }
 
 export { FOOD_RULE };

@@ -68,7 +68,7 @@ export function assistHtml(state, day, esc) {
 
 export function chatHtml(state, esc) {
   if (!consentGiven()) return "";
-  const lines = (state.aiChat || []).map((line) => `<p><strong>${line.role === "you" ? "You" : "Assistant"}.</strong> ${esc(line.text)}</p>`).join("");
+  const lines = (state.aiChat || []).map((line) => `<p><strong>${line.role === "you" ? "You" : "Assistant"}.</strong> ${esc(line.text)}</p>${line.refused ? `<button type="button" data-ai-feedback>This was a health question</button>` : ""}`).join("");
   return `<section class="card"><h2>Questions</h2><p class="hint">Nutrition and exercise only. Not medical advice. Common answers stay on this phone. Other questions go to Gemini and are not stored here.</p>
     <p class="meta">${esc(quotaLine(state.aiQuota))}</p>
     ${lines}
@@ -123,6 +123,12 @@ export function bindAssist(ctx) {
     if (!file) return;
     const image = await shrinkPhoto(file);
     const result = await api.aiFoodPhoto(state.token, image);
+    if (result.none) {
+      state.aiDraft = null;
+      state.aiNote = "No food detected.";
+      await refreshQuota();
+      return "";
+    }
     state.aiDraft = result.items || [];
     state.aiNote = result.notice || "";
     await refreshQuota();
@@ -181,7 +187,17 @@ export function bindAssist(ctx) {
       return "";
     }
     const result = await api.aiChat(state.token, text);
-    state.aiChat = state.aiChat.concat([{ role: "assistant", text: `${result.notice || "Not medical advice."} ${result.reply || ""}` }]);
+    state.aiChat = state.aiChat.concat([{
+      role: "assistant",
+      text: `${result.notice || "Not medical advice."} ${result.reply || ""}`,
+      refused: result.refused === true,
+    }]);
     await refreshQuota();
   }));
+  document.querySelectorAll("[data-ai-feedback]").forEach((button) => {
+    button.addEventListener("click", () => run(async () => {
+      await api.aiFeedback(state.token);
+      return "Thanks. That was counted, and the question was not saved.";
+    }));
+  });
 }

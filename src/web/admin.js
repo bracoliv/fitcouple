@@ -97,6 +97,10 @@ function aiCard() {
     <form id="limitForm">${fields}<button type="submit">Save limits</button></form>
     <ul class="log">${usage || `<li class="meta">No assistant use today.</li>`}</ul>
     ${windows}
+    <h3>Refusals today</h3>
+    <ul class="log">${(ai.refusals || []).map((row) => `<li>${esc(row.user_id)} · ${esc(row.count)}</li>`).join("") || `<li class="meta">None.</li>`}</ul>
+    <p class="hint">Players said a refusal was really a health question: ${esc(ai.feedback || 0)} today. The question text is not stored.</p>
+    <form id="controlForm"><label>Player id<input name="userId" required></label><label class="hint"><input name="paused" type="checkbox"> Pause the assistant</label><label>Photo cap<input name="food_photo" inputmode="numeric" placeholder="blank keeps the shared cap"></label><label>Text cap<input name="text_log" inputmode="numeric"></label><label>Recommendation cap<input name="recommend" inputmode="numeric"></label><label>Chat cap<input name="chat" inputmode="numeric"></label><button type="submit">Save this player's limits</button></form>
     <form id="premiumForm"><label>Player id<input name="userId" required></label><button type="submit" name="grant" value="yes">Grant premium</button><button type="submit" name="grant" value="no">Remove premium</button></form>
     <ul class="log">${people || `<li class="meta">No premium players.</li>`}</ul></section>`;
 }
@@ -153,6 +157,11 @@ function render() {
   if (limitForm) limitForm.addEventListener("submit", (event) => {
     event.preventDefault();
     saveLimits(new FormData(limitForm));
+  });
+  const controlForm = document.getElementById("controlForm");
+  if (controlForm) controlForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveControl(new FormData(controlForm));
   });
   const premiumForm = document.getElementById("premiumForm");
   if (premiumForm) premiumForm.addEventListener("submit", (event) => {
@@ -235,6 +244,28 @@ async function saveLimits(data) {
     state.error = "";
   } catch (err) {
     state.error = err.message || "Could not save the limits.";
+  }
+  render();
+}
+
+async function saveControl(data) {
+  const blank = (name) => {
+    const value = String(data.get(name) || "").trim();
+    return value === "" ? null : Number(value);
+  };
+  try {
+    await ownerShop("/v1/admin/ai/control", state.key, {
+      userId: String(data.get("userId") || ""),
+      paused: data.get("paused") === "on",
+      food_photo: blank("food_photo"),
+      text_log: blank("text_log"),
+      recommend: blank("recommend"),
+      chat: blank("chat"),
+    });
+    state.ai = await ownerShop("/v1/admin/ai", state.key);
+    state.error = "";
+  } catch (err) {
+    state.error = err.message || "Could not update that player.";
   }
   render();
 }

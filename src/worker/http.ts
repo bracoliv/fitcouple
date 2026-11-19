@@ -22,7 +22,7 @@ import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
 import { readVoucherConfig } from "./vouchers.ts";
 import { cleanOrder, readStoreConfig } from "./store.ts";
 import { adminOrders, completeSandboxOrder, deleteOrder, listProducts, placeOrder, playerOrders, publicStore, saveProduct } from "./shop.ts";
-import { costReport, effectiveLimits, FOOD_RULE, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, usdToRmRate } from "./ai.ts";
+import { addFeedback, CHAT_SCOPE, costReport, effectiveLimits, FOOD_RULE, isClearlyOffTopic, noteOffTopic, OFF_TOPIC_REPLY, quotaFor, readLimitsFromEnv, runFeature, saveLimit, setPremium, setUserControl, usdToRmRate } from "./ai.ts";
 
 export interface AppEnv {
   DB: Db;
@@ -293,12 +293,22 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       ).bind(day).all<{ feature: string; total: number }>();
       const premium = await env.DB.prepare("SELECT user_id, granted_day FROM premium_users ORDER BY granted_day DESC LIMIT 50").all();
       const cost = await costReport(env.DB, day, usdToRmRate(env.AI_USD_TO_RM));
+      const feedback = await env.DB.prepare("SELECT count FROM ai_feedback WHERE day = ?").bind(day).first<{ count: number }>();
+      const refusals = await env.DB.prepare(
+        "SELECT user_id, count FROM ai_refusals WHERE day = ? ORDER BY count DESC LIMIT 30",
+      ).bind(day).all();
+      const controls = await env.DB.prepare(
+        "SELECT user_id, paused, food_photo_cap, text_log_cap, recommend_cap, chat_cap FROM ai_controls ORDER BY user_id LIMIT 50",
+      ).all();
       return json(request, env, 200, {
         limits,
         usage: usage.results || [],
         premium: premium.results || [],
         payments: String(env.PREMIUM_PAYMENTS_ENABLED || "") === "true",
         cost,
+        feedback: feedback?.count || 0,
+        refusals: refusals.results || [],
+        controls: controls.results || [],
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/limits") {
@@ -311,6 +321,18 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       await assertAdmin(request, env);
       const body = assertKeys(await readJson(request), ["userId", "grant"]);
       await setPremium(env.DB, String(body.userId || ""), body.grant === true, now.toISOString().slice(0, 10));
+      return json(request, env, 200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/admin/ai/control") {
+      await assertAdmin(request, env);
+      const body = assertKeys(await readJson(request), ["userId", "paused", "food_photo", "text_log", "recommend", "chat"]);
+      const cap = (key: string) => body[key] == null || body[key] === "" ? null : Number(body[key]);
+      await setUserControl(env.DB, String(body.userId || ""), body.paused === true, {
+        food_photo: cap("food_photo"),
+        text_log: cap("text_log"),
+        recommend: cap("recommend"),
+        chat: cap("chat"),
+      });
       return json(request, env, 200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/v1/premium/checkout") {
@@ -392,7 +414,7 @@ async function handleAi(request: Request, env: AppEnv, pathname: string, now: Da
   if (pathname === "/v1/ai/meals") {
     const left = macros(body);
     return runFeature(base.db, base.env, base.userId, base.day, "recommend", base.limits, [
-      { text: `Suggest two ordinary meals for these remaining numbers. JSON {meals:[{name,why,kcal,protein,carbs,fat}]}. No supplements, no slimming products, no medical advice. Remaining kcal ${left.kcal}, protein ${left.protein}, carbs ${left.carbs}, fat ${left.fat}.` },
+      { text: `Suggest two ordinary meals in under 400 words. JSON {meals:[{name,why,kcal,protein,carbs,fat}]}. No supplement or slimming-product claims. Remaining kcal ${left.kcal}, protein ${left.protein}, carbs ${left.carbs}, fat ${left.fat}.` },
     ], "meals");
   }
   if (pathname === "/v1/ai/workout") {
@@ -401,12 +423,21 @@ async function handleAi(request: Request, env: AppEnv, pathname: string, now: Da
     const plan = clipped(body.plan, 40).replace(/[^a-z0-9 -]/gi, "").slice(0, 40);
     const quests = Array.isArray(body.quests) ? body.quests.filter((id) => typeof id === "string" && /^[a-z0-9_]{1,32}$/.test(id)).slice(0, 8) : [];
     return runFeature(base.db, base.env, base.userId, base.day, "recommend", base.limits, [
-      { text: `Suggest one short exercise session. JSON {session, notes}. No supplements, no slimming products, no medical advice. Level ${level}. Streak ${streak}. Plan ${plan || "none"}. Quest ids ${quests.join(",") || "none"}.` },
+      { text: `Suggest one short exercise session in under 400 words. JSON {session, notes}. No supplement or slimming-product claims. Level ${level}. Streak ${streak}. Plan ${plan || "none"}. Quest ids ${quests.join(",") || "none"}.` },
     ], "session");
   }
+  if (pathname === "/v1/ai/feedback") {
+    await addFeedback(env.DB, day);
+    return { ok: true };
+  }
   if (pathname === "/v1/ai/chat") {
+    const message = clipped(body.message, 500);
+    if (isClearlyOffTopic(message)) {
+      await noteOffTopic(env.DB, user.id, day, "chat", limits);
+      return { notice: "Not medical advice.", refused: true, reply: OFF_TOPIC_REPLY };
+    }
     return runFeature(base.db, base.env, base.userId, base.day, "chat", base.limits, [
-      { text: "Answer only general nutrition or exercise for healthy adults. If the question is medical, about disease, supplements, or slimming products, refuse and say to ask a clinician. Keep it under 120 words. Question: " + clipped(body.message, 500) },
+      { text: CHAT_SCOPE + "\nQuestion: " + message },
     ], "chat");
   }
   throw new GameError(404, "Not found.");

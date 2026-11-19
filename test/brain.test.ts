@@ -311,7 +311,8 @@ test("the gemini model stays on 3.5 and the usage table has no content columns",
   assert.throws(() => modelName("gemini-1.5-flash"));
   assert.throws(() => modelName("gemini-2.0-flash"));
   assert.equal(AI_SQL.includes("meal"), false);
-  assert.equal(AI_SQL.includes("photo"), false);
+  assert.equal(AI_SQL.includes("reply"), false);
+  assert.equal(AI_SQL.includes("prompt"), false);
   assert.equal(costMicroUsd("gemini-3.5-flash-lite", 1_000_000, 0, DEFAULT_PRICES), 300000);
   assert.equal(costMicroUsd("qwen3-vl-plus", 0, 1_000_000, DEFAULT_PRICES), 1600000);
   assert.equal(costMicroUsd("gpt-6-luna", 2_000_000, 1_000_000, DEFAULT_PRICES), 700000);

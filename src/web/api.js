@@ -96,6 +96,9 @@ export function createApi(workerUrl) {
     aiChat(token, message) {
       return request("/v1/ai/chat", { method: "POST", token, body: { message }, headers: { "X-Ai-Consent": "yes" } });
     },
+    aiFeedback(token) {
+      return request("/v1/ai/feedback", { method: "POST", token, body: {}, headers: { "X-Ai-Consent": "yes" } });
+    },
     admin(key, day) {
       return request("/v1/admin/customers?day=" + encodeURIComponent(day), { token: key });
     },
