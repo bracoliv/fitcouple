@@ -11,7 +11,7 @@ export const RECIPES = [
   { id: "yong-tau-foo", name: "Yong tau foo soup", kcal: 340, note: "Tofu, veg, fish balls, clear soup, little noodles. Estimate for one bowl." },
 ];
 
-export const VIDEOS = {
+export const VIDEOS: Record<string, { title: string; url: string }> = {
   squat: { title: "Bodyweight squat", url: "https://www.youtube.com/watch?v=8uoaYwS6iFM" },
   barbell_squat: { title: "Barbell squat form", url: "https://www.youtube.com/watch?v=Dy28eq2PjcM" },
   beginner_squat: { title: "Squat for beginners", url: "https://www.youtube.com/watch?v=aclHkVaku9U" },
@@ -19,11 +19,11 @@ export const VIDEOS = {
   plank: { title: "Plank", url: "https://www.youtube.com/watch?v=pSHjTRCQxIw" },
 };
 
-export function guidedLogEvent() {
+export function guidedLogEvent() : any {
   return { questId: "guided_log", completed: true, source: "manual" };
 }
 
-export function videoFor(key) {
+export function videoFor(key?: any) : any {
   if (!key || !VIDEOS[key]) return null;
   return VIDEOS[key];
 }

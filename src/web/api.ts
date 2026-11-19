@@ -1,10 +1,10 @@
-import { buildEventsPayload } from "./summary.js";
+import { buildEventsPayload } from "./summary.ts";
 
 // Only quest ids, counts, and flags leave this file.
-export function createApi(workerUrl) {
+export function createApi(workerUrl?: any) : any {
   const base = String(workerUrl || "http://127.0.0.1:8787").replace(/\/$/, "");
 
-  async function request(path, { method = "GET", token, body, headers: extra } = {}) {
+  async function request(path?: any, { method = "GET", token, body, headers: extra }: any = {}) : Promise<any> {
     const headers = { ...(extra || {}) };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -19,7 +19,7 @@ export function createApi(workerUrl) {
       throw new Error("Cannot reach the game server. Start it with npm run dev.");
     }
     const text = await res.text();
-    let data = {};
+    let data: any = {};
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
@@ -34,43 +34,43 @@ export function createApi(workerUrl) {
   }
 
   return {
-    session(idToken, day) {
+    session(idToken?: any, day?: any) : any {
       return request("/v1/session", { method: "POST", body: { idToken, day } });
     },
-    me(token, day) {
+    me(token?: any, day?: any) : any {
       return request("/v1/me?day=" + encodeURIComponent(day), { token });
     },
-    events(token, day, difficulty, events) {
+    events(token?: any, day?: any, difficulty?: any, events?: any) : any {
       return request("/v1/events", {
         method: "POST",
         token,
         body: buildEventsPayload(day, difficulty, events),
       });
     },
-    profile(token, displayName, day) {
+    profile(token?: any, displayName?: any, day?: any) : any {
       return request("/v1/profile", { method: "POST", token, body: { displayName, day } });
     },
-    createTeam(token, day) {
+    createTeam(token?: any, day?: any) : any {
       return request("/v1/team", { method: "POST", token, body: { action: "create", day } });
     },
-    joinTeam(token, code, day) {
+    joinTeam(token?: any, code?: any, day?: any) : any {
       return request("/v1/team", { method: "POST", token, body: { action: "join", code, day } });
     },
-    confirmTeam(token, day) {
+    confirmTeam(token?: any, day?: any) : any {
       return request("/v1/team", { method: "POST", token, body: { action: "confirm", day } });
     },
-    program(token, choice, day) {
+    program(token?: any, choice?: any, day?: any) : any {
       return request("/v1/profile", { method: "POST", token, body: { programChoice: choice, day } });
     },
-    duel(token, day, opponentId) {
-      const body = { action: "duel", day };
+    duel(token?: any, day?: any, opponentId?: any) : any {
+      const body: any = { action: "duel", day };
       if (opponentId) body.opponentId = opponentId;
       return request("/v1/team", { method: "POST", token, body });
     },
-    redeem(staffKey, code) {
+    redeem(staffKey?: any, code?: any) : any {
       return request("/v1/vouchers/redeem", { method: "POST", token: staffKey, body: { code } });
     },
-    coach(token, day, key, host) {
+    coach(token?: any, day?: any, key?: any, host?: any) : any {
       return request("/v1/coach", {
         method: "POST",
         token,
@@ -78,31 +78,31 @@ export function createApi(workerUrl) {
         headers: { "X-Ai-Key": key, "X-Ai-Host": host || "api.openai.com" },
       });
     },
-    aiQuota(token) {
+    aiQuota(token?: any) : any {
       return request("/v1/ai/quota", { token });
     },
-    aiFoodText(token, text) {
+    aiFoodText(token?: any, text?: any) : any {
       return request("/v1/ai/food-text", { method: "POST", token, body: { text }, headers: { "X-Ai-Consent": "yes" } });
     },
-    aiFoodPhoto(token, image) {
+    aiFoodPhoto(token?: any, image?: any) : any {
       return request("/v1/ai/food-photo", { method: "POST", token, body: { image, mime: "image/jpeg" }, headers: { "X-Ai-Consent": "yes" } });
     },
-    aiMeals(token, left) {
+    aiMeals(token?: any, left?: any) : any {
       return request("/v1/ai/meals", { method: "POST", token, body: left, headers: { "X-Ai-Consent": "yes" } });
     },
-    aiWorkout(token, context) {
+    aiWorkout(token?: any, context?: any) : any {
       return request("/v1/ai/workout", { method: "POST", token, body: context, headers: { "X-Ai-Consent": "yes" } });
     },
-    aiChat(token, message) {
+    aiChat(token?: any, message?: any) : any {
       return request("/v1/ai/chat", { method: "POST", token, body: { message }, headers: { "X-Ai-Consent": "yes" } });
     },
-    aiFeedback(token) {
+    aiFeedback(token?: any) : any {
       return request("/v1/ai/feedback", { method: "POST", token, body: {}, headers: { "X-Ai-Consent": "yes" } });
     },
-    redeemGift(token, code) {
+    redeemGift(token?: any, code?: any) : any {
       return request("/v1/gift/redeem", { method: "POST", token, body: { code } });
     },
-    admin(key, day) {
+    admin(key?: any, day?: any) : any {
       return request("/v1/admin/customers?day=" + encodeURIComponent(day), { token: key });
     },
   };

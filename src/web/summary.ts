@@ -1,15 +1,15 @@
 // Turns a sheet into counts. Food text never leaves this module's count helpers.
 
-export function localDay(date = new Date()) {
+export function localDay(date: any = new Date()) : any {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
-export function parseCsv(text) {
-  const rows = [];
-  let row = [];
+export function parseCsv(text?: any) : any {
+  const rows: any = [];
+  let row: any = [];
   let cell = "";
   let quoted = false;
   const src = String(text || "");
@@ -35,23 +35,23 @@ export function parseCsv(text) {
     row.push(cell);
     rows.push(row);
   }
-  return rows.filter((line) => line.some((value) => String(value).trim()));
+  return rows.filter((line?: any) : any => line.some((value?: any) : any => String(value).trim()));
 }
 
-export function rowsFromTable(table) {
+export function rowsFromTable(table?: any) : any {
   if (!table || !table.length) return [];
-  const headers = table[0].map((value) => String(value || "").trim());
-  const hasHeader = headers.some((value) => /date/i.test(value));
+  const headers = table[0].map((value?: any) : any => String(value || "").trim());
+  const hasHeader = headers.some((value?: any) : any => /date/i.test(value));
   const start = hasHeader ? 1 : 0;
   const idx = hasHeader
     ? {
-        date: headers.findIndex((value) => /date/i.test(value)),
-        time: headers.findIndex((value) => /time/i.test(value)),
-        person: headers.findIndex((value) => /person/i.test(value)),
-        text: headers.findIndex((value) => /food|workout/i.test(value)),
+        date: headers.findIndex((value?: any) : any => /date/i.test(value)),
+        time: headers.findIndex((value?: any) : any => /time/i.test(value)),
+        person: headers.findIndex((value?: any) : any => /person/i.test(value)),
+        text: headers.findIndex((value?: any) : any => /food|workout/i.test(value)),
       }
     : { date: 0, time: 1, person: 2, text: 3 };
-  const rows = [];
+  const rows: any = [];
   for (let i = start; i < table.length; i++) {
     const line = table[i];
     const text = String(idx.text >= 0 ? line[idx.text] || "" : "").trim();
@@ -69,7 +69,7 @@ export function rowsFromTable(table) {
 }
 
 // A typed calorie or duration that cannot be real does not count. The number stays here.
-export function rowCountsForScore(row) {
+export function rowCountsForScore(row?: any) : any {
   if (row.calories != null && String(row.calories).trim() !== "") {
     const n = Number(String(row.calories).replace(/,/g, ""));
     if (!Number.isFinite(n) || n < 0 || n > 4000) return false;
@@ -83,7 +83,7 @@ export function rowCountsForScore(row) {
   return true;
 }
 
-export function countToday(rows, person, day) {
+export function countToday(rows?: any, person?: any, day?: any) : any {
   let meals = 0;
   let workouts = 0;
   for (const row of rows || []) {
@@ -96,8 +96,8 @@ export function countToday(rows, person, day) {
   return { meals, workouts };
 }
 
-export function peopleIn(rows) {
-  const names = [];
+export function peopleIn(rows?: any) : any {
+  const names: any = [];
   for (const row of rows || []) {
     if (row.person && !names.includes(row.person)) names.push(row.person);
   }
@@ -109,11 +109,11 @@ const SOURCES = new Set(["manual", "timer", "photo", "wearable"]);
 const EVENT_KEYS = new Set(["questId", "count", "completed", "source", "hasProof", "durationMin"]);
 
 // Rebuilds the only object the game server is allowed to see.
-export function buildEventsPayload(day, difficulty, events) {
-  const payload = {
+export function buildEventsPayload(day?: any, difficulty?: any, events?: any) : any {
+  const payload: any = {
     day,
-    events: (events || []).map((event) => {
-      const item = { questId: event.questId, source: SOURCES.has(event.source) ? event.source : "manual" };
+    events: (events || []).map((event?: any) : any => {
+      const item: any = { questId: event.questId, source: SOURCES.has(event.source) ? event.source : "manual" };
       if (Number.isInteger(event.count)) item.count = event.count;
       if (typeof event.completed === "boolean") item.completed = event.completed;
       if (event.hasProof === true) item.hasProof = true;
@@ -140,10 +140,10 @@ export function buildEventsPayload(day, difficulty, events) {
   return payload;
 }
 
-export function countsPayload(day, difficulty, counts, extra = {}) {
+export function countsPayload(day?: any, difficulty?: any, counts?: any, extra: any = {}) : any {
   const source = extra.hasProof ? "photo" : (extra.source || "manual");
-  const meal = { questId: "log_meals", count: counts.meals, source };
-  const workout = { questId: "log_workout", count: counts.workouts, source };
+  const meal: any = { questId: "log_meals", count: counts.meals, source };
+  const workout: any = { questId: "log_workout", count: counts.workouts, source };
   if (extra.hasProof) {
     meal.hasProof = true;
     workout.hasProof = true;

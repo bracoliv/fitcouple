@@ -1,7 +1,7 @@
 const DB_NAME = "fit-avatar";
 const VERSIONS = 4;
 
-export function tierFor(level) {
+export function tierFor(level?: any) : any {
   const n = Number(level) || 1;
   if (n >= 20) return "flame";
   if (n >= 10) return "gold";
@@ -9,71 +9,71 @@ export function tierFor(level) {
   return "stone";
 }
 
-function emptyAvatar() {
+function emptyAvatar() : any {
   return { url: "", share: false, versions: [], source: false };
 }
 
-function openDb() {
-  return new Promise((resolve, reject) => {
+function openDb() : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const open = indexedDB.open(DB_NAME, 1);
-    open.onupgradeneeded = () => {
+    open.onupgradeneeded = () : any => {
       const db = open.result;
       if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs");
       if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
     };
-    open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error);
+    open.onsuccess = () : any => resolve(open.result);
+    open.onerror = () : any => reject(open.error);
   });
 }
 
-function putBlob(db, key, blob) {
-  return new Promise((resolve, reject) => {
+function putBlob(db?: any, key?: any, blob?: any) : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const tx = db.transaction("blobs", "readwrite");
     tx.objectStore("blobs").put(blob, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () : any => resolve();
+    tx.onerror = () : any => reject(tx.error);
   });
 }
 
-function getBlob(db, key) {
-  return new Promise((resolve, reject) => {
+function getBlob(db?: any, key?: any) : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const tx = db.transaction("blobs", "readonly");
     const req = tx.objectStore("blobs").get(key);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () : any => resolve(req.result || null);
+    req.onerror = () : any => reject(req.error);
   });
 }
 
-function getMeta(db) {
-  return new Promise((resolve, reject) => {
+function getMeta(db?: any) : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const tx = db.transaction("meta", "readonly");
     const req = tx.objectStore("meta").get("settings");
-    req.onsuccess = () => resolve(req.result || { share: false, order: [] });
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () : any => resolve(req.result || { share: false, order: [] });
+    req.onerror = () : any => reject(req.error);
   });
 }
 
-function putMeta(db, meta) {
-  return new Promise((resolve, reject) => {
+function putMeta(db?: any, meta?: any) : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const tx = db.transaction("meta", "readwrite");
     tx.objectStore("meta").put(meta, "settings");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () : any => resolve();
+    tx.onerror = () : any => reject(tx.error);
   });
 }
 
-function blobUrl(blob) {
+function blobUrl(blob?: any) : any {
   return blob ? URL.createObjectURL(blob) : "";
 }
 
-export async function loadAvatar() {
+export async function loadAvatar() : Promise<any> {
   try {
     const db = await openDb();
     const meta = await getMeta(db);
     const current = await getBlob(db, "current");
     const source = await getBlob(db, "source");
     const order = Array.isArray(meta.order) ? meta.order.slice(0, VERSIONS) : [];
-    const versions = [];
+    const versions: any = [];
     for (const id of order) {
       const blob = await getBlob(db, id);
       if (blob) versions.push({ id, url: blobUrl(blob) });
@@ -90,7 +90,7 @@ export async function loadAvatar() {
   }
 }
 
-export async function saveShare(share) {
+export async function saveShare(share?: any) : Promise<any> {
   const db = await openDb();
   const meta = await getMeta(db);
   meta.share = share === true;
@@ -98,7 +98,7 @@ export async function saveShare(share) {
   db.close();
 }
 
-async function remember(blob, sourceBlob) {
+async function remember(blob?: any, sourceBlob?: any) : Promise<any> {
   const db = await openDb();
   const meta = await getMeta(db);
   const order = Array.isArray(meta.order) ? meta.order.slice() : [];
@@ -106,11 +106,11 @@ async function remember(blob, sourceBlob) {
   order.unshift(id);
   const keep = order.slice(0, VERSIONS);
   for (const old of order.slice(VERSIONS)) {
-    await new Promise((resolve, reject) => {
+    await new Promise((resolve?: any, reject?: any) : any => {
       const tx = db.transaction("blobs", "readwrite");
       tx.objectStore("blobs").delete(old);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.oncomplete = () : any => resolve();
+      tx.onerror = () : any => reject(tx.error);
     });
   }
   await putBlob(db, id, blob);
@@ -122,7 +122,7 @@ async function remember(blob, sourceBlob) {
   return loadAvatar();
 }
 
-export async function useVersion(id) {
+export async function useVersion(id?: any) : Promise<any> {
   const db = await openDb();
   const blob = await getBlob(db, id);
   if (!blob) {
@@ -134,20 +134,20 @@ export async function useVersion(id) {
   return loadAvatar();
 }
 
-export async function deleteAvatar() {
+export async function deleteAvatar() : Promise<any> {
   const db = await openDb();
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve?: any, reject?: any) : any => {
     const tx = db.transaction(["blobs", "meta"], "readwrite");
     tx.objectStore("blobs").clear();
     tx.objectStore("meta").clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () : any => resolve();
+    tx.onerror = () : any => reject(tx.error);
   });
   db.close();
   return emptyAvatar();
 }
 
-export function portraitHtml(avatar, level, alt) {
+export function portraitHtml(avatar?: any, level?: any, alt?: any) : any {
   const tier = tierFor(level);
   const url = avatar && typeof avatar.url === "string" && avatar.url.startsWith("blob:") ? avatar.url : "";
   const face = url
@@ -156,13 +156,13 @@ export function portraitHtml(avatar, level, alt) {
   return `<div class="frame ${tier}">${face}</div>`;
 }
 
-export function miniHtml(avatar, optedIn) {
+export function miniHtml(avatar?: any, optedIn?: any) : any {
   const url = optedIn && avatar && typeof avatar.url === "string" && avatar.url.startsWith("blob:") ? avatar.url : "";
   if (!url) return `<span class="mini generic" role="img" aria-label="Generic avatar"></span>`;
   return `<img class="mini" alt="" src="${url}">`;
 }
 
-function cropOf(img, zoom, panX, panY, side) {
+function cropOf(img?: any, zoom?: any, panX?: any, panY?: any, side?: any) : any {
   const z = Math.min(3, Math.max(1, zoom || 1));
   const cover = Math.max(side / img.width, side / img.height) * z;
   const sw = side / cover;
@@ -172,7 +172,7 @@ function cropOf(img, zoom, panX, panY, side) {
   return { sx, sy, sw, sh };
 }
 
-function stylise(image) {
+function stylise(image?: any) : any {
   const d = image.data;
   const w = image.width;
   const h = image.height;
@@ -203,13 +203,13 @@ function stylise(image) {
   return image;
 }
 
-async function blobFrom(canvas, type) {
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, 0.9));
+async function blobFrom(canvas?: any, type?: any) : Promise<any> {
+  const blob = await new Promise((resolve?: any) : any => canvas.toBlob(resolve, type, 0.9));
   if (!blob) throw new Error("Could not save the picture on this phone.");
   return blob;
 }
 
-export async function drawPreview(canvas, img, zoom, panX, panY) {
+export async function drawPreview(canvas?: any, img?: any, zoom?: any, panX?: any, panY?: any) : Promise<any> {
   const ctx = canvas.getContext("2d");
   const side = canvas.width;
   const crop = cropOf(img, zoom, panX, panY, side);
@@ -217,11 +217,11 @@ export async function drawPreview(canvas, img, zoom, panX, panY) {
   ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, side, side);
 }
 
-export async function makeLocalAvatar(img, zoom, panX, panY) {
+export async function makeLocalAvatar(img?: any, zoom?: any, panX?: any, panY?: any) : Promise<any> {
   const face = document.createElement("canvas");
   face.width = 192;
   face.height = 192;
-  const ctx = face.getContext("2d", { willReadFrequently: true });
+  const ctx: any = face.getContext("2d", { willReadFrequently: true });
   const crop = cropOf(img, zoom, panX, panY, 192);
   ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, 192, 192);
   const pixels = ctx.getImageData(0, 0, 192, 192);
@@ -230,29 +230,29 @@ export async function makeLocalAvatar(img, zoom, panX, panY) {
   const source = document.createElement("canvas");
   source.width = 192;
   source.height = 192;
-  source.getContext("2d").drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, 192, 192);
+  (source.getContext("2d") as any).drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, 192, 192);
   const sourceBlob = await blobFrom(source, "image/jpeg");
   return remember(png, sourceBlob);
 }
 
-export function ownAiPrompt(preset, level) {
+export function ownAiPrompt(preset?: any, level?: any) : any {
   const look = PRESETS[preset] || PRESETS.anime;
   const tier = tierFor(level);
   return `${look} Use a ${tier} portrait frame (stone, bronze, gold, or flame) that matches level ${level || 1}. The person should still look like the attached selfie. No text in the image.`;
 }
 
-const PRESETS = {
+const PRESETS: Record<string, string> = {
   anime: "Anime portrait, head and shoulders, clean line art, flat colours, plain background, no text.",
   cartoon: "3D cartoon portrait, head and shoulders, soft light, simple background, no text.",
   chibi: "Chibi portrait, large head, small shoulders, plain background, no text.",
 };
 
-export async function makeAiAvatar(img, zoom, panX, panY, key, preset) {
+export async function makeAiAvatar(img?: any, zoom?: any, panX?: any, panY?: any, key?: any, preset?: any) : Promise<any> {
   const crop = document.createElement("canvas");
   crop.width = 512;
   crop.height = 512;
   const box = cropOf(img, zoom, panX, panY, 512);
-  crop.getContext("2d").drawImage(img, box.sx, box.sy, box.sw, box.sh, 0, 0, 512, 512);
+  (crop.getContext("2d") as any).drawImage(img, box.sx, box.sy, box.sw, box.sh, 0, 0, 512, 512);
   const png = await blobFrom(crop, "image/png");
   const body = new FormData();
   body.append("model", "gpt-image-1");
@@ -264,27 +264,27 @@ export async function makeAiAvatar(img, zoom, panX, panY, key, preset) {
     headers: { Authorization: "Bearer " + key },
     body,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() : any => ({}));
   if (!res.ok) throw new Error(data.error && data.error.message ? data.error.message : "The AI provider did not return a picture.");
   const b64 = data.data && data.data[0] && data.data[0].b64_json;
   if (!b64) throw new Error("The AI provider did not return a picture.");
-  const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(b64), (ch?: any) : any => ch.charCodeAt(0));
   const face = new Blob([bytes], { type: "image/png" });
   const framed = await frameAi(face);
   return remember(framed, png);
 }
 
-async function frameAi(blob) {
+async function frameAi(blob?: any) : Promise<any> {
   const img = await createImageBitmap(blob);
   const face = document.createElement("canvas");
   face.width = 192;
   face.height = 192;
-  face.getContext("2d").drawImage(img, 0, 0, 192, 192);
+  (face.getContext("2d") as any).drawImage(img, 0, 0, 192, 192);
   img.close();
   return blobFrom(face, "image/png");
 }
 
-async function driveFileId(token, name) {
+async function driveFileId(token?: any, name?: any) : Promise<any> {
   const q = encodeURIComponent(`name='${name}' and trashed=false`);
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=5`, {
     headers: { Authorization: "Bearer " + token },
@@ -294,7 +294,7 @@ async function driveFileId(token, name) {
   return data.files && data.files[0] ? data.files[0].id : "";
 }
 
-async function uploadDrive(token, name, blob) {
+async function uploadDrive(token?: any, name?: any, blob?: any) : Promise<any> {
   const id = await driveFileId(token, name);
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify({ name, mimeType: blob.type || "image/png" })], { type: "application/json" }));
@@ -306,7 +306,7 @@ async function uploadDrive(token, name, blob) {
   if (!res.ok) throw new Error("Google Drive did not store the backup.");
 }
 
-export async function backupAvatar(token) {
+export async function backupAvatar(token?: any) : Promise<any> {
   const db = await openDb();
   const current = await getBlob(db, "current");
   const source = await getBlob(db, "source");
@@ -316,7 +316,7 @@ export async function backupAvatar(token) {
   if (source) await uploadDrive(token, "Fit avatar source.jpg", source);
 }
 
-async function downloadDrive(token, name) {
+async function downloadDrive(token?: any, name?: any) : Promise<any> {
   const id = await driveFileId(token, name);
   if (!id) return null;
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
@@ -326,15 +326,15 @@ async function downloadDrive(token, name) {
   return res.blob();
 }
 
-export async function restoreAvatar(token) {
+export async function restoreAvatar(token?: any) : Promise<any> {
   const current = await downloadDrive(token, "Fit avatar.png");
   if (!current) throw new Error("No avatar backup was found in your Drive.");
   const source = await downloadDrive(token, "Fit avatar source.jpg");
   return remember(current, source);
 }
 
-export function editorHtml(avatar) {
-  const versions = (avatar.versions || []).map((item) => `<button type="button" class="ghost" data-avatar-version="${item.id}"><img alt="" src="${item.url}"></button>`).join("");
+export function editorHtml(avatar?: any) : any {
+  const versions = (avatar.versions || []).map((item?: any) : any => `<button type="button" class="ghost" data-avatar-version="${item.id}"><img alt="" src="${item.url}"></button>`).join("");
   const stage = avatar.draft ? `<canvas id="avatarStage" width="240" height="240" class="avatar-stage"></canvas><label>Zoom<input id="avatarZoom" type="range" min="1" max="3" step="0.05" value="${avatar.draft.zoom}"></label><p class="hint">Drag the picture so the face fills the square. No face model is downloaded.</p><button type="button" id="avatarMake">Make avatar on this phone</button>` : "";
   return `<section class="card"><h2>Avatar</h2>
     <p class="hint">The photo and the avatar stay on this phone. Fit's server never receives them. You can also keep a copy in your own Google Drive.</p>
@@ -353,15 +353,15 @@ export function editorHtml(avatar) {
     </section>`;
 }
 
-let draftImage = null;
+let draftImage: any = null;
 
-async function readFile(file) {
+async function readFile(file?: any) : Promise<any> {
   if (!file) return;
   if (draftImage && draftImage.close) draftImage.close();
   draftImage = await createImageBitmap(file);
 }
 
-export function bindAvatar(ctx) {
+export function bindAvatar(ctx?: any) : any {
   const { state, render, run } = ctx;
   const avatar = state.avatar || emptyAvatar();
   const stage = document.getElementById("avatarStage");
@@ -369,34 +369,34 @@ export function bindAvatar(ctx) {
     const draft = avatar.draft || { zoom: 1, panX: 0.5, panY: 0.5 };
     drawPreview(stage, draftImage, draft.zoom, draft.panX, draft.panY);
     const zoom = document.getElementById("avatarZoom");
-    if (zoom) zoom.addEventListener("input", () => {
+    if (zoom) zoom.addEventListener("input", () : any => {
       state.avatar.draft.zoom = Number(zoom.value);
       drawPreview(stage, draftImage, state.avatar.draft.zoom, state.avatar.draft.panX, state.avatar.draft.panY);
     });
-    let drag = null;
-    stage.addEventListener("pointerdown", (event) => {
+    let drag: any = null;
+    stage.addEventListener("pointerdown", (event?: any) : any => {
       drag = { x: event.clientX, y: event.clientY, panX: state.avatar.draft.panX, panY: state.avatar.draft.panY };
       stage.setPointerCapture(event.pointerId);
     });
-    stage.addEventListener("pointermove", (event) => {
+    stage.addEventListener("pointermove", (event?: any) : any => {
       if (!drag) return;
       state.avatar.draft.panX = Math.min(1, Math.max(0, drag.panX - (event.clientX - drag.x) / 240));
       state.avatar.draft.panY = Math.min(1, Math.max(0, drag.panY - (event.clientY - drag.y) / 240));
       drawPreview(stage, draftImage, state.avatar.draft.zoom, state.avatar.draft.panX, state.avatar.draft.panY);
     });
-    stage.addEventListener("pointerup", () => { drag = null; });
+    stage.addEventListener("pointerup", () : any => { drag = null; });
   }
-  async function choose(file) {
+  async function choose(file?: any) : Promise<any> {
     await readFile(file);
     state.avatar.draft = { zoom: 1, panX: 0.5, panY: 0.5 };
     render();
   }
   const camera = document.getElementById("avatarCamera");
-  if (camera) camera.addEventListener("change", () => run(() => choose(camera.files && camera.files[0])));
+  if (camera) camera.addEventListener("change", () : any => run(() : any => choose(camera.files && camera.files[0])));
   const file = document.getElementById("avatarFile");
-  if (file) file.addEventListener("change", () => run(() => choose(file.files && file.files[0])));
+  if (file) file.addEventListener("change", () : any => run(() : any => choose(file.files && file.files[0])));
   const make = document.getElementById("avatarMake");
-  if (make) make.addEventListener("click", () => run(async () => {
+  if (make) make.addEventListener("click", () : any => run(async () : Promise<any> => {
     if (!draftImage) throw new Error("Choose a photo first.");
     const draft = state.avatar.draft || { zoom: 1, panX: 0.5, panY: 0.5 };
     const next = await makeLocalAvatar(draftImage, draft.zoom, draft.panX, draft.panY);
@@ -404,26 +404,26 @@ export function bindAvatar(ctx) {
     state.avatar = { ...next, draft: state.avatar.draft };
     return "Avatar saved on this phone.";
   }));
-  document.querySelectorAll("[data-avatar-version]").forEach((button) => {
-    button.addEventListener("click", () => run(async () => {
+  document.querySelectorAll("[data-avatar-version]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(async () : Promise<any> => {
       const next = await useVersion(button.getAttribute("data-avatar-version"));
       revokeAvatar(state.avatar);
       state.avatar = { ...next, draft: state.avatar.draft };
     }));
   });
   const share = document.getElementById("avatarShare");
-  if (share) share.addEventListener("change", () => run(async () => {
+  if (share) share.addEventListener("change", () : any => run(async () : Promise<any> => {
     await saveShare(share.checked);
     state.avatar.share = share.checked;
   }));
   const copyPrompt = document.getElementById("avatarCopy");
-  if (copyPrompt) copyPrompt.addEventListener("click", () => {
+  if (copyPrompt) copyPrompt.addEventListener("click", () : any => {
     const preset = (document.getElementById("avatarStyle") || {}).value || "anime";
     state.avatar.prompt = ownAiPrompt(preset, state.profile ? state.profile.level : 1);
     render();
   });
   const ai = document.getElementById("avatarAi");
-  if (ai) ai.addEventListener("click", () => run(async () => {
+  if (ai) ai.addEventListener("click", () : any => run(async () : Promise<any> => {
     const consent = document.getElementById("avatarConsent");
     if (!consent || !consent.checked) throw new Error("Tick the box to send this crop to OpenAI.");
     consent.checked = false;
@@ -438,13 +438,13 @@ export function bindAvatar(ctx) {
     return "Avatar saved on this phone. OpenAI received the crop. Fit did not.";
   }));
   const backup = document.getElementById("avatarBackup");
-  if (backup) backup.addEventListener("click", () => run(async () => {
+  if (backup) backup.addEventListener("click", () : any => run(async () : Promise<any> => {
     if (!state.googleToken) throw new Error("Sign in with Google on the sheet section first. The backup uses drive.file.");
     await backupAvatar(state.googleToken);
     return "Backed up to your Google Drive.";
   }));
   const restore = document.getElementById("avatarRestore");
-  if (restore) restore.addEventListener("click", () => run(async () => {
+  if (restore) restore.addEventListener("click", () : any => run(async () : Promise<any> => {
     if (!state.googleToken) throw new Error("Sign in with Google on the sheet section first.");
     const next = await restoreAvatar(state.googleToken);
     revokeAvatar(state.avatar);
@@ -452,7 +452,7 @@ export function bindAvatar(ctx) {
     return "Restored from your Google Drive onto this phone.";
   }));
   const wipe = document.getElementById("avatarDelete");
-  if (wipe) wipe.addEventListener("click", () => run(async () => {
+  if (wipe) wipe.addEventListener("click", () : any => run(async () : Promise<any> => {
     revokeAvatar(state.avatar);
     if (draftImage && draftImage.close) draftImage.close();
     draftImage = null;
@@ -461,7 +461,7 @@ export function bindAvatar(ctx) {
   }));
 }
 
-function revokeAvatar(avatar) {
+function revokeAvatar(avatar?: any) : any {
   if (!avatar) return;
   if (avatar.url && avatar.url.startsWith("blob:")) URL.revokeObjectURL(avatar.url);
   for (const item of avatar.versions || []) {

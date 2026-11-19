@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { build } from "vite";
 import esbuild from "esbuild";
 import obfuscatorModule from "javascript-obfuscator";
 
@@ -25,22 +26,31 @@ const options = {
 };
 
 async function bundle(entry, outfile, extra = {}) {
-  const result = await esbuild.build({
-    entryPoints: [entry],
-    bundle: true,
-    minify: true,
-    format: "iife",
-    platform: "browser",
-    target: ["es2020"],
-    write: false,
-    legalComments: "none",
+  const name = path.basename(outfile);
+  await build({
+    configFile: false,
+    logLevel: "error",
     define: extra.define,
-    plugins: extra.plugins,
+    plugins: extra.plugins || [],
+    build: {
+      emptyOutDir: false,
+      outDir: dist,
+      minify: "esbuild",
+      lib: {
+        entry,
+        name: name.replace(".js", ""),
+        formats: ["iife"],
+        fileName: () => name,
+      },
+      rollupOptions: {
+        output: { extend: true },
+      },
+    },
   });
-  const source = result.outputFiles[0].text;
+  const source = await readFile(outfile, "utf8");
   if (extra.guard) extra.guard(source);
-  const code = JavaScriptObfuscator.obfuscate(source, options).getObfuscatedCode();
-  await writeFile(outfile, code);
+  if (extra.plain) return;
+  await writeFile(outfile, JavaScriptObfuscator.obfuscate(source, options).getObfuscatedCode());
 }
 
 await rm(dist, { recursive: true, force: true });
@@ -61,29 +71,22 @@ for (const [source, name] of [["src/web/play.css", "play.css"], ["src/web/admin.
   await writeFile(path.join(dist, name), css.code);
 }
 
-const fitMin = await esbuild.transform(await readFile(path.join(root, "fit.js"), "utf8"), { loader: "js", minify: true, legalComments: "none" });
-await writeFile(path.join(dist, "fit.js"), JavaScriptObfuscator.obfuscate(fitMin.code, options).getObfuscatedCode());
+await bundle(path.join(root, "fit.ts"), path.join(dist, "fit.js"));
+await bundle(path.join(root, "src/pwa/sw.ts"), path.join(dist, "sw.js"), { plain: true });
 const storeOn = process.env.STORE_ENABLED === "true";
 const payOn = process.env.PREMIUM_PAYMENTS_ENABLED === "true";
 const shopPhrases = ["Add to cart", "shop-terms.html", "Pay in sandbox", "X-Age-Confirm"];
-const shopOffPlugin = {
-  name: "shop-off",
-  setup(build) {
-    build.onResolve({ filter: /shop-ui\.js$/ }, () => ({
-      path: path.join(root, "src/web/shop-off.js"),
-    }));
+const swap = {
+  name: "feature-off",
+  enforce: "pre",
+  resolveId(id) {
+    if (!storeOn && id.endsWith("shop-ui.ts")) return path.join(root, "src/web/shop-off.ts");
+    if (!payOn && id.endsWith("premium-ui.ts")) return path.join(root, "src/web/premium-off.ts");
+    return null;
   },
 };
-const premiumOffPlugin = {
-  name: "premium-off",
-  setup(build) {
-    build.onResolve({ filter: /premium-ui\.js$/ }, () => ({
-      path: path.join(root, "src/web/premium-off.js"),
-    }));
-  },
-};
-await bundle(path.join(root, "src/web/main.js"), path.join(dist, "play.js"), {
-  plugins: [...(storeOn ? [] : [shopOffPlugin]), ...(payOn ? [] : [premiumOffPlugin])],
+await bundle(path.join(root, "src/web/main.ts"), path.join(dist, "play.js"), {
+  plugins: [swap],
   define: storeOn ? { "globalThis.SHOP_BUILD": "true" } : {},
   guard(source) {
     const found = shopPhrases.filter((phrase) => source.includes(phrase));
@@ -103,20 +106,27 @@ await bundle(path.join(root, "src/web/main.js"), path.join(dist, "play.js"), {
   },
 });
 await writeFile(path.join(dist, "shop-build.txt"), storeOn ? "on" : "off");
-await bundle(path.join(root, "src/web/admin.js"), path.join(dist, "admin.js"));
-await bundle(path.join(root, "src/web/redeem.js"), path.join(dist, "redeem.js"));
+await bundle(path.join(root, "src/web/admin.ts"), path.join(dist, "admin.js"));
+await bundle(path.join(root, "src/web/redeem.ts"), path.join(dist, "redeem.js"));
 
 let playHtml = await readFile(path.join(dist, "play.html"), "utf8");
 playHtml = playHtml
   .replace('href="src/web/play.css"', 'href="play.css"')
-  .replace('<script type="module" src="src/web/main.js"></script>', '<script src="play.js"></script>');
+  .replace('<script type="module" src="config.ts"></script>\n  <script type="module" src="src/web/main.ts"></script>', '<script src="config.js"></script>\n  <script src="play.js"></script>');
 await writeFile(path.join(dist, "play.html"), playHtml);
 
 let adminHtml = await readFile(path.join(dist, "admin.html"), "utf8");
 adminHtml = adminHtml
   .replace('href="src/web/admin.css"', 'href="admin.css"')
-  .replace('<script type="module" src="src/web/admin.js"></script>', '<script src="admin.js"></script>');
+  .replace('<script type="module" src="config.ts"></script>\n  <script type="module" src="src/web/admin.ts"></script>', '<script src="config.js"></script>\n  <script src="admin.js"></script>');
 await writeFile(path.join(dist, "admin.html"), adminHtml);
+await mkdir(path.join(dist, "admin"), { recursive: true });
+await writeFile(path.join(dist, "admin/index.html"), `<!DOCTYPE html>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=/admin.html">
+<title>Fit owner</title>
+<p><a href="/admin.html">Open the owner page</a></p>
+`);
 
 let sandboxHtml = "";
 if (storeOn) {
@@ -135,10 +145,10 @@ if (storeOn) {
 let redeemHtml = await readFile(path.join(dist, "redeem.html"), "utf8");
 redeemHtml = redeemHtml
   .replace('href="src/web/admin.css"', 'href="admin.css"')
-  .replace('<script type="module" src="src/web/redeem.js"></script>', '<script src="redeem.js"></script>');
+  .replace('<script type="module" src="config.ts"></script>\n  <script type="module" src="src/web/redeem.ts"></script>', '<script src="config.js"></script>\n  <script src="redeem.js"></script>');
 await writeFile(path.join(dist, "redeem.html"), redeemHtml);
 
-let config = await readFile(path.join(root, "config.js"), "utf8");
+let config = await readFile(path.join(root, "config.ts"), "utf8");
 if (process.env.GOOGLE_CLIENT_ID) {
   config = config.replace("YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com", process.env.GOOGLE_CLIENT_ID);
 }

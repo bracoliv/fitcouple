@@ -1,38 +1,38 @@
-const shopState = { catalog: null, cart: [], error: "", loading: false };
+const shopState: any = { catalog: null, cart: [], error: "", loading: false };
 
-function money(cents, currency) {
+function money(cents?: any, currency?: any) : any {
   return `${currency || "RM"} ${(Number(cents) / 100).toFixed(2)}`;
 }
 
-function ageYes() {
+function ageYes() : any {
   return localStorage.getItem("fitAge18") === "yes";
 }
 
-export function includeShop() {
-  return globalThis.SHOP_BUILD === true;
+export function includeShop() : any {
+  return (globalThis as any).SHOP_BUILD === true;
 }
 
-export function screenList() {
+export function screenList() : any {
   return includeShop()
     ? ["today", "path", "focus", "team", "shop", "more"]
     : ["today", "path", "focus", "team", "more"];
 }
 
-export function navClass() {
+export function navClass() : any {
   return includeShop() ? "nav-shop" : "";
 }
 
-async function loadCatalog(workerUrl, token) {
-  const headers = { Authorization: "Bearer " + token };
+async function loadCatalog(workerUrl?: any, token?: any) : Promise<any> {
+  const headers: Record<string, string> = { Authorization: "Bearer " + token };
   if (ageYes()) headers["X-Age-Confirm"] = "18";
   const base = String(workerUrl || "").replace(/\/$/, "");
   const res = await fetch(base + "/v1/store/catalog", { headers });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() : any => ({}));
   if (!res.ok) throw new Error(data.error || "The shop is not available.");
   return data;
 }
 
-function linkLabel(url) {
+function linkLabel(url?: any) : any {
   try {
     const host = new URL(url).hostname;
     if (/myprotein\./.test(host)) return "Buy at Myprotein";
@@ -44,7 +44,7 @@ function linkLabel(url) {
   return "Open the store";
 }
 
-function productCard(item, catalog, esc, storeName) {
+function productCard(item?: any, catalog?: any, esc?: any, storeName?: any) : any {
   const facts = [
     ["Why it is listed", item.why],
     ["Evidence", item.evidence],
@@ -52,7 +52,7 @@ function productCard(item, catalog, esc, storeName) {
     ["Third-party testing", item.testing],
     ["Halal", item.halal === "yes" ? "Yes" : item.halal === "no" ? "No" : "Not stated"],
     ["MAL", item.mal],
-  ].map(([label, value]) => `<p class="sub"><strong>${esc(label)}.</strong> ${esc(value)}</p>`).join("");
+  ].map(([label, value]: any) : any => `<p class="sub"><strong>${esc(label)}.</strong> ${esc(value)}</p>`).join("");
   const price = `<p>${esc(money(item.priceCents, catalog.currency))}</p><p class="meta">Supplier list ${esc(money(item.listPriceCents, catalog.currency))}. Not below that price.</p>`;
   const rel = storeName === "pump" ? "noopener sponsored" : "noopener";
   const buy = catalog.mode === "external"
@@ -63,7 +63,7 @@ function productCard(item, catalog, esc, storeName) {
   return `<article class="card" data-store-card="${esc(item.store)}"><p><strong>${esc(item.name)}</strong> <span class="meta">${brand}</span></p>${facts}${price}${ad}${buy}</article>`;
 }
 
-export function shopHtml(state, esc) {
+export function shopHtml(state?: any, esc?: any) : any {
   if (!includeShop()) return "";
   const catalog = shopState.catalog;
   if (!state.token) return `<section><h2>Shop</h2><p class="hint">The shop loads with your game.</p></section>`;
@@ -73,10 +73,10 @@ export function shopHtml(state, esc) {
   const pages = catalog.pages || {};
   const pump = catalog.pump || { products: [] };
   const slim = catalog.slim || { products: [], locked: false };
-  const pumpCards = (pump.products || []).map((item) => productCard(item, catalog, esc, "pump")).join("");
-  const slimCards = (slim.products || []).map((item) => productCard(item, catalog, esc, "slim")).join("");
+  const pumpCards = (pump.products || []).map((item?: any) : any => productCard(item, catalog, esc, "pump")).join("");
+  const slimCards = (slim.products || []).map((item?: any) : any => productCard(item, catalog, esc, "slim")).join("");
   const ageBox = slim.locked ? `<label class="hint"><input id="age18" type="checkbox"> I am 18 or older. Show the owner's Slimming store. It is not part of Pump Up, and it is not picked from my workouts or goals.</label>` : "";
-  const cart = (shopState.cart || []).map((line) => `<li>${esc(line.qty)} × ${esc(line.name)}</li>`).join("");
+  const cart = (shopState.cart || []).map((line?: any) : any => `<li>${esc(line.qty)} × ${esc(line.name)}</li>`).join("");
   const checkout = catalog.mode === "checkout" ? `<form id="checkout"><p class="hint">${esc(catalog.privacy || "")}</p><label>Name<input name="name" required maxlength="80"></label><label>Phone<input name="phone" required maxlength="20"></label><label>Address<input name="address" required maxlength="200"></label><label class="hint"><input name="consent" type="checkbox" value="yes"> I agree that my name, phone, and address are used only to deliver this order, and are kept apart from my food and workout log.</label><button type="submit" class="primary">Pay in sandbox</button><p class="hint">Physical goods. Not an in-app purchase. Sandbox only. No live card is charged. One store per order.</p></form>` : "";
   const links = `<p class="hint"><a href="${esc(pages.terms || "shop-terms.html")}">Terms</a> · <a href="${esc(pages.refund || "shop-refund.html")}">Refunds</a> · <a href="${esc(pages.privacy || "shop-privacy.html")}">Shop privacy</a></p>`;
   return `<section><h2>Shop</h2>
@@ -93,42 +93,42 @@ export function shopHtml(state, esc) {
     ${slimCards}
     ${cart ? `<ul class="log">${cart}</ul>` : ""}
     ${checkout}
-    ${(catalog.orders || []).length ? `<h2>Your orders</h2><ul class="log">${catalog.orders.map((order) => `<li>${esc(order.day)} · ${esc(order.status)} · ${esc(money(order.totalCents, catalog.currency))}</li>`).join("")}</ul>` : ""}
+    ${(catalog.orders || []).length ? `<h2>Your orders</h2><ul class="log">${catalog.orders.map((order?: any) : any => `<li>${esc(order.day)} · ${esc(order.status)} · ${esc(money(order.totalCents, catalog.currency))}</li>`).join("")}</ul>` : ""}
     </section>`;
 }
 
-export function bindShop(ctx) {
+export function bindShop(ctx?: any) : any {
   if (!includeShop()) return;
   const { state, config, run, render } = ctx;
   if (state.token && !shopState.catalog && !shopState.loading && !shopState.error) {
     shopState.loading = true;
-    loadCatalog(config.workerUrl, state.token).then((catalog) => {
+    loadCatalog(config.workerUrl, state.token).then((catalog?: any) : any => {
       shopState.catalog = catalog;
       shopState.error = "";
-    }).catch((err) => {
+    }).catch((err?: any) : any => {
       shopState.error = err.message || "The shop is not available.";
-    }).finally(() => {
+    }).finally(() : any => {
       shopState.loading = false;
       render();
     });
   }
-  document.querySelectorAll("[data-add-cart]").forEach((button) => {
-    button.addEventListener("click", () => {
+  document.querySelectorAll("[data-add-cart]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => {
       const id = button.getAttribute("data-add-cart");
       const pools = [...(shopState.catalog.pump?.products || []), ...(shopState.catalog.slim?.products || [])];
-      const product = pools.find((item) => item.id === id);
+      const product = pools.find((item?: any) : any => item.id === id);
       if (!product) return;
       if (shopState.cart.length && shopState.cart[0].store !== product.store) {
         shopState.cart = [];
       }
-      const line = shopState.cart.find((item) => item.id === id);
+      const line = shopState.cart.find((item?: any) : any => item.id === id);
       if (line) line.qty = Math.min(10, line.qty + 1);
       else shopState.cart.push({ id: product.id, name: product.name, qty: 1, store: product.store, adult: product.store === "slim" });
       render();
     });
   });
   const age = document.getElementById("age18");
-  if (age) age.addEventListener("change", () => {
+  if (age) age.addEventListener("change", () : any => {
     if (!age.checked) return;
     localStorage.setItem("fitAge18", "yes");
     shopState.catalog = null;
@@ -136,12 +136,12 @@ export function bindShop(ctx) {
     render();
   });
   const checkout = document.getElementById("checkout");
-  if (checkout) checkout.addEventListener("submit", (event) => {
+  if (checkout) checkout.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
     const data = new FormData(checkout);
-    run(async () => {
+    run(async () : Promise<any> => {
       if (data.get("consent") !== "yes") throw new Error("Tick the box to agree to the delivery privacy note.");
-      const needsAge = shopState.cart.some((line) => line.adult);
+      const needsAge = shopState.cart.some((line?: any) : any => line.adult);
       const result = await fetch(String(config.workerUrl).replace(/\/$/, "") + "/v1/store/checkout", {
         method: "POST",
         headers: { Authorization: "Bearer " + state.token, "Content-Type": "application/json" },
@@ -149,12 +149,12 @@ export function bindShop(ctx) {
           name: String(data.get("name") || ""),
           phone: String(data.get("phone") || ""),
           address: String(data.get("address") || ""),
-          items: shopState.cart.map((line) => ({ id: line.id, qty: line.qty })),
+          items: shopState.cart.map((line?: any) : any => ({ id: line.id, qty: line.qty })),
           consent: true,
           ageConfirm: needsAge ? true : false,
         }),
       });
-      const payload = await result.json().catch(() => ({}));
+      const payload = await result.json().catch(() : any => ({}));
       if (!result.ok) throw new Error(payload.error || "The shop could not start payment.");
       shopState.cart = [];
       if (payload.url) window.location.href = payload.url;

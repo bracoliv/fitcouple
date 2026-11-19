@@ -10,15 +10,22 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
-    "test": "node --experimental-strip-types --test test/brain.test.ts test/summary.test.mjs test/avatar.test.mjs test/assist.test.mjs test/guard.test.mjs test/auth.test.mjs test/worker.test.ts test/build.test.mjs",
+    "test": "npm run typecheck && node --experimental-strip-types --test test/brain.test.ts test/summary.test.mjs test/avatar.test.mjs test/assist.test.mjs test/guard.test.mjs test/auth.test.mjs test/worker.test.ts test/build.test.mjs",
+    "typecheck": "tsc -p tsconfig.web.json && tsc -p tsconfig.worker.json",
+    "smoke": "node scripts/smoke.mjs",
     "worker": "wrangler dev --port 8787 --ip 127.0.0.1 --local --show-interactive-dev-session false",
     "types": "wrangler types",
     "db:apply": "wrangler d1 migrations apply fitcouple-game --local",
     "deploy:worker": "wrangler deploy"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "javascript-obfuscator": "^5.10.1",
+    "playwright": "^1.65.1",
+    "typescript": "5.9",
+    "vite": "^8.3.8",
     "wrangler": "^4.161.0"
   },
   "dependencies": {

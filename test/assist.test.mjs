@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseMealText } from "../src/web/foods.js";
-import { FAQ, matchFaq } from "../src/web/knowledge.js";
-import { PHOTO_EDGE, PHOTO_QUALITY } from "../src/web/assist.js";
+import { parseMealText } from "../src/web/foods.ts";
+import { FAQ, matchFaq } from "../src/web/knowledge.ts";
+import { PHOTO_EDGE, PHOTO_QUALITY } from "../src/web/assist.ts";
 
 test("local foods and the faq answer before any model call", () => {
   assert.ok(FAQ.length >= 40);

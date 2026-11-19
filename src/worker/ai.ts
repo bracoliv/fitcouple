@@ -1,6 +1,7 @@
 import type { Db } from "./data.ts";
 import { GameError } from "./errors.ts";
 import { hasOpenAccess, inactiveRevokeDays } from "./gifts.ts";
+import { noteBudget, noteProviderFailure, raiseAlert, type AlertEnv } from "./alerts.ts";
 
 export const FEATURES = ["food_photo", "text_log", "recommend", "chat"] as const;
 export type AiFeature = typeof FEATURES[number];
@@ -159,6 +160,10 @@ interface GeminiEnv {
   AI_DAILY_BUDGET_USD?: string;
   AI_DAILY_BUDGET_WARN?: string;
   AUTO_REVOKE_INACTIVE_DAYS?: string;
+  OWNER_ALERT_EMAIL?: string;
+  ALERT_FROM_EMAIL?: string;
+  ALERT_WEBHOOK_URL?: string;
+  EMAIL?: AlertEnv["EMAIL"];
 }
 
 export interface ProviderConfig {
@@ -305,9 +310,11 @@ export async function todaySpendMicro(db: Db, day: string): Promise<number> {
   return row?.cost || 0;
 }
 
-export async function assertDailyBudget(db: Db, day: string, env: { AI_DAILY_BUDGET_USD?: string }): Promise<void> {
+export async function assertDailyBudget(db: Db, day: string, env: GeminiEnv): Promise<void> {
+  const cap = budgetUsd(env.AI_DAILY_BUDGET_USD);
   const spent = await todaySpendMicro(db, day);
-  if (spent >= Math.round(budgetUsd(env.AI_DAILY_BUDGET_USD) * 1_000_000)) {
+  if (spent >= Math.round(cap * 1_000_000)) {
+    await noteBudget(db, env, day, spent / 1_000_000, cap, cap * budgetWarnFraction(env.AI_DAILY_BUDGET_WARN));
     throw new GameError(503, BUSY_MESSAGE);
   }
 }
@@ -322,7 +329,7 @@ export async function budgetStatus(db: Db, day: string, env: { AI_DAILY_BUDGET_U
     budgetUsd: capUsd,
     warnAtUsd: Math.round(capUsd * warn * 10000) / 10000,
     warn: capUsd > 0 && spentUsd >= capUsd * warn,
-    window: "UTC date, same day as the per-user counters. Resets at 00:00 UTC.",
+    window: "Malaysia date, Asia/Kuala_Lumpur. Resets at 00:00 MYT.",
   };
 }
 
@@ -435,8 +442,12 @@ export async function askProviders(
       const cost = costMicroUsd(provider.model, result.usage.input, result.usage.output, prices);
       await addProviderDay(db, day, provider.id, 1, result.usage.input, result.usage.output, cost, 0);
       await addUserSpend(db, day, userId, feature, provider.id, result.usage.input, result.usage.output, cost);
+      const spent = await todaySpendMicro(db, day);
+      const cap = budgetUsd(env.AI_DAILY_BUDGET_USD);
+      await noteBudget(db, env, day, spent / 1_000_000, cap, cap * budgetWarnFraction(env.AI_DAILY_BUDGET_WARN));
       return result.text;
     }
+    await noteProviderFailure(db, env, day, false);
     if (!result.retryable) {
       console.error(JSON.stringify({
         service: "fitcouple-game",
@@ -449,6 +460,7 @@ export async function askProviders(
     }
     await addProviderDay(db, day, provider.id, 0, 0, 0, 0, 1);
   }
+  await raiseAlert(db, env, day, "providers-down", "Every configured assistant provider failed.");
   throw new GameError(502, "The assistant could not answer just now.");
 }
 

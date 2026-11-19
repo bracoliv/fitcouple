@@ -1,4 +1,4 @@
-import { assertNearToday, isDay, isDifficulty, type QuestEvent } from "./brain.ts";
+import { assertNearToday, isDay, isDifficulty, malaysiaDay, type QuestEvent } from "./brain.ts";
 import { secretsMatch } from "./crypto.ts";
 import {
   adminCustomers,
@@ -19,6 +19,8 @@ import {
 } from "./data.ts";
 import { GameError } from "./errors.ts";
 import { legacyAccountId, plainAccountId, verifyGoogleIdToken } from "./google-auth.ts";
+import { assertAccessJwt, accessRequired } from "./access.ts";
+import { raiseAlert } from "./alerts.ts";
 import { accountView, adjustGift, generateGiftCodes, giftsEnabled, inactiveRevokeDays, redeemGiftCode, revokeGiftCode, saveSupportNote, supportReport } from "./gifts.ts";
 import { assertKeys, assertNoPrivateFields } from "./privacy.ts";
 import { adminFailures, enforceRate, positiveInt } from "./rate.ts";
@@ -85,6 +87,17 @@ export interface AppEnv {
   AUTO_REVOKE_INACTIVE_DAYS?: string;
   GIFT_REDEEM_LIMIT?: string;
   GIFT_REDEEM_WINDOW_SECONDS?: string;
+  CF_ACCESS_TEAM_DOMAIN?: string;
+  CF_ACCESS_AUD?: string;
+  OWNER_ALERT_EMAIL?: string;
+  ALERT_FROM_EMAIL?: string;
+  ALERT_WEBHOOK_URL?: string;
+  EMAIL?: { send(message: unknown): Promise<void> };
+  BACKUPS?: {
+    put(key: string, value: Uint8Array | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+    list(options?: { prefix?: string }): Promise<{ objects: { key: string }[] }>;
+    delete(key: string): Promise<unknown>;
+  };
 }
 
 function allowedOrigin(env: AppEnv, origin: string): boolean {
@@ -117,7 +130,7 @@ async function presentPlayer(request: Request, env: AppEnv, status: number, body
   if (body && typeof body === "object" && !Array.isArray(body)) {
     const record = body as Record<string, unknown>;
     if (typeof record.id === "string") {
-      record.account = await accountView(env.DB, record.id, new Date().toISOString().slice(0, 10), env);
+      record.account = await accountView(env.DB, record.id, malaysiaDay(new Date()), env);
     }
   }
   return json(request, env, status, body);
@@ -158,6 +171,9 @@ async function assertStaff(request: Request, env: AppEnv): Promise<void> {
 }
 
 async function assertAdmin(request: Request, env: AppEnv): Promise<void> {
+  if (accessRequired(env.CF_ACCESS_AUD)) {
+    await assertAccessJwt(request, env.CF_ACCESS_TEAM_DOMAIN, env.CF_ACCESS_AUD);
+  }
   const key = env.ADMIN_KEY || "";
   if (key === "local-dev-admin-key-change-me") {
     throw new GameError(503, "Replace the sample owner key before using the owner page.");
@@ -169,7 +185,10 @@ async function assertAdmin(request: Request, env: AppEnv): Promise<void> {
     positiveInt(env.ADMIN_FAIL_LIMIT, 8, 100),
     positiveInt(env.ADMIN_FAIL_WINDOW_SECONDS, 900),
   );
-  if (failures.blocked) throw new GameError(429, "Too many owner sign-in tries. Wait and try again.");
+  if (failures.blocked) {
+    await raiseAlert(env.DB, env, malaysiaDay(new Date()), "admin-locked", "Owner sign-in failures passed the limit.");
+    throw new GameError(429, "Too many owner sign-in tries. Wait and try again.");
+  }
   const header = request.headers.get("Authorization") || "";
   const match = /^Bearer\s+(\S+)$/.exec(header);
   const provided = match ? match[1] : "";
@@ -199,7 +218,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     if (request.method === "POST" && url.pathname === "/v1/session") {
       await enforceRate(env.DB, request, "session", positiveInt(env.RATE_SESSION_LIMIT, 10, 1000), positiveInt(env.RATE_WINDOW_SECONDS, 60, 3600));
       const body = await readSession(request);
-      const day = body.day == null ? now.toISOString().slice(0, 10) : dayFrom(body.day, now);
+      const day = body.day == null ? malaysiaDay(now) : dayFrom(body.day, now);
       const claims = await verifyGoogleIdToken(body.idToken, env.GOOGLE_CLIENT_ID || "");
       const created = await openGoogleSession(env.DB, {
         sub: claims.sub,
@@ -212,17 +231,17 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     if (request.method === "GET" && url.pathname === "/v1/admin/customers") {
       await assertAdmin(request, env);
-      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      const day = url.searchParams.get("day") || malaysiaDay(now);
       return json(request, env, 200, await adminCustomers(env.DB, dayFrom(day, now), offer));
     }
     if (url.pathname === "/v1/me" && request.method === "GET") {
       const user = await userFromToken(env.DB, bearer(request));
-      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      const day = url.searchParams.get("day") || malaysiaDay(now);
       return presentPlayer(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now), offer));
     }
     if (url.pathname === "/v1/team" && request.method === "GET") {
       const user = await userFromToken(env.DB, bearer(request));
-      const day = url.searchParams.get("day") || now.toISOString().slice(0, 10);
+      const day = url.searchParams.get("day") || malaysiaDay(now);
       return presentPlayer(request, env, 200, await stateFor(env.DB, user.id, dayFrom(day, now), offer));
     }
     if (request.method === "POST" && url.pathname === "/v1/events") {
@@ -271,7 +290,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       if (typeof body.code !== "string" || body.code.length < 8 || body.code.length > 40) {
         throw new GameError(400, "Enter the voucher code.");
       }
-      return json(request, env, 200, await redeemVoucher(env.DB, body.code, now.toISOString().slice(0, 10)));
+      return json(request, env, 200, await redeemVoucher(env.DB, body.code, malaysiaDay(now)));
     }
     if (url.pathname === "/v1/admin/products" && (request.method === "GET" || request.method === "POST")) {
       await assertAdmin(request, env);
@@ -313,7 +332,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const user = await userFromToken(env.DB, bearer(request));
       const body = cleanOrder(await readLoose(request, 200));
       const page = `${siteOrigin(env)}/pay-sandbox.html`;
-      return json(request, env, 200, await placeOrder(env.DB, user.id, now.toISOString().slice(0, 10), shop, body, { pump: env.STORE_PUMP_CATALOG, slim: env.STORE_SLIM_CATALOG }, env, page));
+      return json(request, env, 200, await placeOrder(env.DB, user.id, malaysiaDay(now), shop, body, { pump: env.STORE_PUMP_CATALOG, slim: env.STORE_SLIM_CATALOG }, env, page));
     }
     if (request.method === "POST" && url.pathname === "/v1/store/sandbox-complete") {
       const shop = readStoreConfig(env);
@@ -324,7 +343,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     if (url.pathname === "/v1/ai/quota" && request.method === "GET") {
       const user = await userFromToken(env.DB, bearer(request));
-      const day = now.toISOString().slice(0, 10);
+      const day = malaysiaDay(now);
       const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
       return json(request, env, 200, await quotaFor(env.DB, user.id, day, limits, inactiveRevokeDays(env.AUTO_REVOKE_INACTIVE_DAYS)));
     }
@@ -334,7 +353,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     if (url.pathname === "/v1/admin/ai" && request.method === "GET") {
       await assertAdmin(request, env);
-      const day = now.toISOString().slice(0, 10);
+      const day = malaysiaDay(now);
       const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
       const usage = await env.DB.prepare(
         "SELECT feature, SUM(count) AS total FROM ai_usage WHERE day = ? GROUP BY feature",
@@ -358,6 +377,9 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
         refusals: refusals.results || [],
         controls: controls.results || [],
         budget: await budgetStatus(env.DB, day, env),
+        alerts: (await env.DB.prepare(
+          "SELECT day, kind, detail, created_at FROM owner_alerts ORDER BY created_at DESC LIMIT 20",
+        ).all()).results || [],
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/limits") {
@@ -369,7 +391,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/premium") {
       await assertAdmin(request, env);
       const body = assertKeys(await readJson(request), ["userId", "grant"]);
-      await setPremium(env.DB, String(body.userId || ""), body.grant === true, now.toISOString().slice(0, 10));
+      await setPremium(env.DB, String(body.userId || ""), body.grant === true, malaysiaDay(now));
       return json(request, env, 200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/ai/control") {
@@ -386,7 +408,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     }
     if (request.method === "GET" && url.pathname === "/v1/admin/support") {
       await assertAdmin(request, env);
-      const day = now.toISOString().slice(0, 10);
+      const day = malaysiaDay(now);
       const inactiveDays = Number(url.searchParams.get("inactiveDays") || 14);
       const endingDays = Number(url.searchParams.get("endingDays") || 7);
       return json(request, env, 200, await supportReport(
@@ -410,7 +432,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const label = typeof body.label === "string" && body.label.trim() ? body.label.trim().slice(0, 80) : null;
       const codes = await generateGiftCodes(
         env.DB,
-        now.toISOString().slice(0, 10),
+        malaysiaDay(now),
         Number(body.count ?? 1),
         label,
         Number(body.redeemDays ?? 30),
@@ -421,7 +443,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
     if (request.method === "POST" && url.pathname === "/v1/admin/gifts/revoke") {
       await assertAdmin(request, env);
       const body = assertKeys(await readJson(request), ["code"]);
-      await revokeGiftCode(env.DB, body.code);
+      await revokeGiftCode(env.DB, String(body.code || ""));
       return json(request, env, 200, { ok: true });
     }
     if (request.method === "POST" && url.pathname === "/v1/admin/gifts/user") {
@@ -430,7 +452,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       const expires = await adjustGift(
         env.DB,
         String(body.userId || ""),
-        now.toISOString().slice(0, 10),
+        malaysiaDay(now),
         String(body.action || ""),
         body.days == null || body.days === "" ? null : Number(body.days),
         typeof body.expiresDay === "string" ? body.expiresDay : null,
@@ -442,7 +464,7 @@ export async function handle(request: Request, env: AppEnv): Promise<Response> {
       if (!giftsEnabled(env.GIFT_CODES_ENABLED)) return json(request, env, 404, { error: "Not found." });
       const user = await userFromToken(env.DB, bearer(request));
       const body = assertKeys(await readJson(request), ["code"]);
-      const day = now.toISOString().slice(0, 10);
+      const day = malaysiaDay(now);
       await redeemGiftCode(env.DB, request, user.id, String(body.code || ""), day, env);
       return presentPlayer(request, env, 200, await stateFor(env.DB, user.id, day, offer));
     }
@@ -519,7 +541,7 @@ async function handleAi(request: Request, env: AppEnv, pathname: string, now: Da
     throw new GameError(400, "Agree to the assistant notice before the first request.");
   }
   const user = await userFromToken(env.DB, bearer(request));
-  const day = now.toISOString().slice(0, 10);
+  const day = malaysiaDay(now);
   const limits = await effectiveLimits(env.DB, readLimitsFromEnv(env));
   const base = { db: env.DB, env, userId: user.id, day, limits };
   if (pathname === "/v1/ai/food-photo") {

@@ -783,7 +783,7 @@ test("caps, budget, photo size, and admin lock", async () => {
   assert.equal(admin.status, 200, admin.text);
   const budget = (admin.json as { budget: { budgetUsd: number; window: string } }).budget;
   assert.equal(budget.budgetUsd, 5);
-  assert.equal(budget.window.includes("UTC"), true);
+  assert.equal(budget.window.includes("MYT"), true);
 
   const savedKey = env.ADMIN_KEY;
   env.ADMIN_KEY = "local-dev-admin-key-change-me";
@@ -953,6 +953,19 @@ test("an old session token still opens that profile and Google identity is store
   assert.equal(again?.google_name, "New Name");
   const fresh = await session("plainuser");
   assert.equal(fresh.id, await plainAccountId("plainuser"));
+});
+
+test("admin access closes the owner routes until Cloudflare Access allows them", async () => {
+  env.CF_ACCESS_AUD = "aud-tag";
+  env.CF_ACCESS_TEAM_DOMAIN = "fit.cloudflareaccess.com";
+  try {
+    const closed = await call("/v1/admin/ai", { token: TEST_KEY });
+    assert.equal(closed.status, 403);
+    assert.equal(closed.text.includes(TEST_KEY), false);
+  } finally {
+    delete env.CF_ACCESS_AUD;
+    delete env.CF_ACCESS_TEAM_DOMAIN;
+  }
 });
 
 test("gift codes redeem once, expire, revoke, extend, and return to free", async () => {

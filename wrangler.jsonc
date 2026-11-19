@@ -59,6 +59,18 @@
     "GIFT_REDEEM_WINDOW_SECONDS": "3600",
     "PREMIUM_PAYMENTS_ENABLED": "false"
   },
+  "triggers": {
+    "crons": ["15 16 * * *"]
+  },
+  "send_email": [
+    { "name": "EMAIL" }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "fitcouple-backups"
+    }
+  ],
   // ADMIN_KEY, GEMINI_API_KEY, QWEN_API_KEY, OPENAI_API_KEY, and GOOGLE_SUB_SALT are secrets.
   // GOOGLE_SUB_SALT is optional. Leave it set until players who signed in under the old salted id have signed in once, then you can delete it.
   // SITE_URL is the public site origin. Checkout returns there. Do not take it from the Origin header.

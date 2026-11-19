@@ -14,12 +14,13 @@ import {
   viewQuests,
   visibleStreak,
   windowReport,
+  malaysiaDay,
   type Player,
 } from "../src/worker/brain.ts";
 import { cleanDisplayName } from "../src/worker/privacy.ts";
 import { SCHEMA_SQL, PHASE2_SQL } from "../src/worker/schema.ts";
 import { sessionFor } from "../src/worker/programs.ts";
-import { AI_SQL, SECURITY_SQL, STORE_SQL, SUPPORT_SQL, VOUCHER_SQL } from "../src/worker/schema.ts";
+import { AI_SQL, SECURITY_SQL, STORE_SQL, SUPPORT_SQL, VOUCHER_SQL, OPS_SQL } from "../src/worker/schema.ts";
 import { costMicroUsd, modelName, usageFromGoogle, DEFAULT_PRICES } from "../src/worker/ai.ts";
 import { cleanShopeeUrl, hasHealthClaim, productFrom, readStoreConfig } from "../src/worker/store.ts";
 import { milestoneReached, parseMilestones } from "../src/worker/vouchers.ts";
@@ -327,6 +328,18 @@ test("security tables match the migration", () => {
 test("support tables match the migration", () => {
   const file = readFileSync(new URL("../migrations/0007_support.sql", import.meta.url), "utf8");
   assert.equal(file.trim(), SUPPORT_SQL.trim());
+});
+
+test("ops tables match the migration", () => {
+  const file = readFileSync(new URL("../migrations/0008_ops.sql", import.meta.url), "utf8");
+  assert.equal(file.trim(), OPS_SQL.trim());
+});
+
+test("Malaysia day rolls at 00:00 MYT", () => {
+  const before = new Date("2026-11-19T15:59:00Z");
+  const after = new Date("2026-11-19T16:00:00Z");
+  assert.equal(malaysiaDay(before), "2026-11-19");
+  assert.equal(malaysiaDay(after), "2026-11-20");
 });
 
 test("flag text stays free of health details", () => {

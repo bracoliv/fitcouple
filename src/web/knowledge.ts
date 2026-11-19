@@ -48,7 +48,7 @@ export const FAQ = [
   { keys: ["goal", "what goal", "目标"], en: "A useful goal is specific and repeatable, such as walking most days or cooking one vegetable side. The app does not set a body-weight promise.", zh: "有用的目标是具体且能重复的，例如大多数日子走路，或做一份蔬菜。这个应用不承诺体重变化。" },
 ];
 
-export function matchFaq(query) {
+export function matchFaq(query?: any) : any {
   const text = String(query || "").toLowerCase();
   if (text.trim().length < 3) return null;
   let best = null;

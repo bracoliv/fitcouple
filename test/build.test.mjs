@@ -19,7 +19,8 @@ test("publish build minifies and obfuscates the front end", () => {
   assert.equal(readFileSync("dist/shop-build.txt", "utf8"), "off");
   assert.equal(existsSync("dist/shop-terms.html"), false);
   assert.equal(existsSync("dist/pay-sandbox.html"), false);
-  assert.equal(existsSync("dist/_headers"), true);
+  assert.equal(existsSync("dist/sw.js"), true);
+  assert.equal(existsSync("dist/admin/index.html"), true);
   assert.equal(readFileSync("dist/_headers", "utf8").includes("frame-ancestors 'none'"), true);
   assert.equal(readFileSync("dist/_headers", "utf8").includes("https://accounts.google.com"), true);
   assert.ok(fit.length > 1000);

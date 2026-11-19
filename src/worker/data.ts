@@ -28,7 +28,7 @@ import {
 import { makeTeamCode, normalizeTeamCode, randomHex, sha256Hex } from "./crypto.ts";
 import { GameError } from "./errors.ts";
 import { cleanDisplayName } from "./privacy.ts";
-import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL, AI_SQL, SECURITY_SQL, SUPPORT_SQL } from "./schema.ts";
+import { PHASE2_SQL, SCHEMA_SQL, STORE_SQL, VOUCHER_SQL, AI_SQL, SECURITY_SQL, SUPPORT_SQL, OPS_SQL } from "./schema.ts";
 import { hashVoucherCode, milestoneReached, shiftDay as addDays, VOUCHERS_OFF, type VoucherConfig } from "./vouchers.ts";
 import { isProgramId, PROGRAM_CHOICES, sessionFor } from "./programs.ts";
 import { askCoach } from "./coach.ts";
@@ -138,6 +138,8 @@ async function applySchema(db: Db): Promise<void> {
       // Columns and indexes already exist after the first boot.
     }
   }
+  const opsSql = OPS_SQL.split(";").map((part) => part.trim()).filter(Boolean);
+  for (const sql of opsSql) await db.prepare(sql).run();
 }
 
 function mapUser(row: UserRow): StoredUser {
@@ -386,7 +388,7 @@ export async function stateFor(db: Db, userId: string, day: string, vouchers: Vo
     duelWins: user.duelWins,
   });
   let team = user.teamId ? await teamView(db, user, day) : null;
-  if (team && challenge) team = { ...team, challenge };
+  if (team && challenge) team = { ...team, challenge } as typeof team;
   const duel = user.teamId ? await duelView(db, user, day) : null;
   return {
     id: user.id,

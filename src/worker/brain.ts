@@ -207,6 +207,17 @@ export function isDifficulty(value: unknown): value is Difficulty {
   return value === "easy" || value === "normal" || value === "hard";
 }
 
+export function malaysiaDay(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
+}
+
 export function isDay(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const time = Date.parse(value + "T00:00:00Z");
@@ -226,8 +237,8 @@ export function daysBetween(from: string, to: string): number {
 
 export function assertNearToday(day: string, now = new Date()): void {
   if (!isDay(day)) throw new GameError(400, "Send the day as YYYY-MM-DD.");
-  const utc = now.toISOString().slice(0, 10);
-  const allowed = new Set([shiftDay(utc, -1), utc, shiftDay(utc, 1)]);
+  const today = malaysiaDay(now);
+  const allowed = new Set([shiftDay(today, -1), today, shiftDay(today, 1)]);
   if (!allowed.has(day)) throw new GameError(400, "That day is outside the play window.");
 }
 

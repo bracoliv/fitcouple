@@ -1,25 +1,25 @@
-import { parseMealText } from "./foods.js";
-import { matchFaq } from "./knowledge.js";
+import { parseMealText } from "./foods.ts";
+import { matchFaq } from "./knowledge.ts";
 
 const CONSENT = "fitGeminiConsent";
 const TARGETS = { kcal: 2000, protein: 90, carbs: 220, fat: 60 };
 
-const LABELS = {
+const LABELS: Record<string, string> = {
   food_photo: "food photos",
   text_log: "text logs",
   recommend: "recommendations",
   chat: "chat replies",
 };
 
-export function consentGiven() {
+export function consentGiven() : any {
   return localStorage.getItem(CONSENT) === "yes";
 }
 
-export function acceptConsent() {
+export function acceptConsent() : any {
   localStorage.setItem(CONSENT, "yes");
 }
 
-function remaining(rows, day) {
+function remaining(rows?: any, day?: any) : any {
   const used = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   for (const row of rows || []) {
     if (String(row.date || "").slice(0, 10) !== day) continue;
@@ -37,25 +37,25 @@ function remaining(rows, day) {
   };
 }
 
-function quotaLine(quota) {
+function quotaLine(quota?: any) : any {
   if (!quota) return "Assistant counts load with your game.";
   if (quota.premium) return "Premium: no daily cap. Fit still does not store the messages.";
-  return (quota.features || []).map((item) => {
+  return (quota.features || []).map((item?: any) : any => {
     const name = LABELS[item.feature] || item.feature;
     return `${item.left} ${name} left`;
   }).join(" · ");
 }
 
-function notice() {
+function notice() : any {
   return `<p class="hint">Fit sends assistant requests through our server. They may be processed by Google, Alibaba Cloud (Singapore), or OpenAI, in that order, when the one being called is busy or unavailable. FitCouple does not store the photo, the meal text, or the reply. It does store token counts and the estimated cost against your player id. Each company's own terms apply. On Google's free tier, Google may use that content to improve Google's products. Not medical advice.</p>`;
 }
 
-export function assistHtml(state, day, esc) {
+export function assistHtml(state?: any, day?: any, esc?: any) : any {
   if (!consentGiven()) {
     return `<section class="card"><h2>Assistant</h2>${notice()}<button type="button" id="aiConsent" class="primary">I understand, continue</button></section>`;
   }
   const left = remaining(state.rows, day);
-  const draft = (state.aiDraft || []).map((item, index) => `<label>${esc(item.name)}<input data-ai-field="name" data-ai-index="${index}" value="${esc(item.name)}"></label><label>Portion<input data-ai-field="portion" data-ai-index="${index}" value="${esc(item.portion || "")}"></label><label>kcal<input data-ai-field="kcal" data-ai-index="${index}" value="${esc(item.kcal)}"></label><label>Protein<input data-ai-field="protein" data-ai-index="${index}" value="${esc(item.protein)}"></label><label>Carbs<input data-ai-field="carbs" data-ai-index="${index}" value="${esc(item.carbs)}"></label><label>Fat<input data-ai-field="fat" data-ai-index="${index}" value="${esc(item.fat)}"></label>`).join("");
+  const draft = (state.aiDraft || []).map((item?: any, index?: any) : any => `<label>${esc(item.name)}<input data-ai-field="name" data-ai-index="${index}" value="${esc(item.name)}"></label><label>Portion<input data-ai-field="portion" data-ai-index="${index}" value="${esc(item.portion || "")}"></label><label>kcal<input data-ai-field="kcal" data-ai-index="${index}" value="${esc(item.kcal)}"></label><label>Protein<input data-ai-field="protein" data-ai-index="${index}" value="${esc(item.protein)}"></label><label>Carbs<input data-ai-field="carbs" data-ai-index="${index}" value="${esc(item.carbs)}"></label><label>Fat<input data-ai-field="fat" data-ai-index="${index}" value="${esc(item.fat)}"></label>`).join("");
   return `<section class="card"><h2>Assistant</h2>${notice()}<p class="meta">${esc(quotaLine(state.aiQuota))}</p>
     <p class="meta">About ${left.kcal} kcal left today, from a general 2000 kcal sketch on this phone. P ${left.protein} · C ${left.carbs} · F ${left.fat}.</p>
     <label>Describe a meal<input id="foodText" maxlength="400" placeholder="two slices of bread and an egg"></label>
@@ -66,9 +66,9 @@ export function assistHtml(state, day, esc) {
     </section>`;
 }
 
-export function chatHtml(state, esc) {
+export function chatHtml(state?: any, esc?: any) : any {
   if (!consentGiven()) return "";
-  const lines = (state.aiChat || []).map((line) => `<p><strong>${line.role === "you" ? "You" : "Assistant"}.</strong> ${esc(line.text)}</p>${line.refused ? `<button type="button" data-ai-feedback>This was a health question</button>` : ""}`).join("");
+  const lines = (state.aiChat || []).map((line?: any) : any => `<p><strong>${line.role === "you" ? "You" : "Assistant"}.</strong> ${esc(line.text)}</p>${line.refused ? `<button type="button" data-ai-feedback>This was a health question</button>` : ""}`).join("");
   return `<section class="card"><h2>Questions</h2><p class="hint">Nutrition and exercise only. Not medical advice. Common answers stay on this phone. Other questions go to Gemini and are not stored here.</p>
     <p class="meta">${esc(quotaLine(state.aiQuota))}</p>
     ${lines}
@@ -79,15 +79,15 @@ export function chatHtml(state, esc) {
 export const PHOTO_EDGE = 1024;
 export const PHOTO_QUALITY = 0.8;
 
-async function shrinkPhoto(file) {
+async function shrinkPhoto(file?: any) : Promise<any> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, PHOTO_EDGE / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  (canvas.getContext("2d") as any).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
+  const blob: any = await new Promise((resolve?: any) : any => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
   const buffer = await blob.arrayBuffer();
   let binary = "";
   const bytes = new Uint8Array(buffer);
@@ -95,19 +95,19 @@ async function shrinkPhoto(file) {
   return btoa(binary);
 }
 
-export function bindAssist(ctx) {
+export function bindAssist(ctx?: any) : any {
   const { state, api, render, run, day, saveItems } = ctx;
   const consent = document.getElementById("aiConsent");
-  if (consent) consent.addEventListener("click", () => {
+  if (consent) consent.addEventListener("click", () : any => {
     acceptConsent();
     render();
   });
-  async function refreshQuota() {
+  async function refreshQuota() : Promise<any> {
     if (!state.token) return;
     state.aiQuota = await api.aiQuota(state.token);
   }
   const estimate = document.getElementById("foodAsk");
-  if (estimate) estimate.addEventListener("click", () => run(async () => {
+  if (estimate) estimate.addEventListener("click", () : any => run(async () : Promise<any> => {
     const text = document.getElementById("foodText").value.trim();
     const local = parseMealText(text);
     if (local.complete) {
@@ -121,7 +121,7 @@ export function bindAssist(ctx) {
     await refreshQuota();
   }));
   const photo = document.getElementById("foodPhoto");
-  if (photo) photo.addEventListener("change", () => run(async () => {
+  if (photo) photo.addEventListener("change", () : any => run(async () : Promise<any> => {
     const file = photo.files && photo.files[0];
     if (!file) return;
     const image = await shrinkPhoto(file);
@@ -137,7 +137,7 @@ export function bindAssist(ctx) {
     await refreshQuota();
   }));
   const meals = document.getElementById("mealAsk");
-  if (meals) meals.addEventListener("click", () => run(async () => {
+  if (meals) meals.addEventListener("click", () : any => run(async () : Promise<any> => {
     const left = remaining(state.rows, day());
     const result = await api.aiMeals(state.token, left);
     state.aiDraft = result.meals || [];
@@ -145,22 +145,22 @@ export function bindAssist(ctx) {
     await refreshQuota();
   }));
   const workout = document.getElementById("workoutAsk");
-  if (workout) workout.addEventListener("click", () => run(async () => {
+  if (workout) workout.addEventListener("click", () : any => run(async () : Promise<any> => {
     const profile = state.profile || {};
     const result = await api.aiWorkout(state.token, {
       level: profile.level || 1,
       streak: profile.streak || 0,
       plan: profile.programChoice || "",
-      quests: (profile.quests || []).map((quest) => quest.id),
+      quests: (profile.quests || []).map((quest?: any) : any => quest.id),
     });
     state.aiNote = `${result.notice || ""} ${result.session || ""} ${result.notes || ""}`.trim();
     await refreshQuota();
   }));
   const form = document.getElementById("aiConfirm");
-  if (form) form.addEventListener("submit", (event) => {
+  if (form) form.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
-    const next = (state.aiDraft || []).map((item, index) => {
-      const read = (field) => {
+    const next = (state.aiDraft || []).map((item?: any, index?: any) : any => {
+      const read = (field?: any) : any => {
         const input = form.querySelector(`[data-ai-field="${field}"][data-ai-index="${index}"]`);
         return input ? input.value : item[field];
       };
@@ -173,14 +173,14 @@ export function bindAssist(ctx) {
         fat: Number(read("fat")) || 0,
       };
     });
-    run(async () => {
+    run(async () : Promise<any> => {
       await saveItems(next);
       state.aiDraft = null;
       return "Saved on your sheet or this phone.";
     });
   });
   const chat = document.getElementById("chatAsk");
-  if (chat) chat.addEventListener("click", () => run(async () => {
+  if (chat) chat.addEventListener("click", () : any => run(async () : Promise<any> => {
     const text = document.getElementById("chatText").value.trim();
     if (!text) throw new Error("Write a question.");
     state.aiChat = (state.aiChat || []).concat([{ role: "you", text }]);
@@ -197,8 +197,8 @@ export function bindAssist(ctx) {
     }]);
     await refreshQuota();
   }));
-  document.querySelectorAll("[data-ai-feedback]").forEach((button) => {
-    button.addEventListener("click", () => run(async () => {
+  document.querySelectorAll("[data-ai-feedback]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(async () : Promise<any> => {
       await api.aiFeedback(state.token);
       return "Thanks. That was counted, and the question was not saved.";
     }));

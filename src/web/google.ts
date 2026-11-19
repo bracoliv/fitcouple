@@ -1,44 +1,44 @@
-import { rowsFromTable } from "./summary.js";
+import { rowsFromTable } from "./summary.ts";
 
 // drive.file is the narrow scope: only sheets this app creates, or a sheet the person picks.
 export const SHEETS_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
-export function clientIdReady(id) {
+export function clientIdReady(id?: any) : any {
   return typeof id === "string"
     && id.endsWith(".apps.googleusercontent.com")
     && !id.includes("YOUR_GOOGLE_CLIENT_ID");
 }
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
+function loadScript(src?: any) : any {
+  return new Promise((resolve?: any, reject?: any) : any => {
     const existing = document.querySelector(`script[src="${src}"]`);
     if (existing && existing.dataset.loaded === "yes") {
       resolve();
       return;
     }
     if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Could not load a Google library.")));
+      existing.addEventListener("load", () : any => resolve());
+      existing.addEventListener("error", () : any => reject(new Error("Could not load a Google library.")));
       return;
     }
     const script = document.createElement("script");
     script.src = src;
     script.async = true;
-    script.onload = () => {
+    script.onload = () : any => {
       script.dataset.loaded = "yes";
       resolve();
     };
-    script.onerror = () => reject(new Error("Could not load a Google library."));
+    script.onerror = () : any => reject(new Error("Could not load a Google library."));
     document.head.appendChild(script);
   });
 }
 
-export function mountGameSignIn(element, config, onToken) {
+export function mountGameSignIn(element?: any, config?: any, onToken?: any) : any {
   if (!clientIdReady(config.googleClientId)) {
     element.textContent = "Add your Google client id to config.js. The README has the steps.";
     return;
   }
-  loadScript("https://accounts.google.com/gsi/client").then(() => {
+  loadScript("https://accounts.google.com/gsi/client").then(() : any => {
     const id = window.google && window.google.accounts && window.google.accounts.id;
     if (!id) {
       element.textContent = "Google's sign-in library did not load.";
@@ -46,7 +46,7 @@ export function mountGameSignIn(element, config, onToken) {
     }
     id.initialize({
       client_id: config.googleClientId,
-      callback: (resp) => {
+      callback: (resp?: any) : any => {
         if (resp && resp.credential) onToken(resp.credential);
       },
       auto_select: false,
@@ -54,17 +54,17 @@ export function mountGameSignIn(element, config, onToken) {
     });
     element.replaceChildren();
     id.renderButton(element, { theme: "outline", size: "large", text: "signin_with", width: 280 });
-  }).catch(() => {
+  }).catch(() : any => {
     element.textContent = "Google sign-in did not load.";
   });
 }
 
-export function requestGoogleToken(config) {
+export function requestGoogleToken(config?: any) : any {
   if (!clientIdReady(config.googleClientId)) {
     return Promise.reject(new Error("Add your Google client id to config.js. The README has the steps."));
   }
-  return new Promise((resolve, reject) => {
-    loadScript("https://accounts.google.com/gsi/client").then(() => {
+  return new Promise((resolve?: any, reject?: any) : any => {
+    loadScript("https://accounts.google.com/gsi/client").then(() : any => {
       const oauth = window.google && window.google.accounts && window.google.accounts.oauth2;
       if (!oauth) {
         reject(new Error("Google's sign-in library did not load."));
@@ -73,11 +73,11 @@ export function requestGoogleToken(config) {
       const client = oauth.initTokenClient({
         client_id: config.googleClientId,
         scope: SHEETS_SCOPE,
-        callback: (resp) => {
+        callback: (resp?: any) : any => {
           if (!resp || resp.error || !resp.access_token) reject(new Error("Google sign-in was cancelled."));
           else resolve(resp.access_token);
         },
-        error_callback: () => reject(new Error("Google sign-in was blocked. Allow pop-ups and try again.")),
+        error_callback: () : any => reject(new Error("Google sign-in was blocked. Allow pop-ups and try again.")),
       });
       client.requestAccessToken({ prompt: "" });
     }).catch(reject);
@@ -86,17 +86,17 @@ export function requestGoogleToken(config) {
 
 const LOG_HEADERS = ["Date", "Time", "Person", "Food/Workout", "Calories (kcal)", "Protein (g)", "Carbs (g)", "Fat (g)", "Notes"];
 
-function headerRow(labels) {
+function headerRow(labels?: any) : any {
   return {
-    values: labels.map((label) => ({ userEnteredValue: { stringValue: label } })),
+    values: labels.map((label?: any) : any => ({ userEnteredValue: { stringValue: label } })),
   };
 }
 
-function textRow(text) {
+function textRow(text?: any) : any {
   return { values: [{ userEnteredValue: { stringValue: text } }] };
 }
 
-export async function createSheet(token) {
+export async function createSheet(token?: any) : Promise<any> {
   const res = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -134,7 +134,7 @@ export async function createSheet(token) {
   return { id: data.spreadsheetId, url: data.spreadsheetUrl };
 }
 
-export async function readLog(token, spreadsheetId) {
+export async function readLog(token?: any, spreadsheetId?: any) : Promise<any> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent("Log")}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) throw new Error("Google sign-in expired. Sign in again.");
@@ -144,7 +144,7 @@ export async function readLog(token, spreadsheetId) {
   return rowsFromTable(data.values || []);
 }
 
-export async function appendLog(token, spreadsheetId, row) {
+export async function appendLog(token?: any, spreadsheetId?: any, row?: any) : Promise<any> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent("Log")}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const res = await fetch(url, {
     method: "POST",
@@ -157,13 +157,13 @@ export async function appendLog(token, spreadsheetId, row) {
   if (!res.ok) throw new Error("Could not write to the sheet.");
 }
 
-export function pickSheet(config, token) {
+export function pickSheet(config?: any, token?: any) : any {
   if (!config.googleApiKey || !config.googleAppId) {
     return Promise.reject(new Error("Choosing an existing sheet needs a browser API key and the project number in config.js. Creating a new sheet does not."));
   }
-  return new Promise((resolve, reject) => {
-    loadScript("https://apis.google.com/js/api.js").then(() => {
-      window.gapi.load("picker", () => {
+  return new Promise((resolve?: any, reject?: any) : any => {
+    loadScript("https://apis.google.com/js/api.js").then(() : any => {
+      window.gapi.load("picker", () : any => {
         const view = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS);
         view.setMimeTypes("application/vnd.google-apps.spreadsheet");
         const picker = new window.google.picker.PickerBuilder()
@@ -171,7 +171,7 @@ export function pickSheet(config, token) {
           .setDeveloperKey(config.googleApiKey)
           .setAppId(String(config.googleAppId))
           .addView(view)
-          .setCallback((data) => {
+          .setCallback((data?: any) : any => {
             if (data.action === "picked" && data.docs && data.docs[0]) resolve(data.docs[0].id);
             else if (data.action === "cancel") reject(new Error("No sheet picked."));
           })

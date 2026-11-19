@@ -32,7 +32,7 @@ export const FOODS = [
   { id: "cendol", names: ["cendol"], portion: "1 bowl", kcal: 280, protein: 3, carbs: 50, fat: 8 },
 ];
 
-const COUNTS = [
+const COUNTS: [RegExp, number][] = [
   [/^(a|an|one|1|一)\s+/, 1],
   [/^(two|2|两|二)\s+/, 2],
   [/^(three|3|三)\s+/, 3],
@@ -40,22 +40,22 @@ const COUNTS = [
   [/^half\s+/, 0.5],
 ];
 
-function round(n) {
+function round(n?: any) : any {
   return Math.round(n);
 }
 
-function findFood(clause) {
+function findFood(clause?: any) : any {
   const text = clause.toLowerCase();
-  const ranked = FOODS.slice().sort((a, b) => b.names[0].length - a.names[0].length);
-  return ranked.find((food) => food.names.some((name) => text.includes(name))) || null;
+  const ranked = FOODS.slice().sort((a?: any, b?: any) : any => b.names[0].length - a.names[0].length);
+  return ranked.find((food?: any) : any => food.names.some((name?: any) : any => text.includes(name))) || null;
 }
 
-export function parseMealText(raw) {
+export function parseMealText(raw?: any) : any {
   const text = String(raw || "").trim();
   if (!text) return { items: [], complete: false, unmatched: [] };
-  const parts = text.split(/\s+and\s+|\s*,\s*|\s+with\s+|和|加/i).map((part) => part.trim()).filter(Boolean);
-  const items = [];
-  const unmatched = [];
+  const parts = text.split(/\s+and\s+|\s*,\s*|\s+with\s+|和|加/i).map((part?: any) : any => part.trim()).filter(Boolean);
+  const items: any = [];
+  const unmatched: any = [];
   for (const part of parts) {
     let qty = 1;
     let rest = part;

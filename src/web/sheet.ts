@@ -1,11 +1,11 @@
-import { parseCsv, rowsFromTable } from "./summary.js";
+import { parseCsv, rowsFromTable } from "./summary.ts";
 
-export function sheetIdFromUrl(url) {
+export function sheetIdFromUrl(url?: any) : any {
   const match = String(url || "").match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   return match ? match[1] : "";
 }
 
-export async function fetchLinkLog(sheetId) {
+export async function fetchLinkLog(sheetId?: any) : Promise<any> {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("Log")}&t=${Date.now()}`;
   let res;
   try {
@@ -19,7 +19,7 @@ export async function fetchLinkLog(sheetId) {
 
 const PRACTICE_KEY = "fitPracticeRows";
 
-export function loadPractice() {
+export function loadPractice() : any {
   try {
     const rows = JSON.parse(localStorage.getItem(PRACTICE_KEY) || "[]");
     return Array.isArray(rows) ? rows.slice(-200) : [];
@@ -28,6 +28,6 @@ export function loadPractice() {
   }
 }
 
-export function savePractice(rows) {
+export function savePractice(rows?: any) : any {
   localStorage.setItem(PRACTICE_KEY, JSON.stringify(rows.slice(-200)));
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RECIPES, guidedLogEvent } from "../src/web/catalog.js";
-import { buildEventsPayload, countToday, countsPayload, parseCsv, rowCountsForScore, rowsFromTable } from "../src/web/summary.js";
+import { RECIPES, guidedLogEvent } from "../src/web/catalog.ts";
+import { buildEventsPayload, countToday, countsPayload, parseCsv, rowCountsForScore, rowsFromTable } from "../src/web/summary.ts";
 
 const csv = `Date,Time,Person,Food/Workout,Calories (kcal)
 2026-11-13,08:00,Ari,"Chicken, rice",500

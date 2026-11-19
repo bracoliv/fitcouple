@@ -1,19 +1,19 @@
-import { createApi } from "./api.js";
-import { RECIPES, guidedLogEvent, videoFor } from "./catalog.js";
-import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, mountGameSignIn, pickSheet, readLog, requestGoogleToken } from "./google.js";
-import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } from "./progress.js";
-import { voucherQr } from "./qr.js";
-import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.js";
-import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.js";
-import { bindAvatar, editorHtml, loadAvatar, miniHtml, portraitHtml, tierFor } from "./avatar.js";
-import { bindAssist, assistHtml, chatHtml } from "./assist.js";
-import { bindPremium, premiumHtml } from "./premium-ui.js";
-import { bindShop, navClass, screenList, shopHtml } from "./shop-ui.js";
+import { createApi } from "./api.ts";
+import { RECIPES, guidedLogEvent, videoFor } from "./catalog.ts";
+import { SHEETS_SCOPE, appendLog, clientIdReady, createSheet, mountGameSignIn, pickSheet, readLog, requestGoogleToken } from "./google.ts";
+import { loadMeasurements, loadPhoto, saveMeasurement, savePhoto, shrinkPhoto } from "./progress.ts";
+import { voucherQr } from "./qr.ts";
+import { fetchLinkLog, loadPractice, savePractice, sheetIdFromUrl } from "./sheet.ts";
+import { countToday, countsPayload, localDay, peopleIn, rowCountsForScore } from "./summary.ts";
+import { bindAvatar, editorHtml, loadAvatar, miniHtml, portraitHtml, tierFor } from "./avatar.ts";
+import { bindAssist, assistHtml, chatHtml } from "./assist.ts";
+import { bindPremium, premiumHtml } from "./premium-ui.ts";
+import { bindShop, navClass, screenList, shopHtml } from "./shop-ui.ts";
 
 const config = window.FIT_GAME_CONFIG || { workerUrl: "http://127.0.0.1:8787", googleClientId: "" };
 const api = createApi(config.workerUrl);
 
-const state = {
+const state: any = {
   loading: true,
   error: "",
   profile: null,
@@ -40,7 +40,7 @@ const state = {
 
 let busy = false;
 
-function esc(value) {
+function esc(value?: any) : any {
   return String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -48,12 +48,12 @@ function esc(value) {
     .replace(/"/g, "&quot;");
 }
 
-function store(key, value) {
+function store(key?: any, value?: any) : any {
   if (value) localStorage.setItem(key, value);
   else localStorage.removeItem(key);
 }
 
-async function ensureSession() {
+async function ensureSession() : Promise<any> {
   const day = localDay();
   state.token = localStorage.getItem("fitSessionToken") || "";
   if (!state.token) {
@@ -63,7 +63,7 @@ async function ensureSession() {
   try {
     state.profile = await api.me(state.token, day);
     state.needsGameSignIn = false;
-  } catch (err) {
+  } catch (err: any) {
     if (err.status !== 401) throw err;
     localStorage.removeItem("fitSessionToken");
     state.token = "";
@@ -72,14 +72,14 @@ async function ensureSession() {
   }
 }
 
-function rememberSheet() {
+function rememberSheet() : any {
   store("fitSheetMode", state.sheetMode);
   store("fitSheetId", state.sheetId);
   store("fitSheetUrl", state.sheetUrl);
   store("fitPerson", state.person);
 }
 
-async function restoreSheet() {
+async function restoreSheet() : Promise<any> {
   state.sheetMode = localStorage.getItem("fitSheetMode") || "";
   state.sheetId = localStorage.getItem("fitSheetId") || "";
   state.sheetUrl = localStorage.getItem("fitSheetUrl") || "";
@@ -94,7 +94,7 @@ async function restoreSheet() {
   if (!state.person && state.people.length === 1) state.person = state.people[0];
 }
 
-async function pushCounts() {
+async function pushCounts() : Promise<any> {
   if (!state.sheetMode) return;
   if (!state.profile) state.profile = await api.me(state.token, localDay());
   const counts = countToday(state.rows, state.person, localDay());
@@ -102,13 +102,13 @@ async function pushCounts() {
   state.profile = await api.events(state.token, payload.day, payload.difficulty, payload.events);
 }
 
-async function run(fn) {
+async function run(fn?: any) : Promise<any> {
   if (busy) return;
   busy = true;
   try {
     const notice = await fn();
     state.error = notice || "";
-  } catch (err) {
+  } catch (err: any) {
     state.error = err.message || "Something went wrong.";
   } finally {
     busy = false;
@@ -116,24 +116,24 @@ async function run(fn) {
   }
 }
 
-function screenNow() {
+function screenNow() : any {
   const name = location.hash.slice(1);
   if (name === "sheet") return "more";
   return screenList().includes(name) ? name : "today";
 }
 
-function formatTime(total) {
+function formatTime(total?: any) : any {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 
-function flame() {
+function flame() : any {
   const on = state.profile && state.profile.streak > 0;
   return `<span class="streak ${on ? "" : "off"}"><svg class="flame" viewBox="0 0 18 22" aria-hidden="true"><path fill="${on ? "#ff7a45" : "#667085"}" d="M9 0s4 4.2 4 8.2c0 1.5-.6 2.6-1.3 3.5.8-.3 1.6-1.3 1.8-2.5 1.6 1.6 2.5 3.6 2.5 5.8C16 19 13 22 9 22S2 19 2 15c0-3.2 2.2-6.4 4.2-8.6C6.7 8.2 7 9.6 7 10.6 7 6.4 9 0 9 0z"/></svg>${state.profile ? state.profile.streak : 0}</span>`;
 }
 
-function questActions(quest) {
+function questActions(quest?: any) : any {
   if (quest.id === "focus") return `<span class="meta">Timer</span>`;
   if (quest.id === "steps") {
     return `<span class="step"><input id="stepsInput" inputmode="numeric" placeholder="Steps" aria-label="Steps today"><button type="button" id="saveSteps">Save</button></span>`;
@@ -145,11 +145,11 @@ function questActions(quest) {
   return `<button type="button" data-add="${esc(quest.id)}">Add one</button>`;
 }
 
-function todayHtml() {
+function todayHtml() : any {
   const profile = state.profile;
   if (!profile) return "";
   const pct = profile.xpToNext ? Math.min(100, Math.round(profile.xpIntoLevel / profile.xpToNext * 100)) : 0;
-  const quests = profile.quests.map((quest) => {
+  const quests = profile.quests.map((quest?: any) : any => {
     const progress = quest.kind === "count" ? `${quest.count}/${quest.target}` : (quest.done ? "Done" : "Not yet");
     const extra = quest.required ? "" : " · optional";
     const bonus = quest.bonus ? " · day bonus" : "";
@@ -163,22 +163,22 @@ function todayHtml() {
     ${gift}
     ${assistHtml(state, localDay(), esc)}
     <section class="card"><div class="row"><span class="xp-label">Level ${profile.level}</span><span class="xp-label">${profile.xpIntoLevel} / ${profile.xpToNext} XP</span></div><div class="bar" aria-label="Experience"><span style="width:${pct}%"></span></div></section>
-    <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level) => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
+    <div class="seg" role="group" aria-label="Difficulty">${["easy", "normal", "hard"].map((level?: any) : any => `<button type="button" data-diff="${level}" class="${profile.difficulty === level ? "on" : ""}">${level[0].toUpperCase()}${level.slice(1)}</button>`).join("")}</div>
     <p class="meta">Day ${profile.program.day} of ${profile.program.length}. Typing earns half XP. The focus timer earns full XP for that quest. A streak adds more than extra volume.</p>
     ${cleared}<ul class="quests">${quests}</ul>${attrGrid(profile.attributes)}`;
 }
 
-function attrGrid(attrs) {
-  return `<div class="attrs">${["strength", "discipline", "health", "mind"].map((name) => `<div class="attr ${name}"><i></i><span class="meta">${name}</span><b>${attrs[name]}</b></div>`).join("")}</div>`;
+function attrGrid(attrs?: any) : any {
+  return `<div class="attrs">${["strength", "discipline", "health", "mind"].map((name?: any) : any => `<div class="attr ${name}"><i></i><span class="meta">${name}</span><b>${attrs[name]}</b></div>`).join("")}</div>`;
 }
 
-function pathHtml() {
+function pathHtml() : any {
   const program = state.profile.program;
   const pct = Math.round(program.day / program.length * 100);
   const same = program.day === 1;
-  const choices = (state.profile.programChoices || []).map((choice) => `<button type="button" data-program="${esc(choice.id)}" class="${state.profile.programChoice === choice.id ? "on" : ""}">${esc(choice.title)}</button>`).join("");
+  const choices = (state.profile.programChoices || []).map((choice?: any) : any => `<button type="button" data-program="${esc(choice.id)}" class="${state.profile.programChoice === choice.id ? "on" : ""}">${esc(choice.title)}</button>`).join("");
   const session = state.profile.session;
-  const moves = session ? session.moves.map((move) => {
+  const moves = session ? session.moves.map((move?: any) : any => {
     const video = videoFor(move.videoKey);
     return `<li>${esc(move.name)}${video ? ` · <a href="${esc(video.url)}" target="_blank" rel="noopener">${esc(video.title)} on YouTube</a>` : ""}</li>`;
   }).join("") : "";
@@ -191,22 +191,22 @@ function pathHtml() {
     ${program.complete ? `<article class="card cert"><h2>66-Day Finisher</h2><p>${esc(state.profile.displayName || "Player")}</p><p class="sub">Day 66 of ${esc(state.profile.programChoice || "the plan")}. A game certificate. Not medical proof. It cannot be spent, and there is no discount or voucher.</p></article>` : ""}`;
 }
 
-function focusHtml() {
+function focusHtml() : any {
   return `<section class="card"><p class="clock" id="clock" aria-live="polite">${formatTime(state.timer.left)}</p>
-    <div class="seg">${[15, 25, 45].map((min) => `<button type="button" data-min="${min}" class="${state.timer.total === min * 60 ? "on" : ""}">${min} min</button>`).join("")}</div>
+    <div class="seg">${[15, 25, 45].map((min?: any) : any => `<button type="button" data-min="${min}" class="${state.timer.total === min * 60 ? "on" : ""}">${min} min</button>`).join("")}</div>
     <div class="actions"><button type="button" class="primary" id="timerToggle">${state.timer.running ? "Pause" : "Start"}</button><button type="button" id="timerReset">Reset</button></div>
     <p class="hint">The timer stays on this phone. Finishing it sends only “focus complete”.</p></section>`;
 }
 
-function teamHtml() {
+function teamHtml() : any {
   const profile = state.profile;
   const team = profile.team;
   const name = `<label>Name on the team board<input id="displayName" maxlength="24" value="${esc(profile.displayName || "")}" placeholder="Optional, 24 characters"></label><button type="button" id="saveName">Save name</button><p class="hint">Your team and the app owner can see this name. Do not put an email or health notes here.</p>`;
   if (!team) {
     return `<section class="card"><h2>Team quests</h2><p class="sub">For a couple or a family. Share the code. The server stores the code and scores, not your sheet.</p><div class="actions"><button type="button" class="primary" id="createTeam">Create a team</button></div><label>Join with a code<input id="joinCode" autocapitalize="characters" maxlength="8"></label><button type="button" id="joinTeam">Join</button></section><section class="card">${name}</section>`;
   }
-  const members = team.members.map((member) => `<div class="member">${member.you ? miniHtml(state.avatar, state.avatar.share) : miniHtml(null, false)}<div><span>${esc(member.displayName || member.tag)}${member.you ? " · you" : ""}</span><span class="meta">#${member.rank || "-"} · Lv ${member.level} · ${member.xp} XP · ${member.streak} streak</span></div></div>`).join("");
-  const quests = team.quests.map((quest) => `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${quest.have}/${quest.need}</span></div></li>`).join("");
+  const members = team.members.map((member?: any) : any => `<div class="member">${member.you ? miniHtml(state.avatar, state.avatar.share) : miniHtml(null, false)}<div><span>${esc(member.displayName || member.tag)}${member.you ? " · you" : ""}</span><span class="meta">#${member.rank || "-"} · Lv ${member.level} · ${member.xp} XP · ${member.streak} streak</span></div></div>`).join("");
+  const quests = team.quests.map((quest?: any) : any => `<li class="quest ${quest.done ? "done" : ""}"><div><strong>${esc(quest.title)}</strong><span class="sub">${esc(quest.detail)}</span><span class="meta">${quest.have}/${quest.need}</span></div></li>`).join("");
   const challenge = team.challenge ? `<p class="sub">${esc(team.challenge.detail)} ${team.challenge.have}/${team.challenge.need}${team.challenge.done ? " · done" : ""}</p>` : "";
   const duel = profile.duel;
   const duelText = duel
@@ -215,10 +215,10 @@ function teamHtml() {
   return `<section class="card"><h2>Team ${esc(team.id)}</h2><p class="hint">Share this code with your household.</p><button type="button" id="copyCode">Copy code</button><button type="button" id="confirmTeam">Confirm the team showed up</button>${challenge}<div class="card">${duelText}</div><p class="hint">One confirmation a day. It adds bonus XP for teammates who already finished a quest. It does not send what anyone ate or did.</p><ul class="quests">${quests}</ul>${members}</section><section class="card">${name}</section>`;
 }
 
-function sheetHtml() {
+function sheetHtml() : any {
   const ready = clientIdReady(config.googleClientId);
-  const log = state.rows.filter((row) => String(row.date).slice(0, 10) === localDay()).slice(0, 30);
-  const people = [`<option value="">Everyone in the sheet</option>`].concat(state.people.map((name) => `<option value="${esc(name)}" ${name === state.person ? "selected" : ""}>${esc(name)}</option>`)).join("");
+  const log = state.rows.filter((row?: any) : any => String(row.date).slice(0, 10) === localDay()).slice(0, 30);
+  const people = [`<option value="">Everyone in the sheet</option>`].concat(state.people.map((name?: any) : any => `<option value="${esc(name)}" ${name === state.person ? "selected" : ""}>${esc(name)}</option>`)).join("");
   const write = state.sheetMode === "google" || state.sheetMode === "practice";
   const form = write ? `<form id="quickLog"><label>Quick add on this device<input name="text" required maxlength="200" placeholder="Oatmeal, or Workout: walk"></label><label>Person<input name="person" maxlength="40" value="${esc(state.person || "")}"></label><label>Calories, optional<input name="calories" inputmode="numeric" maxlength="6"></label><label class="hint"><input type="checkbox" id="photoProof" ${state.photoProof ? "checked" : ""}> A photo is in my Google Drive. Fit does not upload it.</label><button type="submit" class="primary">Add to ${state.sheetMode === "google" ? "your sheet" : "practice log"}</button><p class="hint">The words stay in your sheet or on this phone. The server gets a count, plus a yes/no if you checked the photo box. Typed counts earn half XP.</p></form>` : `<p class="hint">A shared view link is read-only. Sign in with Google to write, or use practice mode.</p>`;
   return `<section class="card"><h2>Your sheet</h2><p class="sub">Permission asked from Google: ${esc(SHEETS_SCOPE)}. That is drive.file: only a sheet this app creates, or one you pick.</p>
@@ -231,24 +231,24 @@ function sheetHtml() {
     ${state.sheetMode ? `<label>Count quests for<select id="person">${people}</select></label>` : ""}
     ${state.sheetId ? `<p><a href="https://docs.google.com/spreadsheets/d/${esc(state.sheetId)}/edit" target="_blank" rel="noopener">Open the sheet</a></p>` : ""}
     <button type="button" id="disconnect">Disconnect</button></section>
-    <section class="card">${form}<ul class="log">${log.map((row) => `<li><b>${esc(row.text)}</b> <span class="meta">${esc(row.person)} ${esc(row.time)}</span></li>`).join("") || `<li class="meta">Nothing for today yet.</li>`}</ul></section>
+    <section class="card">${form}<ul class="log">${log.map((row?: any) : any => `<li><b>${esc(row.text)}</b> <span class="meta">${esc(row.person)} ${esc(row.time)}</span></li>`).join("") || `<li class="meta">Nothing for today yet.</li>`}</ul></section>
     <p class="hint">Classic dashboards: <a href="solo.html">Solo</a> · <a href="dashboard.html">Couple</a> · <a href="family.html">Family</a>. A private Google sheet will not load there until you share it as anyone with the link can view.</p>`;
 }
 
-function modeLabel() {
+function modeLabel() : any {
   if (state.sheetMode === "google") return "Connected with Google. The sheet stays private to your account.";
   if (state.sheetMode === "link") return "Reading a shared view link. Fit does not store the link on a server.";
   if (state.sheetMode === "practice") return "Practice log on this phone only.";
   return "No sheet yet.";
 }
 
-function moreHtml() {
-  const recipes = RECIPES.map((recipe) => `<li class="quest"><div><strong>${esc(recipe.name)}</strong><span class="sub">${esc(recipe.note)}</span><span class="meta">${recipe.kcal} kcal per serving · estimate</span></div><button type="button" data-recipe="${esc(recipe.id)}">Log</button></li>`).join("");
+function moreHtml() : any {
+  const recipes = RECIPES.map((recipe?: any) : any => `<li class="quest"><div><strong>${esc(recipe.name)}</strong><span class="sub">${esc(recipe.note)}</span><span class="meta">${recipe.kcal} kcal per serving · estimate</span></div><button type="button" data-recipe="${esc(recipe.id)}">Log</button></li>`).join("");
   const badges = state.profile
-    ? `<p><strong>${esc(state.profile.title || "Rookie")}</strong></p><p>${(state.profile.badges || []).map((badge) => `<span class="level">${esc(badge.title)}</span>`).join(" ") || "No badges yet."}</p><p class="hint">${esc(state.profile.rewards || "Badges and titles only. No discounts, vouchers, or shop rewards.")}</p>`
+    ? `<p><strong>${esc(state.profile.title || "Rookie")}</strong></p><p>${(state.profile.badges || []).map((badge?: any) : any => `<span class="level">${esc(badge.title)}</span>`).join(" ") || "No badges yet."}</p><p class="hint">${esc(state.profile.rewards || "Badges and titles only. No discounts, vouchers, or shop rewards.")}</p>`
     : "";
-  const measures = (state.measures || []).slice(-8).map((row) => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
-  const photos = ["day1", "day66"].map((slot) => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
+  const measures = (state.measures || []).slice(-8).map((row?: any) : any => `<li>${esc(row.day)} · ${esc(row.weight || "—")} kg · waist ${esc(row.waist || "—")} cm</li>`).join("");
+  const photos = ["day1", "day66"].map((slot?: any) : any => `<figure><figcaption>${slot === "day1" ? "Day 1" : "Day 66"}</figcaption>${state.photoUrls[slot] ? `<img class="shot" alt="" src="${state.photoUrls[slot]}">` : `<p class="hint">No photo on this phone</p>`}<input type="file" accept="image/*" data-photo="${slot}"></figure>`).join("");
   return `${voucherSection()}${giftSection()}${editorHtml(state.avatar)}${chatHtml(state, esc)}${premiumHtml(state.aiQuota)}<section class="card"><h2>Recipes</h2><p class="hint">One tap writes the plate to your sheet or practice log. Fit's server only hears that a recipe was used, not which one.</p><ul class="quests">${recipes}</ul></section>
     <section class="card"><h2>Badges</h2>${badges}</section>
     <section class="card"><h2>Progress</h2><p class="hint">Weight, waist, and photos stay on this phone. Water, sleep, and steps are manual for now. The step quest is ready for a phone health app later.</p>
@@ -263,9 +263,9 @@ function moreHtml() {
     ${sheetHtml()}`;
 }
 
-function shell(screen) {
+function shell(screen?: any) : any {
   const level = state.profile ? state.profile.level : 1;
-  const parts = {
+  const parts: Record<string, any> = {
     today: state.profile ? todayHtml() : "",
     path: state.profile ? pathHtml() : "",
     focus: focusHtml(),
@@ -282,18 +282,18 @@ function shell(screen) {
       ? (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : "")
       : (!state.profile && screen !== "more" && screen !== "focus" ? `<p class="banner bad">${esc(state.error || "The game server is not running.")}</p><button type="button" id="retry">Try again</button>` : (state.error ? `<p class="banner bad">${esc(state.error)}</p>` : "")));
   return `<div class="app"><header class="top"><div class="brand"><a href="index.html">Fit</a></div><span class="level">LV ${level}</span>${flame()}</header>${problem}${signIn}${parts[screen] || ""}<p class="foot">Not medical advice. Food and workouts stay in your sheet. <a href="admin.html">Owner</a></p></div>
-    <nav class="nav ${navClass()}">${screenList().map((name) => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
+    <nav class="nav ${navClass()}">${screenList().map((name?: any) : any => `<a href="#${name}" class="${screen === name ? "on" : ""}">${name[0].toUpperCase()}${name.slice(1)}</a>`).join("")}</nav>`;
 }
 
-function rememberVoucherCodes(codes) {
+function rememberVoucherCodes(codes?: any) : any {
   if (!codes || !codes.length) return;
-  let saved = {};
+  let saved: any = {};
   try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
   for (const item of codes) if (item && item.code) saved[item.id] = item.code;
   localStorage.setItem("fitVoucherCodes", JSON.stringify(saved));
 }
 
-function giftSection() {
+function giftSection() : any {
   const account = state.profile && state.profile.account;
   if (!account || account.giftsEnabled === false) return "";
   const status = account.plan === "gift"
@@ -305,12 +305,12 @@ function giftSection() {
     <form id="giftRedeem"><label>Code<input name="code" maxlength="16" placeholder="FC-XXXX-XXXX"></label><button type="submit">Redeem</button></form></section>`;
 }
 
-function voucherSection() {
+function voucherSection() : any {
   const profile = state.profile;
   if (!profile || profile.vouchersEnabled !== true) return "";
-  let saved = {};
+  let saved: any = {};
   try { saved = JSON.parse(localStorage.getItem("fitVoucherCodes") || "{}"); } catch { saved = {}; }
-  const cards = (profile.vouchers || []).map((item) => {
+  const cards = (profile.vouchers || []).map((item?: any) : any => {
     const code = saved[item.id] || "";
     const qr = code && item.status === "issued" ? voucherQr(code) : "";
     return `<article class="card"><p><strong>${esc(profile.voucherLabel || "value")} ${item.value}</strong> · ${esc(item.status)}</p><p class="meta">${esc(item.milestone)} · until ${esc(item.expiresDay)}</p>${qr}${code ? `<p class="id">${esc(code)}</p>` : `<p class="hint">The code was saved on the phone that earned this.</p>`}</article>`;
@@ -318,7 +318,7 @@ function voucherSection() {
   return `<section><h2>Restaurant vouchers</h2><p class="hint">Separate from SOSM+. One use. Show the code at the restaurant. Streaks unlock them. Level rewards also need a verified timer, photo, or future health-app day.</p>${cards || `<p class="hint">None yet.</p>`}</section>`;
 }
 
-function render() {
+function render() : any {
   if (state.profile && state.profile.voucherCodes) {
     rememberVoucherCodes(state.profile.voucherCodes);
     state.profile.voucherCodes = [];
@@ -327,23 +327,23 @@ function render() {
   if (!app) return;
   const screen = screenNow();
   app.innerHTML = shell(screen);
-  const on = (id, fn) => {
+  const on = (id?: any, fn?: any) : any => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", fn);
   };
-  on("retry", () => boot());
+  on("retry", () : any => boot());
   const giftRedeem = document.getElementById("giftRedeem");
-  if (giftRedeem) giftRedeem.addEventListener("submit", (event) => {
+  if (giftRedeem) giftRedeem.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
     const code = String(new FormData(giftRedeem).get("code") || "");
-    run(async () => {
+    run(async () : Promise<any> => {
       state.profile = await api.redeemGift(state.token, code);
       return "Gift applied.";
     });
   });
   const gameSignIn = document.getElementById("gameSignIn");
   if (gameSignIn) {
-    mountGameSignIn(gameSignIn, config, (idToken) => run(async () => {
+    mountGameSignIn(gameSignIn, config, (idToken?: any) : any => run(async () : Promise<any> => {
       const created = await api.session(idToken, localDay());
       state.token = created.token;
       localStorage.setItem("fitSessionToken", created.token);
@@ -354,20 +354,20 @@ function render() {
       return "";
     }));
   }
-  document.querySelectorAll("[data-diff]").forEach((button) => {
-    button.addEventListener("click", () => run(() => setDifficulty(button.getAttribute("data-diff"))));
+  document.querySelectorAll("[data-diff]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(() : any => setDifficulty(button.getAttribute("data-diff"))));
   });
-  document.querySelectorAll("[data-check]").forEach((button) => {
-    button.addEventListener("click", () => run(() => checkQuest(button.getAttribute("data-check"))));
+  document.querySelectorAll("[data-check]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(() : any => checkQuest(button.getAttribute("data-check"))));
   });
-  document.querySelectorAll("[data-add]").forEach((button) => {
-    button.addEventListener("click", () => run(() => addCount(button.getAttribute("data-add"))));
+  document.querySelectorAll("[data-add]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(() : any => addCount(button.getAttribute("data-add"))));
   });
-  document.querySelectorAll("[data-refresh]").forEach((button) => {
-    button.addEventListener("click", () => run(() => refreshSheet()));
+  document.querySelectorAll("[data-refresh]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(() : any => refreshSheet()));
   });
-  document.querySelectorAll("[data-min]").forEach((button) => {
-    button.addEventListener("click", () => {
+  document.querySelectorAll("[data-min]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => {
       const minutes = Number(button.getAttribute("data-min"));
       state.timer.total = minutes * 60;
       state.timer.left = state.timer.total;
@@ -375,7 +375,7 @@ function render() {
       render();
     });
   });
-  on("timerToggle", () => {
+  on("timerToggle", () : any => {
     if (state.timer.running) {
       state.timer.running = false;
       state.timer.left = Math.max(0, Math.round((state.timer.endsAt - Date.now()) / 1000));
@@ -386,33 +386,33 @@ function render() {
     }
     render();
   });
-  on("timerReset", () => {
+  on("timerReset", () : any => {
     state.timer.running = false;
     state.timer.left = state.timer.total;
     render();
   });
-  on("createTeam", () => run(async () => {
+  on("createTeam", () : any => run(async () : Promise<any> => {
     state.profile = await api.createTeam(state.token, localDay());
   }));
-  on("joinTeam", () => run(async () => {
+  on("joinTeam", () : any => run(async () : Promise<any> => {
     const code = document.getElementById("joinCode").value;
     state.profile = await api.joinTeam(state.token, code, localDay());
   }));
-  on("confirmTeam", () => run(async () => {
+  on("confirmTeam", () : any => run(async () : Promise<any> => {
     state.profile = await api.confirmTeam(state.token, localDay());
     return "Team confirmation sent.";
   }));
-  on("startDuel", () => run(async () => {
+  on("startDuel", () : any => run(async () : Promise<any> => {
     state.profile = await api.duel(state.token, localDay());
     return "Duel started. Finish today's session.";
   }));
-  on("saveSteps", () => run(async () => {
+  on("saveSteps", () : any => run(async () : Promise<any> => {
     const raw = Number(document.getElementById("stepsInput").value);
     if (!Number.isInteger(raw) || raw < 0 || raw > 100000) throw new Error("Enter a whole step count up to 100000.");
     state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{ questId: "steps", count: raw, source: "manual" }]);
   }));
-  on("printCert", () => window.print());
-  on("coachBtn", () => run(async () => {
+  on("printCert", () : any => window.print());
+  on("coachBtn", () : any => run(async () : Promise<any> => {
     const key = document.getElementById("aiKey").value.trim();
     const host = document.getElementById("aiHost").value;
     localStorage.setItem("fitAiKey", key);
@@ -421,8 +421,8 @@ function render() {
     state.coachReply = result.reply || "";
     state.profile = result;
   }));
-  document.querySelectorAll("[data-program]").forEach((button) => {
-    button.addEventListener("click", () => run(async () => {
+  document.querySelectorAll("[data-program]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(async () : Promise<any> => {
       state.profile = await api.program(state.token, button.getAttribute("data-program"), localDay());
     }));
   });
@@ -434,7 +434,7 @@ function render() {
     render,
     run,
     day: localDay,
-    saveItems: async (items) => {
+    saveItems: async (items?: any) : Promise<any> => {
       for (const item of items) {
         await addRow({
           text: `${item.name}${item.portion ? " · " + item.portion : ""}`,
@@ -447,11 +447,11 @@ function render() {
     },
   });
   bindPremium({ state, config, run });
-  document.querySelectorAll("[data-recipe]").forEach((button) => {
-    button.addEventListener("click", () => run(() => logRecipe(button.getAttribute("data-recipe"))));
+  document.querySelectorAll("[data-recipe]").forEach((button?: any) : any => {
+    button.addEventListener("click", () : any => run(() : any => logRecipe(button.getAttribute("data-recipe"))));
   });
   const measure = document.getElementById("measureForm");
-  if (measure) measure.addEventListener("submit", (event) => {
+  if (measure) measure.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
     const data = new FormData(measure);
     state.measures = saveMeasurement({
@@ -461,8 +461,8 @@ function render() {
     });
     render();
   });
-  document.querySelectorAll("[data-photo]").forEach((input) => {
-    input.addEventListener("change", () => run(async () => {
+  document.querySelectorAll("[data-photo]").forEach((input?: any) : any => {
+    input.addEventListener("change", () : any => run(async () : Promise<any> => {
       const file = input.files && input.files[0];
       if (!file) return;
       const blob = await shrinkPhoto(file);
@@ -480,15 +480,15 @@ function render() {
   if (aiKey) aiKey.value = localStorage.getItem("fitAiKey") || "";
   const aiHost = document.getElementById("aiHost");
   if (aiHost) aiHost.value = localStorage.getItem("fitAiHost") || "api.openai.com";
-  on("copyCode", () => run(async () => {
+  on("copyCode", () : any => run(async () : Promise<any> => {
     await navigator.clipboard.writeText(state.profile.team.id);
     state.sheetStatus = "Team code copied.";
   }));
-  on("saveName", () => run(async () => {
+  on("saveName", () : any => run(async () : Promise<any> => {
     const name = document.getElementById("displayName").value;
     state.profile = await api.profile(state.token, name, localDay());
   }));
-  on("googleSign", () => run(async () => {
+  on("googleSign", () : any => run(async () : Promise<any> => {
     state.googleToken = await requestGoogleToken(config);
     state.sheetStatus = "Signed in with Google. Create a sheet, or pick one.";
     if (state.sheetMode === "google" && state.sheetId) {
@@ -497,7 +497,7 @@ function render() {
       await pushCounts();
     }
   }));
-  on("createSheet", () => run(async () => {
+  on("createSheet", () : any => run(async () : Promise<any> => {
     const created = await createSheet(state.googleToken);
     state.sheetMode = "google";
     state.sheetId = created.id;
@@ -508,7 +508,7 @@ function render() {
     rememberSheet();
     await pushCounts();
   }));
-  on("pickSheet", () => run(async () => {
+  on("pickSheet", () : any => run(async () : Promise<any> => {
     const id = await pickSheet(config, state.googleToken);
     state.sheetMode = "google";
     state.sheetId = id;
@@ -521,9 +521,9 @@ function render() {
     await pushCounts();
   }));
   const linkForm = document.getElementById("linkForm");
-  if (linkForm) linkForm.addEventListener("submit", (event) => {
+  if (linkForm) linkForm.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
-    run(async () => {
+    run(async () : Promise<any> => {
       const url = new FormData(linkForm).get("url");
       const id = sheetIdFromUrl(url);
       if (!id) throw new Error("That does not look like a Google Sheets link.");
@@ -538,7 +538,7 @@ function render() {
       await pushCounts();
     });
   });
-  on("practice", () => run(async () => {
+  on("practice", () : any => run(async () : Promise<any> => {
     state.sheetMode = "practice";
     state.sheetId = "";
     state.sheetUrl = "";
@@ -549,12 +549,12 @@ function render() {
     await pushCounts();
   }));
   const person = document.getElementById("person");
-  if (person) person.addEventListener("change", () => run(async () => {
+  if (person) person.addEventListener("change", () : any => run(async () : Promise<any> => {
     state.person = person.value;
     store("fitPerson", state.person);
     await pushCounts();
   }));
-  on("disconnect", () => run(async () => {
+  on("disconnect", () : any => run(async () : Promise<any> => {
     state.sheetMode = "";
     state.sheetId = "";
     state.sheetUrl = "";
@@ -565,14 +565,14 @@ function render() {
     rememberSheet();
   }));
   const photo = document.getElementById("photoProof");
-  if (photo) photo.addEventListener("change", () => {
+  if (photo) photo.addEventListener("change", () : any => {
     state.photoProof = photo.checked;
   });
   const quick = document.getElementById("quickLog");
-  if (quick) quick.addEventListener("submit", (event) => {
+  if (quick) quick.addEventListener("submit", (event?: any) : any => {
     event.preventDefault();
     const data = new FormData(quick);
-    run(() => addRow({
+    run(() : any => addRow({
       text: String(data.get("text") || "").trim(),
       person: String(data.get("person") || "").trim(),
       calories: String(data.get("calories") || "").trim(),
@@ -580,21 +580,21 @@ function render() {
   });
 }
 
-async function setDifficulty(level) {
+async function setDifficulty(level?: any) : Promise<any> {
   state.profile = await api.events(state.token, localDay(), level, []);
 }
 
-async function checkQuest(questId) {
+async function checkQuest(questId?: any) : Promise<any> {
   state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{ questId, completed: true, source: "manual" }]);
 }
 
-async function addCount(questId) {
-  const quest = state.profile.quests.find((item) => item.id === questId);
+async function addCount(questId?: any) : Promise<any> {
+  const quest = state.profile.quests.find((item?: any) : any => item.id === questId);
   const next = Math.min(20, (quest ? quest.count : 0) + 1);
   state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{ questId, count: next, source: "manual" }]);
 }
 
-async function refreshSheet() {
+async function refreshSheet() : Promise<any> {
   if (state.sheetMode === "link") state.rows = await fetchLinkLog(state.sheetId);
   else if (state.sheetMode === "google") {
     if (!state.googleToken) throw new Error("Sign in with Google again to refresh this private sheet.");
@@ -604,7 +604,7 @@ async function refreshSheet() {
   await pushCounts();
 }
 
-async function addRow(row) {
+async function addRow(row?: any) : Promise<any> {
   if (!row.text) throw new Error("Write what you want to log.");
   const now = new Date();
   const entry = {
@@ -637,15 +637,15 @@ async function addRow(row) {
   }
 }
 
-async function logRecipe(id) {
-  const recipe = RECIPES.find((item) => item.id === id);
+async function logRecipe(id?: any) : Promise<any> {
+  const recipe = RECIPES.find((item?: any) : any => item.id === id);
   if (!recipe) throw new Error("That recipe is missing.");
   const notice = await addRow({ text: recipe.name, calories: String(recipe.kcal), person: state.person || "Me" });
   state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [guidedLogEvent()]);
   return notice;
 }
 
-async function finishFocus() {
+async function finishFocus() : Promise<any> {
   if (!state.token || !state.profile) return;
   try {
     state.profile = await api.events(state.token, localDay(), state.profile.difficulty, [{
@@ -655,13 +655,14 @@ async function finishFocus() {
       durationMin: Math.round(state.timer.total / 60),
     }]);
     state.error = "";
-  } catch (err) {
+  } catch (err: any) {
     state.error = err.message || "The focus block finished, but the server did not get it.";
   }
   render();
 }
 
-async function boot() {
+async function boot() : Promise<any> {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() : any => undefined);
   state.loading = true;
   state.error = "";
   render();
@@ -669,15 +670,15 @@ async function boot() {
     state.measures = loadMeasurements();
     state.avatar = await loadAvatar();
     for (const slot of ["day1", "day66"]) {
-      const blob = await loadPhoto(slot).catch(() => null);
+      const blob = await loadPhoto(slot).catch(() : any => null);
       if (blob) state.photoUrls[slot] = URL.createObjectURL(blob);
     }
     await ensureSession();
     await restoreSheet();
     if (state.sheetMode && state.token) await pushCounts();
     if (state.token && !state.profile) state.profile = await api.me(state.token, localDay());
-    if (state.token) state.aiQuota = await api.aiQuota(state.token).catch(() => null);
-  } catch (err) {
+    if (state.token) state.aiQuota = await api.aiQuota(state.token).catch(() : any => null);
+  } catch (err: any) {
     state.error = err.message || "The game server is not running.";
   } finally {
     state.loading = false;
@@ -685,7 +686,7 @@ async function boot() {
   }
 }
 
-setInterval(() => {
+setInterval(() : any => {
   if (!state.timer.running) return;
   const left = Math.max(0, Math.round((state.timer.endsAt - Date.now()) / 1000));
   state.timer.left = left;

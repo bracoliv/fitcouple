@@ -81,7 +81,7 @@ The assistant calls providers in order: Google `gemini-3.5-flash-lite`, then Ali
 
 Every player has one daily cap per feature. That cap counts calls to all providers together. The counter is incremented before the provider call and removed again if every provider fails. Two requests at the same time cannot both pass a cap of one.
 
-`AI_DAILY_BUDGET_USD` defaults to `5`. Before every provider call the worker adds up today's stored cost. The day is the UTC date, the same window as the per-user counters, and it resets at 00:00 UTC. When the total reaches the budget, every assistant call gets "The assistant is busy right now. Try again later." The owner page shows today's spend against that budget. `AI_DAILY_BUDGET_WARN` defaults to `0.8` (80%). The page marks a warning at that fraction.
+`AI_DAILY_BUDGET_USD` defaults to `5`. Before every provider call the worker adds up today's stored cost. The day is the Malaysia date, `Asia/Kuala_Lumpur`, the same window as the per-user counters, gift dates, and the owner page's today. It resets at 00:00 MYT (UTC+8). When the total reaches the budget, every assistant call gets "The assistant is busy right now. Try again later." The owner page shows today's spend against that budget. `AI_DAILY_BUDGET_WARN` defaults to `0.8` (80%). The page marks a warning at that fraction. Crossing the warning, reaching the budget, a run of provider failures, too many owner sign-in failures, or a failed backup each send one alert that day to `OWNER_ALERT_EMAIL` through the email binding, or to `ALERT_WEBHOOK_URL` if email is not set.
 
 `RATE_SESSION_LIMIT` defaults to 10 and `RATE_AI_LIMIT` defaults to 30, per `RATE_WINDOW_SECONDS` (60). The counter is a hash of `CF-Connecting-IP`, not the address itself. It covers `POST /v1/session` and `POST /v1/ai/*`.
 
@@ -232,7 +232,7 @@ With no keys, checkout opens a test page that marks the order paid and charges n
 
 An order stores only the name, phone, address, items, total, and that the buyer ticked the delivery consent box. Checkout refuses the order without that tick. The order table is separate from food and workout scores. The shop does not read those scores to recommend or market anything. On the owner page you can delete an order if the buyer asks.
 
-It does not store food, meals, workout names, weights, notes, emails, Google tokens, or sheet links.
+The shop does not store food, meals, workout names, weights, health notes, Google tokens, or sheet links. The account email and Google name are stored separately so support can find the account.
 
 ## License
 
@@ -243,3 +243,65 @@ This replaces the old AGPL-3.0 license. Please confirm that change before you pu
 ## Feedback
 
 Issues and ideas: https://github.com/bracoliv/fitcouple/issues
+
+## Turn on two-factor sign-in
+
+Do this yourself on each account. The app cannot do it for you.
+
+1. Cloudflare: https://dash.cloudflare.com/profile/authentication then Two-Factor Authentication. Use an authenticator app.
+2. Google: https://myaccount.google.com/signinoptions/two-step-verification and turn on 2-Step Verification.
+3. GitHub: https://github.com/settings/security then Two-factor authentication. Use an authenticator app, and save the recovery codes somewhere that is not this repository.
+
+## Cloudflare Access for the owner page
+
+The owner page is `admin.html`, and `/admin/` redirects there, so Access can protect that path. The API checks a Cloudflare Access token as well as the owner key when `CF_ACCESS_AUD` is set.
+
+1. In the Cloudflare dashboard, open Zero Trust. The free plan is enough for one user.
+2. Settings → Authentication. Add Google as a login method, and add your Google account as the only allowed user. One-time PIN is also available under Authentication if you prefer email codes.
+3. Access → Applications → Add an application → Self-hosted.
+4. For the website, set the path to `/admin.html` and add another policy path `/admin`. For the Worker, add an application whose path is `/v1/admin`.
+5. Session duration can be a day. The policy is Allow, and the include rule is your email.
+6. Open the application and copy the Application Audience (AUD) tag.
+7. Set `CF_ACCESS_TEAM_DOMAIN` to your team host, such as `fit.cloudflareaccess.com`, and `CF_ACCESS_AUD` to that audience tag. `npx wrangler secret put` is fine for both, or put them in `wrangler.jsonc` vars if you accept them being visible in the dashboard.
+8. Leave both unset on your computer. Local `admin.html` still uses only the owner key.
+9. When the audience is set, a request without a valid `Cf-Access-Jwt-Assertion` header gets 403 before the owner key is checked.
+
+## Backups
+
+D1 Time Travel keeps the database for 30 days. You can restore it to an earlier moment:
+
+`npx wrangler d1 time-travel info fitcouple-game --remote`
+
+`npx wrangler d1 time-travel restore fitcouple-game --remote --timestamp=2026-11-19T16:00:00Z`
+
+A timestamp is UTC. 00:00 in Malaysia is 16:00 UTC the previous calendar day.
+
+The Worker also runs a daily export at 00:15 Malaysia time (`15 16 * * *` UTC). It writes gzipped JSON and SQL into the R2 bucket `fitcouple-backups` under `d1/YYYY-MM-DD/`, and deletes objects older than 30 days. Create the bucket once:
+
+`npx wrangler r2 bucket create fitcouple-backups`
+
+Restore drill:
+
+1. `npx wrangler r2 object get fitcouple-backups/d1/YYYY-MM-DD/TIMESTAMP.sql.gz --file backup.sql.gz`
+2. `gzip -dc backup.sql.gz > backup.sql`
+3. Read the file before you run it. It is a full copy of the tables, including emails.
+4. Prefer Time Travel when the database still has the moment you want. Use the SQL file only when Time Travel does not cover that day.
+5. To rehearse, restore into a second database: `npx wrangler d1 create fitcouple-drill` and `npx wrangler d1 execute fitcouple-drill --remote --file backup.sql`. Delete that database when the drill is done.
+
+## Deploy checklist
+
+1. `npm install`
+2. `npm run typecheck` and `npm test`
+3. `npm run build` and publish the `dist` folder to Cloudflare Pages. Build command `npm run build`, output `dist`.
+4. Pages environment values, if you bake them in: `WORKER_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_APP_ID`. `GOOGLE_API_KEY` is only the Picker key.
+5. `npx wrangler login`
+6. `npx wrangler d1 create fitcouple-game` and put the id in `wrangler.jsonc`.
+7. `npx wrangler r2 bucket create fitcouple-backups`
+8. `npx wrangler d1 migrations apply fitcouple-game --remote`
+9. Secrets: `ADMIN_KEY` (32+ characters, not the sample), `GEMINI_API_KEY`, and `QWEN_API_KEY` or `OPENAI_API_KEY` if you use those. Optional: `GOOGLE_SUB_SALT` until old profiles have signed in once.
+10. Vars in `wrangler.jsonc`: `GOOGLE_CLIENT_ID`, `SITE_URL` (https origin), `ALLOWED_ORIGINS`, `AI_DAILY_BUDGET_USD`, `AI_DAILY_BUDGET_WARN`, `GIFT_CODES_ENABLED`, `AUTO_REVOKE_INACTIVE_DAYS`.
+11. Alerts: verify a sending address in Cloudflare Email Routing, set `ALERT_FROM_EMAIL` and `OWNER_ALERT_EMAIL`. The `EMAIL` binding is already in `wrangler.jsonc`. If email is not ready, set `ALERT_WEBHOOK_URL` instead.
+12. Access: `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` after the application above exists.
+13. `npx wrangler deploy`
+14. Turn on two-factor sign-in for Cloudflare, Google, and GitHub.
+

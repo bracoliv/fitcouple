@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { access, copyFile } from "node:fs/promises";
 import path from "node:path";
-import { startStatic } from "./static.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 process.chdir(root);
@@ -13,7 +12,7 @@ try {
   console.log("Created .dev.vars from the example. The local owner key is in that file.");
 }
 
-const server = await startStatic(root, 8788);
+const site = spawn("npx", ["vite", "--port", "8788", "--strictPort"], { stdio: "inherit", env: process.env });
 const worker = spawn(
   "npx",
   ["wrangler", "dev", "--port", "8787", "--ip", "127.0.0.1", "--local", "--show-interactive-dev-session", "false"],
@@ -43,13 +42,13 @@ if (up) {
 }
 
 function shutdown() {
+  site.kill("SIGTERM");
   worker.kill("SIGTERM");
-  server.close();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 worker.on("exit", (code) => {
-  server.close();
+  site.kill("SIGTERM");
   process.exit(code || 0);
 });
