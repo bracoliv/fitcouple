@@ -1,7 +1,0 @@
-# Local only. Copy this file to .dev.vars (npm run dev does that if the file is missing).
-# This key is for your computer. The worker refuses this sample value.
-# Replace it with a different random key of at least 32 characters.
-# Make another long random key for production and set it with:
-#   npx wrangler secret put ADMIN_KEY
-# Wrangler will ask you to type the key. Do not put the key in the command.
-ADMIN_KEY=local-dev-admin-key-change-me
