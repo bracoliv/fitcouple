@@ -1,0 +1,245 @@
+// Kept identical to migrations/0001_init.sql. The test fails if they drift.
+export const SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  xp INTEGER NOT NULL DEFAULT 0,
+  level INTEGER NOT NULL DEFAULT 1,
+  streak INTEGER NOT NULL DEFAULT 0,
+  last_active_day TEXT,
+  strength INTEGER NOT NULL DEFAULT 1,
+  discipline INTEGER NOT NULL DEFAULT 1,
+  health INTEGER NOT NULL DEFAULT 1,
+  mind INTEGER NOT NULL DEFAULT 1,
+  difficulty TEXT NOT NULL DEFAULT 'normal',
+  program_start TEXT,
+  team_id TEXT,
+  rank INTEGER,
+  flagged INTEGER NOT NULL DEFAULT 0,
+  flag_codes TEXT,
+  burst_start INTEGER,
+  burst_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  created_day TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS completions (
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  quest_id TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  done INTEGER NOT NULL DEFAULT 0,
+  xp_awarded INTEGER NOT NULL DEFAULT 0,
+  source TEXT,
+  PRIMARY KEY (user_id, day, quest_id)
+);
+
+CREATE TABLE IF NOT EXISTS snapshots (
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  xp INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  streak INTEGER NOT NULL,
+  strength INTEGER NOT NULL,
+  discipline INTEGER NOT NULL,
+  health INTEGER NOT NULL,
+  mind INTEGER NOT NULL,
+  PRIMARY KEY (user_id, day)
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_team ON users (team_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_day ON snapshots (day);`;
+
+export const PHASE2_SQL = `ALTER TABLE users ADD COLUMN program_choice TEXT;
+ALTER TABLE users ADD COLUMN duel_wins INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS duels (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL,
+  challenger_id TEXT NOT NULL,
+  opponent_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  status TEXT NOT NULL,
+  winner_id TEXT,
+  created_ms INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_duels_team_day ON duels (team_id, day);`;
+
+export const VOUCHER_SQL = `CREATE TABLE IF NOT EXISTS vouchers (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  code_hash TEXT NOT NULL UNIQUE,
+  milestone TEXT NOT NULL,
+  value INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  issued_day TEXT NOT NULL,
+  expires_day TEXT NOT NULL,
+  redeemed_day TEXT,
+  UNIQUE (user_id, milestone)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_user ON vouchers (user_id);`;
+
+export const STORE_SQL = `CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY,
+  store TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  brand TEXT NOT NULL,
+  name TEXT NOT NULL,
+  why TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  dose TEXT NOT NULL,
+  testing TEXT NOT NULL,
+  halal TEXT NOT NULL,
+  mal TEXT NOT NULL,
+  audience TEXT NOT NULL,
+  price_cents INTEGER NOT NULL,
+  list_price_cents INTEGER NOT NULL,
+  link_url TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  address TEXT NOT NULL,
+  items TEXT NOT NULL,
+  total_cents INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  gateway TEXT NOT NULL,
+  provider_ref TEXT,
+  created_day TEXT NOT NULL,
+  consent INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_id);`;
+
+export const AI_SQL = `CREATE TABLE IF NOT EXISTS ai_usage (
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  feature TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (user_id, day, feature)
+);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS premium_users (
+  user_id TEXT PRIMARY KEY,
+  granted_day TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_provider_counts (
+  day TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  calls INTEGER NOT NULL,
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  cost_micro INTEGER NOT NULL,
+  fallbacks INTEGER NOT NULL,
+  PRIMARY KEY (day, provider)
+);
+
+CREATE TABLE IF NOT EXISTS ai_spend (
+  day TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  feature TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  calls INTEGER NOT NULL,
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  cost_micro INTEGER NOT NULL,
+  PRIMARY KEY (day, user_id, feature, provider)
+);
+
+CREATE TABLE IF NOT EXISTS ai_refusals (
+  day TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (day, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_feedback (
+  day TEXT PRIMARY KEY,
+  count INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_controls (
+  user_id TEXT PRIMARY KEY,
+  paused INTEGER NOT NULL,
+  food_photo_cap INTEGER,
+  text_log_cap INTEGER,
+  recommend_cap INTEGER,
+  chat_cap INTEGER
+);`;
+
+export const SECURITY_SQL = `CREATE TABLE IF NOT EXISTS rate_windows (
+  bucket TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (bucket, window_start)
+);
+
+CREATE TABLE IF NOT EXISTS ai_feedback_users (
+  day TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  PRIMARY KEY (day, user_id)
+);`;
+
+export const SUPPORT_SQL = `ALTER TABLE users ADD COLUMN google_sub TEXT;
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN google_name TEXT;
+ALTER TABLE users ADD COLUMN support_note TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users (google_sub);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+CREATE TABLE IF NOT EXISTS gift_codes (
+  code TEXT PRIMARY KEY,
+  label TEXT,
+  created_day TEXT NOT NULL,
+  redeem_by TEXT NOT NULL,
+  gift_days INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  redeemed_by TEXT,
+  redeemed_at TEXT,
+  batch_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS gifts (
+  user_id TEXT PRIMARY KEY,
+  expires_day TEXT NOT NULL,
+  source TEXT NOT NULL,
+  code TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL
+);`;
+
+export const OPS_SQL = `CREATE TABLE IF NOT EXISTS owner_alerts (
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (day, kind)
+);
+
+CREATE TABLE IF NOT EXISTS ai_failure_counts (
+  day TEXT PRIMARY KEY,
+  count INTEGER NOT NULL
+);`;

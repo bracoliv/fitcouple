@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fit sandbox payment</title>
+  <link rel="stylesheet" href="src/web/admin.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Sandbox payment</h1>
+    <p>No card is charged. This only marks a test order as paid.</p>
+    <button type="button" id="pay">Mark test order paid</button>
+    <p id="msg"></p>
+  </main>
+  <script src="config.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    document.getElementById("pay").addEventListener("click", async function () {
+      const base = (window.FIT_GAME_CONFIG && window.FIT_GAME_CONFIG.workerUrl) || "http://127.0.0.1:8787";
+      const msg = document.getElementById("msg");
+      try {
+        const res = await fetch(base.replace(/\/$/, "") + "/v1/store/sandbox-complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: params.get("order") || "", proof: params.get("proof") || "" })
+        });
+        const data = await res.json();
+        msg.textContent = res.ok ? "Test payment recorded. No money moved." : (data.error || "Could not record the test payment.");
+      } catch (err) {
+        msg.textContent = "Could not reach the game server.";
+      }
+    });
+  </script>
+</body>
+</html>
