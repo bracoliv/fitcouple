@@ -1,9 +1,10 @@
 import http from "node:http";
+import type { Server } from "node:http";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-const TYPES = {
+const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -13,7 +14,7 @@ const TYPES = {
   ".webmanifest": "application/manifest+json",
 };
 
-export function startStatic(rootDir, port) {
+export function startStatic(rootDir: string, port: number): Promise<Server> {
   const root = path.resolve(rootDir);
   const server = http.createServer(async (req, res) => {
     try {

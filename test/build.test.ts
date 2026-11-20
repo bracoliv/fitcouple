@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 test("publish build minifies and obfuscates the front end", () => {
-  const built = spawnSync(process.execPath, ["scripts/build.mjs"], { encoding: "utf8" });
+  const built = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/build.ts"], { encoding: "utf8" });
   assert.equal(built.status, 0, built.stderr || built.stdout);
   const play = readFileSync("dist/play.js", "utf8");
   const admin = readFileSync("dist/admin.js", "utf8");
@@ -31,7 +31,7 @@ test("publish build minifies and obfuscates the front end", () => {
 });
 
 test("a shop build keeps the Shop tab in the player bundle", () => {
-  const on = spawnSync(process.execPath, ["scripts/build.mjs"], {
+  const on = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/build.ts"], {
     encoding: "utf8",
     env: { ...process.env, STORE_ENABLED: "true" },
   });
@@ -39,7 +39,7 @@ test("a shop build keeps the Shop tab in the player bundle", () => {
   assert.equal(readFileSync("dist/shop-build.txt", "utf8"), "on");
   assert.equal(existsSync("dist/shop-terms.html"), true);
   assert.equal(readFileSync("dist/shop-terms.html", "utf8").includes("play.css"), true);
-  const off = spawnSync(process.execPath, ["scripts/build.mjs"], {
+  const off = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/build.ts"], {
     encoding: "utf8",
     env: { ...process.env, STORE_ENABLED: "false", GOOGLE_API_KEY: "shared-test-key", GEMINI_API_KEY: "shared-test-key" },
   });

@@ -4,8 +4,15 @@ import path from "node:path";
 import { build } from "vite";
 import esbuild from "esbuild";
 import obfuscatorModule from "javascript-obfuscator";
+import type { Plugin } from "vite";
 
-const JavaScriptObfuscator = obfuscatorModule.obfuscate ? obfuscatorModule : obfuscatorModule.default;
+interface BundleExtra {
+  define?: Record<string, string>;
+  plugins?: Plugin[];
+  guard?: (source: string) => void;
+  plain?: boolean;
+}
+
 const root = path.resolve(import.meta.dirname, "..");
 const dist = path.join(root, "dist");
 
@@ -13,7 +20,7 @@ const options = {
   compact: true,
   controlFlowFlattening: false,
   deadCodeInjection: false,
-  identifierNamesGenerator: "hexadecimal",
+  identifierNamesGenerator: "hexadecimal" as const,
   renameGlobals: false,
   renameProperties: false,
   selfDefending: false,
@@ -21,11 +28,11 @@ const options = {
   splitStrings: true,
   splitStringsChunkLength: 8,
   stringArray: true,
-  stringArrayEncoding: ["base64"],
+  stringArrayEncoding: ["base64"] as ("base64" | "rc4")[],
   stringArrayThreshold: 0.8,
 };
 
-async function bundle(entry, outfile, extra = {}) {
+async function bundle(entry: string, outfile: string, extra: BundleExtra = {}): Promise<void> {
   const name = path.basename(outfile);
   await build({
     configFile: false,
@@ -50,7 +57,7 @@ async function bundle(entry, outfile, extra = {}) {
   const source = await readFile(outfile, "utf8");
   if (extra.guard) extra.guard(source);
   if (extra.plain) return;
-  await writeFile(outfile, JavaScriptObfuscator.obfuscate(source, options).getObfuscatedCode());
+  await writeFile(outfile, obfuscatorModule.obfuscate(source, options).getObfuscatedCode());
 }
 
 await rm(dist, { recursive: true, force: true });
@@ -78,7 +85,7 @@ const payOn = process.env.PREMIUM_PAYMENTS_ENABLED === "true";
 const shopPhrases = ["Add to cart", "shop-terms.html", "Pay in sandbox", "X-Age-Confirm"];
 const swap = {
   name: "feature-off",
-  enforce: "pre",
+  enforce: "pre" as const,
   resolveId(id) {
     if (!storeOn && id.endsWith("shop-ui.ts")) return path.join(root, "src/web/shop-off.ts");
     if (!payOn && id.endsWith("premium-ui.ts")) return path.join(root, "src/web/premium-off.ts");

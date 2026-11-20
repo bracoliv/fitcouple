@@ -3,7 +3,7 @@ import test from "node:test";
 import { getPlatformProxy } from "wrangler";
 import { shiftDay } from "../src/worker/brain.ts";
 import { handle, type AppEnv } from "../src/worker/http.ts";
-import { googleFixture } from "./google-fixture.mjs";
+import { googleFixture } from "./google-fixture.ts";
 
 const TEST_KEY = "test-admin-key-0123456789abcdef01";
 const CLIENT_ID = "test-client.apps.googleusercontent.com";

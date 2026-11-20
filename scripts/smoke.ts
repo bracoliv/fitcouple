@@ -4,7 +4,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const dist = path.resolve("dist");
-const types = {
+const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".css": "text/css",
@@ -33,11 +33,13 @@ const server = createServer(async (req, res) => {
   }
 });
 
-await new Promise((resolve) => server.listen(8791, "127.0.0.1", resolve));
+await new Promise<void>((resolve) => {
+  server.listen(8791, "127.0.0.1", () => resolve());
+});
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
-const failures = [];
-async function check(pathname, text) {
+const failures: string[] = [];
+async function check(pathname: string, text: string): Promise<void> {
   const response = await page.goto("http://127.0.0.1:8791" + pathname, { waitUntil: "domcontentloaded" });
   if (!response || response.status() >= 400) failures.push(pathname + " status " + (response && response.status()));
   try {

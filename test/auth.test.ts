@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clearGoogleKeyCache, legacyAccountId, plainAccountId, verifyGoogleIdToken } from "../src/worker/google-auth.ts";
-import { googleFixture } from "./google-fixture.mjs";
+import { googleFixture } from "./google-fixture.ts";
 
 const CLIENT = "test-client.apps.googleusercontent.com";
 const fx = googleFixture();

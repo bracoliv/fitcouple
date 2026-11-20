@@ -1,5 +1,5 @@
 import path from "node:path";
-import { startStatic } from "./static.mjs";
+import { startStatic } from "./static.ts";
 
 const dist = path.resolve(import.meta.dirname, "..", "dist");
 await startStatic(dist, 8790);

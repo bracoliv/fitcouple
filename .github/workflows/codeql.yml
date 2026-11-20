@@ -2,10 +2,13 @@ name: codeql
 
 on:
   push:
+    branches: [v2]
   pull_request:
+    branches: [v2]
 
 jobs:
   analyze:
+    if: github.ref_name == 'v2' || github.base_ref == 'v2'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
